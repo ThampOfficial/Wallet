@@ -190,22 +190,17 @@
     }
 
     // Bypass CORS & CORB completely using public API proxy
-    function fetchTransactionsFromSheet() {
-        const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(WEBHOOK_URL);
-        
-        fetch(proxyUrl)
+   function fetchTransactionsFromSheet() {
+        fetch(WEBURL = "https://script.google.com/macros/s/AKfycbxqx2nybmm9PW_wQAe0u0ce0B7TM7ShpzBrvv4aBdmP1txv_o1mG_odvzx5BjJ57G0/exec")
             .then(res => res.json())
             .then(data => {
-                if (data && data.contents) {
-                    const parsedData = JSON.parse(data.contents);
-                    if (parsedData && parsedData.transactions) {
-                        transactions = parsedData.transactions;
-                        renderTransactions();
-                    }
+                if (data && data.transactions) {
+                    transactions = data.transactions;
+                    renderTransactions();
                 }
             })
             .catch(err => {
-                console.log('Error fetching via proxy, using fallback:', err);
+                console.log('Error fetching:', err);
                 transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
                 renderTransactions();
             });
