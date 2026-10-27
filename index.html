@@ -3,561 +3,455 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Expense & Income Ledger</title>
+  <title>Wallet - Expense & Income Ledger</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; }
-    .tab-active { border-b-2 border-blue-600 color: #2563eb; font-weight: 600; }
+    body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .nav-tab.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+<body class="text-gray-800">
 
-  <!-- Header Section -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md">
-          <i class="fa-solid fa-wallet text-xl"></i>
-        </div>
-        <div>
-          <h1 class="font-bold text-slate-800 text-lg leading-tight">Expense & Income Ledger</h1>
-          <p class="text-xs text-slate-500" id="syncStatus">Saved in browser</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="openModal('txModal')" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3.5 py-2 rounded-xl shadow transition flex items-center gap-1.5">
-          <i class="fa-solid fa-plus text-xs"></i> <span>Add Transaction</span>
+  <!-- Navigation Bar -->
+  <header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="max-w-4xl mx-auto px-4 flex justify-between items-center h-16">
+      <h1 class="text-xl font-bold text-blue-600 flex items-center gap-2">
+        <i class="fa-solid fa-wallet"></i> Wallet Tracker
+      </h1>
+      <nav class="flex gap-6 h-full">
+        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-tab active flex items-center gap-2 px-1 text-gray-600">
+          <i class="fa-solid fa-chart-pie"></i> Dashboard
         </button>
-      </div>
+        <button onclick="switchTab('transactions')" id="tab-transactions" class="nav-tab flex items-center gap-2 px-1 text-gray-600">
+          <i class="fa-solid fa-list-check"></i> Transactions
+        </button>
+        <button onclick="switchTab('settings')" id="tab-settings" class="nav-tab flex items-center gap-2 px-1 text-gray-600">
+          <i class="fa-solid fa-gear"></i> Settings
+        </button>
+      </nav>
     </div>
-
-    <!-- Navigation Bar -->
-    <nav class="max-w-4xl mx-auto px-2 flex border-t border-slate-100 text-sm text-slate-600">
-      <button onclick="switchTab('accounts')" id="tab-accounts" class="tab-btn px-4 py-3 tab-active hover:text-blue-600 transition">Accounts</button>
-      <button onclick="switchTab('budget')" id="tab-budget" class="tab-btn px-4 py-3 hover:text-blue-600 transition">Budget</button>
-      <button onclick="switchTab('scheduled')" id="tab-scheduled" class="tab-btn px-4 py-3 hover:text-blue-600 transition">Scheduled</button>
-      <button onclick="switchTab('reports')" id="tab-reports" class="tab-btn px-4 py-3 hover:text-blue-600 transition">Reports</button>
-      <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-4 py-3 hover:text-blue-600 transition">Settings</button>
-    </nav>
   </header>
 
-  <!-- Main Content Area -->
-  <main class="max-w-4xl mx-auto w-full px-4 py-6 flex-1 space-y-6">
+  <main class="max-w-4xl mx-auto p-4 space-y-6">
 
-    <!-- ACCOUNTS TAB -->
-    <section id="view-accounts" class="tab-content space-y-6">
-      <!-- Total Summary Card -->
-      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-2xl shadow-lg flex justify-between items-center">
-        <div>
-          <span class="text-xs uppercase tracking-wider text-blue-100 font-semibold">Total Net Balance</span>
-          <div class="text-3xl font-extrabold mt-1" id="totalNetBalance">$0.00</div>
+    <!-- 1. DASHBOARD TAB -->
+    <section id="page-dashboard" class="space-y-6">
+      <!-- Balance Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Income</span>
+          <p id="total-income" class="text-2xl font-bold text-green-600 mt-1">$0.00 CAD</p>
         </div>
-        <button onclick="openModal('accountModal')" class="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs px-3 py-2 rounded-lg transition flex items-center gap-1">
-          <i class="fa-solid fa-plus"></i> Add Account
-        </button>
-      </div>
-
-      <!-- Accounts List -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
-          <h2 class="font-bold text-slate-800">Your Accounts</h2>
-          <span class="text-xs text-slate-400" id="accountCount">0 Accounts</span>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Expense</span>
+          <p id="total-expense" class="text-2xl font-bold text-red-600 mt-1">$0.00 CAD</p>
         </div>
-        <div id="accountsList" class="divide-y divide-slate-100">
-          <!-- Injected dynamically -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Net Balance</span>
+          <p id="net-balance" class="text-2xl font-bold text-blue-600 mt-1">$0.00 CAD</p>
         </div>
       </div>
 
-      <!-- Transactions History -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
-          <h2 class="font-bold text-slate-800">Recent Transactions</h2>
-        </div>
+      <!-- Quick Add Transaction Form -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-700">
+          <i class="fa-solid fa-circle-plus text-blue-600"></i> Add New Transaction
+        </h2>
+        <form id="add-tx-form" onsubmit="handleAddTransaction(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Date</label>
+            <input type="date" id="tx-date" required class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Account</label>
+            <select id="tx-account" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="Scotia POM">Scotia POM</option>
+              <option value="Momentum master">Momentum master</option>
+              <option value="Momentum Visa">Momentum Visa</option>
+              <option value="Cash">Cash</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+            <select id="tx-kind" onchange="updateCategoryDropdowns()" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="Expense">Expense</option>
+              <option value="Income">Income</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <select id="tx-category" onchange="updateSubCategoryDropdown()" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Sub-Category</label>
+            <select id="tx-subcat" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Amount (CAD)</label>
+            <input type="number" step="0.01" id="tx-amount" placeholder="0.00" required class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Description / Note</label>
+            <input type="text" id="tx-desc" placeholder="e.g. Groceries at Superstore" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div class="md:col-span-2 flex justify-end">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
+              <i class="fa-solid fa-check"></i> Save Record
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2. TRANSACTIONS TAB -->
+    <section id="page-transactions" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold mb-4 text-gray-700">Recent Transactions</h2>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse text-sm">
             <thead>
-              <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-100">
-                <th class="p-3.5 pl-5">Date</th>
-                <th class="p-3.5">Account</th>
-                <th class="p-3.5">Category</th>
-                <th class="p-3.5">Description</th>
-                <th class="p-3.5 text-right pr-5">Amount</th>
-                <th class="p-3.5 text-center">Action</th>
+              <tr class="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                <th class="p-3">Date</th>
+                <th class="p-3">Account</th>
+                <th class="p-3">Category</th>
+                <th class="p-3">Sub-Category</th>
+                <th class="p-3">Description</th>
+                <th class="p-3 text-right">Amount</th>
               </tr>
             </thead>
-            <tbody id="txTableBody" class="divide-y divide-slate-100">
-              <!-- Injected dynamically -->
+            <tbody id="tx-table-body" class="divide-y">
             </tbody>
           </table>
         </div>
       </div>
     </section>
 
-    <!-- BUDGET TAB -->
-    <section id="view-budget" class="tab-content hidden space-y-6">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="font-bold text-slate-800">Monthly Category Budget</h2>
-          <button onclick="openModal('categoryModal')" class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg font-medium transition">
-            + Add Category
+    <!-- 3. SETTINGS TAB -->
+    <section id="page-settings" class="hidden space-y-6">
+
+      <!-- Google Sheets Webhook Configuration -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-gray-700">
+          <i class="fa-solid fa-link text-blue-600"></i> Google Sheets Webhook Integration
+        </h2>
+        <p class="text-xs text-gray-500 mb-4">Paste your Google Apps Script Web App URL below to automatically sync new records.</p>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Google Apps Script Webhook URL</label>
+            <input type="url" id="webhook-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <button onclick="saveWebhookSettings()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+            Save Webhook URL
           </button>
         </div>
-        <div id="budgetList" class="space-y-4">
-          <!-- Injected dynamically -->
-        </div>
       </div>
-    </section>
 
-    <!-- SCHEDULED TAB -->
-    <section id="view-scheduled" class="tab-content hidden space-y-6">
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <div class="flex justify-between items-center">
-          <h2 class="font-bold text-slate-800">Recurring Payments & Bills</h2>
-          <button onclick="openModal('scheduledModal')" class="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 rounded-lg font-medium transition">
-            + Add Scheduled Item
-          </button>
-        </div>
-        <div id="scheduledList" class="divide-y divide-slate-100">
-          <!-- Injected dynamically -->
-        </div>
-      </div>
-    </section>
+      <!-- Categories & Sub-Categories Manager -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
+        <h2 class="text-lg font-bold flex items-center gap-2 text-gray-700">
+          <i class="fa-solid fa-layer-group text-blue-600"></i> Manage Categories & Sub-Categories
+        </h2>
 
-    <!-- REPORTS TAB -->
-    <section id="view-reports" class="tab-content hidden space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 class="font-bold text-slate-800 mb-4">Expenses by Category</h3>
-          <canvas id="categoryChart" class="max-h-64"></canvas>
+        <!-- Add Category Form -->
+        <div class="bg-gray-50 p-4 rounded-lg border space-y-3">
+          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Main Category</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="text" id="new-cat-name" placeholder="Category Name (e.g. Health)" class="p-2 border rounded-lg text-sm outline-none">
+            <select id="new-cat-type" class="p-2 border rounded-lg text-sm outline-none">
+              <option value="Expense">Expense</option>
+              <option value="Income">Income</option>
+            </select>
+            <button onclick="handleAddCategory()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+              + Add Main Category
+            </button>
+          </div>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 class="font-bold text-slate-800 mb-4">Income vs Expense</h3>
-          <canvas id="incomeExpenseChart" class="max-h-64"></canvas>
-        </div>
-      </div>
-    </section>
 
-    <!-- SETTINGS TAB -->
-    <section id="view-settings" class="tab-content hidden space-y-6">
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        <!-- Add Sub-Category Form -->
+        <div class="bg-gray-50 p-4 rounded-lg border space-y-3">
+          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Sub-Category</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select id="parent-cat-select" class="p-2 border rounded-lg text-sm outline-none">
+            </select>
+            <input type="text" id="new-subcat-name" placeholder="Sub-category Name (e.g. Pharmacy)" class="p-2 border rounded-lg text-sm outline-none">
+            <button onclick="handleAddSubCategory()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+              + Add Sub-Category
+            </button>
+          </div>
+        </div>
+
+        <!-- Categories Display List -->
         <div>
-          <h2 class="font-bold text-slate-800 text-base">Google Apps Script / Webhook Sync</h2>
-          <p class="text-xs text-slate-500 mt-1">Configure your Web App URL to automatically sync transaction data with Google Sheets or Google Drive.</p>
-        </div>
-        <div class="space-y-3">
-          <label class="block text-xs font-semibold text-slate-700">Google Apps Script Web App URL</label>
-          <input type="url" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div class="flex gap-3">
-          <button onclick="saveWebhookSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm px-4 py-2.5 rounded-xl transition">Save Settings</button>
-          <button onclick="testWebhook()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm px-4 py-2.5 rounded-xl transition">Test Connection</button>
-        </div>
-        <hr class="border-slate-100">
-        <div class="space-y-3">
-          <h3 class="font-bold text-slate-800 text-sm">Backup & Restore</h3>
-          <div class="flex gap-3">
-            <button onclick="exportData()" class="bg-slate-800 text-white text-xs px-4 py-2.5 rounded-xl hover:bg-slate-900 transition">Export JSON</button>
-            <label class="bg-slate-200 text-slate-700 text-xs px-4 py-2.5 rounded-xl hover:bg-slate-300 cursor-pointer transition">
-              Import JSON
-              <input type="file" id="importFile" accept=".json" onchange="importData(event)" class="hidden">
-            </label>
+          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3">Existing Categories</h3>
+          <div id="category-list-container" class="space-y-3">
           </div>
         </div>
       </div>
+
     </section>
 
   </main>
 
-  <!-- TRANSACTION MODAL -->
-  <div id="txModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="font-bold text-slate-800" id="txModalTitle">Add Transaction</h3>
-        <button onclick="closeModal('txModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <form id="txForm" onsubmit="saveTransaction(event)" class="space-y-4">
-        <input type="hidden" id="txId">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
-            <select id="txType" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Amount ($)</label>
-            <input type="number" step="0.01" id="txAmount" required class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Account</label>
-            <select id="txAccount" required class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Category</label>
-            <select id="txCategory" required class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select>
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
-          <input type="date" id="txDate" required class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
-          <input type="text" id="txDesc" placeholder="e.g. Weekly Groceries" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <button type="button" onclick="closeModal('txModal')" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
-          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ACCOUNT MODAL -->
-  <div id="accountModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="font-bold text-slate-800">Add Account</h3>
-        <button onclick="closeModal('accountModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <form onsubmit="saveAccount(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Account Name</label>
-          <input type="text" id="accName" required placeholder="e.g. Cash Wallet, Checking" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Initial Balance ($)</label>
-          <input type="number" step="0.01" id="accBalance" required value="0.00" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <button type="button" onclick="closeModal('accountModal')" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
-          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- CATEGORY MODAL -->
-  <div id="categoryModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 class="font-bold text-slate-800">Add Category</h3>
-        <button onclick="closeModal('categoryModal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <form onsubmit="saveCategory(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Category Name</label>
-          <input type="text" id="catName" required placeholder="e.g. Dining Out" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-600 mb-1">Monthly Budget Limit ($)</label>
-          <input type="number" step="0.01" id="catBudget" required value="500.00" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-        </div>
-        <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <button type="button" onclick="closeModal('categoryModal')" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Cancel</button>
-          <button type="submit" class="px-4 py-2 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- JavaScript Logic -->
   <script>
-    // State Initialization
-    let state = JSON.parse(localStorage.getItem('ledger_data')) || {
-      accounts: [
-        { id: 1, name: 'Cash Wallet', balance: 500.00 },
-        { id: 2, name: 'Bank Account', balance: 2500.00 }
-      ],
-      categories: [
-        { id: 1, name: 'Food & Dining', budget: 400.00 },
-        { id: 2, name: 'Transportation', budget: 200.00 },
-        { id: 3, name: 'Housing & Utilities', budget: 800.00 },
-        { id: 4, name: 'Entertainment', budget: 150.00 },
-        { id: 5, name: 'Salary', budget: 0.00 }
-      ],
-      transactions: [
-        { id: 101, date: new Date().toISOString().split('T')[0], type: 'income', accountId: 2, category: 'Salary', desc: 'Monthly Salary', amount: 3000.00 },
-        { id: 102, date: new Date().toISOString().split('T')[0], type: 'expense', accountId: 1, category: 'Food & Dining', desc: 'Supermarket Groceries', amount: 85.50 }
-      ],
-      webhookUrl: ''
-    };
+    // Initial Default Categories Schema
+    const defaultCategories = [
+      { id: '1', name: 'Groceries', type: 'Expense', subcats: ['Supermarket', 'Fruits', 'Snacks'] },
+      { id: '2', name: 'Restaurants', type: 'Expense', subcats: ['Dining Out', 'Coffee', 'Fast Food'] },
+      { id: '3', name: 'Utilities', type: 'Expense', subcats: ['Electricity', 'Internet', 'Mobile'] },
+      { id: '4', name: 'Wellness', type: 'Expense', subcats: ['Health & Fitness', 'Doctor', 'Pharmacy'] },
+      { id: '5', name: 'Salary', type: 'Income', subcats: ['Regular Job', 'Bonus'] },
+      { id: '6', name: 'Other Income', type: 'Income', subcats: ['Refund / Cashback', 'Gifts'] }
+    ];
 
-    let catChart = null;
-    let incExpChart = null;
+    let categories = JSON.parse(localStorage.getItem('wallet_categories')) || defaultCategories;
+    let transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
 
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('webhookUrl').value = state.webhookUrl || '';
-      document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
-      renderAll();
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById('tx-date').valueAsDate = new Date();
+      loadWebhookSettings();
+      updateCategoryDropdowns();
+      renderCategorySettings();
+      renderTransactions();
+      updateSummary();
     });
 
-    function saveState() {
-      localStorage.setItem('ledger_data', JSON.stringify(state));
-      renderAll();
-      syncWithWebhook();
-    }
-
     function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('tab-active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-
-      document.getElementById(`tab-${tab}`).classList.add('tab-active');
-      document.getElementById(`view-${tab}`).classList.remove('hidden');
-
-      if (tab === 'reports') renderCharts();
+      ['dashboard', 'transactions', 'settings'].forEach(t => {
+        document.getElementById(`page-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('active');
+      });
+      document.getElementById(`page-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).classList.add('active');
     }
 
-    function openModal(id) {
-      if (id === 'txModal') populateTxOptions();
-      document.getElementById(id).classList.remove('hidden');
-      document.getElementById(id).classList.add('flex');
+    function saveCategories() {
+      localStorage.setItem('wallet_categories', JSON.stringify(categories));
+      updateCategoryDropdowns();
+      renderCategorySettings();
     }
 
-    function closeModal(id) {
-      document.getElementById(id).classList.add('hidden');
-      document.getElementById(id).classList.remove('flex');
-    }
+    function updateCategoryDropdowns() {
+      const type = document.getElementById('tx-kind').value;
+      const catSelect = document.getElementById('tx-category');
+      catSelect.innerHTML = '';
 
-    function populateTxOptions() {
-      const accSelect = document.getElementById('txAccount');
-      const catSelect = document.getElementById('txCategory');
-
-      accSelect.innerHTML = state.accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-      catSelect.innerHTML = state.categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-    }
-
-    function saveAccount(e) {
-      e.preventDefault();
-      const name = document.getElementById('accName').value.trim();
-      const balance = parseFloat(document.getElementById('accBalance').value) || 0;
-
-      state.accounts.push({ id: Date.now(), name, balance });
-      closeModal('accountModal');
-      document.getElementById('accName').value = '';
-      saveState();
-    }
-
-    function saveCategory(e) {
-      e.preventDefault();
-      const name = document.getElementById('catName').value.trim();
-      const budget = parseFloat(document.getElementById('catBudget').value) || 0;
-
-      state.categories.push({ id: Date.now(), name, budget });
-      closeModal('categoryModal');
-      document.getElementById('catName').value = '';
-      saveState();
-    }
-
-    function saveTransaction(e) {
-      e.preventDefault();
-      const type = document.getElementById('txType').value;
-      const amount = parseFloat(document.getElementById('txAmount').value);
-      const accountId = parseInt(document.getElementById('txAccount').value);
-      const category = document.getElementById('txCategory').value;
-      const date = document.getElementById('txDate').value;
-      const desc = document.getElementById('txDesc').value.trim();
-
-      state.transactions.unshift({
-        id: Date.now(),
-        date,
-        type,
-        accountId,
-        category,
-        desc,
-        amount
+      const filtered = categories.filter(c => c.type === type);
+      filtered.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        catSelect.appendChild(opt);
       });
 
-      closeModal('txModal');
-      document.getElementById('txAmount').value = '';
-      document.getElementById('txDesc').value = '';
-      saveState();
-    }
+      updateSubCategoryDropdown();
 
-    function deleteTx(id) {
-      state.transactions = state.transactions.filter(t => t.id !== id);
-      saveState();
-    }
-
-    function renderAll() {
-      // Calculate Total Net Balance
-      let total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
-      state.transactions.forEach(t => {
-        if (t.type === 'income') total += t.amount;
-        if (t.type === 'expense') total -= t.amount;
-      });
-      document.getElementById('totalNetBalance').textContent = `$${total.toFixed(2)}`;
-      document.getElementById('accountCount').textContent = `${state.accounts.length} Accounts`;
-
-      // Render Accounts
-      const accList = document.getElementById('accountsList');
-      accList.innerHTML = state.accounts.map(a => {
-        let accBalance = a.balance;
-        state.transactions.filter(t => t.accountId === a.id).forEach(t => {
-          if (t.type === 'income') accBalance += t.amount;
-          if (t.type === 'expense') accBalance -= t.amount;
+      // Parent select for setting subcategory
+      const parentSelect = document.getElementById('parent-cat-select');
+      if (parentSelect) {
+        parentSelect.innerHTML = '';
+        categories.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.name} (${c.type})`;
+          parentSelect.appendChild(opt);
         });
-
-        return `
-          <div class="p-4 flex justify-between items-center hover:bg-slate-50 transition">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                <i class="fa-solid fa-building-columns"></i>
-              </div>
-              <div>
-                <p class="font-semibold text-slate-800">${a.name}</p>
-                <p class="text-xs text-slate-400">Initial: $${a.balance.toFixed(2)}</p>
-              </div>
-            </div>
-            <span class="font-bold text-slate-800">$${accBalance.toFixed(2)}</span>
-          </div>
-        `;
-      }).join('');
-
-      // Render Recent Transactions
-      const txBody = document.getElementById('txTableBody');
-      txBody.innerHTML = state.transactions.map(t => {
-        const acc = state.accounts.find(a => a.id === t.accountId);
-        return `
-          <tr class="hover:bg-slate-50 transition">
-            <td class="p-3.5 pl-5 text-slate-500">${t.date}</td>
-            <td class="p-3.5 font-medium text-slate-700">${acc ? acc.name : 'Unknown'}</td>
-            <td class="p-3.5 text-slate-600">${t.category}</td>
-            <td class="p-3.5 text-slate-600">${t.desc || '-'}</td>
-            <td class="p-3.5 text-right pr-5 font-semibold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}">
-              ${t.type === 'income' ? '+' : '-'}$${t.amount.toFixed(2)}
-            </td>
-            <td class="p-3.5 text-center">
-              <button onclick="deleteTx(${t.id})" class="text-slate-400 hover:text-rose-600 transition"><i class="fa-solid fa-trash"></i></button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      // Render Budgets
-      const bList = document.getElementById('budgetList');
-      bList.innerHTML = state.categories.filter(c => c.budget > 0).map(c => {
-        const spent = state.transactions
-          .filter(t => t.type === 'expense' && t.category === c.name)
-          .reduce((sum, t) => sum + t.amount, 0);
-        const percent = Math.min(Math.round((spent / c.budget) * 100), 100);
-
-        return `
-          <div class="space-y-1.5">
-            <div class="flex justify-between text-xs font-semibold">
-              <span class="text-slate-700">${c.name}</span>
-              <span class="text-slate-500">$${spent.toFixed(2)} / $${c.budget.toFixed(2)}</span>
-            </div>
-            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${percent}%"></div>
-            </div>
-          </div>
-        `;
-      }).join('');
+      }
     }
 
-    function renderCharts() {
-      const categoryTotals = {};
-      let totalInc = 0;
-      let totalExp = 0;
+    function updateSubCategoryDropdown() {
+      const catName = document.getElementById('tx-category').value;
+      const subSelect = document.getElementById('tx-subcat');
+      subSelect.innerHTML = '';
 
-      state.transactions.forEach(t => {
-        if (t.type === 'expense') {
-          categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
-          totalExp += t.amount;
+      const catObj = categories.find(c => c.name === catName);
+      if (catObj && catObj.subcats.length > 0) {
+        catObj.subcats.forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.textContent = sub;
+          subSelect.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = '-';
+        opt.textContent = 'None';
+        subSelect.appendChild(opt);
+      }
+    }
+
+    function handleAddCategory() {
+      const name = document.getElementById('new-cat-name').value.trim();
+      const type = document.getElementById('new-cat-type').value;
+
+      if (!name) return alert('Please enter category name');
+
+      categories.push({
+        id: Date.now().toString(),
+        name: name,
+        type: type,
+        subcats: []
+      });
+
+      document.getElementById('new-cat-name').value = '';
+      saveCategories();
+    }
+
+    function handleAddSubCategory() {
+      const parentId = document.getElementById('parent-cat-select').value;
+      const subName = document.getElementById('new-subcat-name').value.trim();
+
+      if (!subName) return alert('Please enter sub-category name');
+
+      const parentObj = categories.find(c => c.id === parentId);
+      if (parentObj) {
+        if (!parentObj.subcats.includes(subName)) {
+          parentObj.subcats.push(subName);
+          document.getElementById('new-subcat-name').value = '';
+          saveCategories();
         } else {
-          totalInc += t.amount;
+          alert('Sub-category already exists');
         }
+      }
+    }
+
+    function deleteCategory(catId) {
+      if (confirm('Are you sure you want to delete this category?')) {
+        categories = categories.filter(c => c.id !== catId);
+        saveCategories();
+      }
+    }
+
+    function deleteSubCategory(catId, subName) {
+      const catObj = categories.find(c => c.id === catId);
+      if (catObj) {
+        catObj.subcats = catObj.subcats.filter(s => s !== subName);
+        saveCategories();
+      }
+    }
+
+    function renderCategorySettings() {
+      const container = document.getElementById('category-list-container');
+      container.innerHTML = '';
+
+      categories.forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'border rounded-lg p-3 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm';
+        
+        const badgeColor = cat.type === 'Income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+        
+        let subHtml = cat.subcats.map(sub => `
+          <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-full">
+            ${sub}
+            <button onclick="deleteSubCategory('${cat.id}', '${sub}')" class="text-gray-400 hover:text-red-500 ml-1">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </span>
+        `).join('');
+
+        div.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-gray-800">${cat.name}</span>
+              <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${badgeColor}">${cat.type}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              ${subHtml || '<span class="text-xs text-gray-400 italic">No sub-categories</span>'}
+            </div>
+          </div>
+          <div>
+            <button onclick="deleteCategory('${cat.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition">
+              <i class="fa-solid fa-trash"></i> Delete
+            </button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function handleAddTransaction(e) {
+      e.preventDefault();
+      const tx = {
+        id: Date.now().toString(),
+        d: document.getElementById('tx-date').value,
+        a: document.getElementById('tx-account').value,
+        kind: document.getElementById('tx-kind').value,
+        cat: document.getElementById('tx-category').value,
+        subcat: document.getElementById('tx-subcat').value,
+        amt: parseFloat(document.getElementById('tx-amount').value),
+        desc: document.getElementById('tx-desc').value,
+        cur: 'CAD'
+      };
+
+      transactions.unshift(tx);
+      localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+
+      renderTransactions();
+      updateSummary();
+      syncToGoogleSheet(tx);
+
+      document.getElementById('add-tx-form').reset();
+      document.getElementById('tx-date').valueAsDate = new Date();
+      updateCategoryDropdowns();
+      alert('Transaction saved!');
+    }
+
+    function renderTransactions() {
+      const tbody = document.getElementById('tx-table-body');
+      tbody.innerHTML = '';
+
+      transactions.slice(0, 50).forEach(t => {
+        const tr = document.createElement('tr');
+        const amtColor = t.kind === 'Income' ? 'text-green-600 font-semibold' : 'text-gray-800';
+        const sign = t.kind === 'Income' ? '+' : '-';
+
+        tr.innerHTML = `
+          <td class="p-3 text-xs text-gray-500">${t.d}</td>
+          <td class="p-3 text-xs font-medium">${t.a}</td>
+          <td class="p-3 text-xs">${t.cat || '-'}</td>
+          <td class="p-3 text-xs text-gray-500">${t.subcat || '-'}</td>
+          <td class="p-3 text-xs text-gray-600">${t.desc || '-'}</td>
+          <td class="p-3 text-xs text-right ${amtColor}">${sign}$${t.amt.toFixed(2)} ${t.cur}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateSummary() {
+      let income = 0, expense = 0;
+      transactions.forEach(t => {
+        if (t.kind === 'Income') income += t.amt;
+        else expense += t.amt;
       });
 
-      const ctxCat = document.getElementById('categoryChart').getContext('2d');
-      if (catChart) catChart.destroy();
-      catChart = new Chart(ctxCat, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(categoryTotals),
-          datasets: [{
-            data: Object.values(categoryTotals),
-            backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#64748b']
-          }]
-        }
-      });
-
-      const ctxInc = document.getElementById('incomeExpenseChart').getContext('2d');
-      if (incExpChart) incExpChart.destroy();
-      incExpChart = new Chart(ctxInc, {
-        type: 'bar',
-        data: {
-          labels: ['Financial Overview'],
-          datasets: [
-            { label: 'Income', data: [totalInc], backgroundColor: '#10b981' },
-            { label: 'Expense', data: [totalExp], backgroundColor: '#ef4444' }
-          ]
-        },
-        options: { responsive: true }
-      });
+      document.getElementById('total-income').textContent = `$${income.toFixed(2)} CAD`;
+      document.getElementById('total-expense').textContent = `$${expense.toFixed(2)} CAD`;
+      document.getElementById('net-balance').textContent = `$${(income - expense).toFixed(2)} CAD`;
     }
 
     function saveWebhookSettings() {
-      state.webhookUrl = document.getElementById('webhookUrl').value.trim();
-      saveState();
+      const url = document.getElementById('webhook-url').value.trim();
+      localStorage.setItem('wallet_webhook_url', url);
       alert('Webhook URL saved successfully!');
     }
 
-    async function syncWithWebhook() {
-      if (!state.webhookUrl) return;
-      document.getElementById('syncStatus').textContent = 'Saving to Drive...';
-
-      try {
-        await fetch(state.webhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(state)
-        });
-        document.getElementById('syncStatus').textContent = 'Synced with Google Drive';
-      } catch (err) {
-        document.getElementById('syncStatus').textContent = 'Save failed';
-      }
+    function loadWebhookSettings() {
+      const url = localStorage.getItem('wallet_webhook_url') || '';
+      document.getElementById('webhook-url').value = url;
     }
 
-    function testWebhook() {
-      if (!state.webhookUrl) {
-        alert('Please enter a Webhook URL first.');
-        return;
-      }
-      syncWithWebhook();
-      alert('Sync signal sent to Webhook endpoint.');
-    }
+    function syncToGoogleSheet(tx) {
+      const url = localStorage.getItem('wallet_webhook_url');
+      if (!url) return;
 
-    function exportData() {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", "ledger_backup.json");
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    }
-
-    function importData(event) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          state = JSON.parse(e.target.result);
-          saveState();
-          alert('Data imported successfully!');
-        } catch (err) {
-          alert('Invalid JSON file format.');
-        }
-      };
-      reader.readAsText(event.target.files[0]);
+      fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add_tx', tx: tx })
+      }).catch(err => console.error('Sync Error:', err));
     }
   </script>
 </body>
