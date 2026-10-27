@@ -62,7 +62,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="dashboard-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions...</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions from Google Sheet...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -137,7 +137,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="full-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions...</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions from Google Sheet...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -189,21 +189,22 @@
         if(tabId === 'dashboard' || tabId === 'accounts') fetchTransactionsFromSheet();
     }
 
+    // JSONP Fetcher to bypass CORS and 302 redirects entirely
     function fetchTransactionsFromSheet() {
-        // Use JSONP-like approach or standard fetch with redirect handling
-        fetch(WEBHOOK_URL)
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.transactions) {
-                    transactions = data.transactions;
-                    renderTransactions();
-                }
-            })
-            .catch(err => {
-                console.log('Using local fallback due to CORS/Network:', err);
-                transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
-                renderTransactions();
-            });
+        const oldScript = document.getElementById('jsonp-script');
+        if (oldScript) oldScript.remove();
+
+        const script = document.createElement('script');
+        script.id = 'jsonp-script';
+        script.src = WEBHOOK_URL + '?callback=handleSheetData';
+        document.body.appendChild(script);
+    }
+
+    function handleSheetData(data) {
+        if (data && data.transactions) {
+            transactions = data.transactions;
+            renderTransactions();
+        }
     }
 
     function updateCategoryDropdowns() {
@@ -240,7 +241,7 @@
         const tx = {
             d: document.getElementById('tx-date').value,
             a: document.getElementById('tx-account').value,
-            kind: document.getElementById('tx-kind').value,
+            kind: document.getElementById('tx-kind', 'Expense').value || 'Expense',
             cat: document.getElementById('tx-cat').value,
             subcat: document.getElementById('tx-subcat').value,
             amt: parseFloat(document.getElementById('tx-amt').value),
@@ -249,7 +250,6 @@
         };
 
         transactions.unshift(tx);
-        localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
 
         fetch(WEBHOOK_URL, {
             method: 'POST',
