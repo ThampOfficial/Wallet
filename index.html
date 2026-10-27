@@ -1,458 +1,408 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wallet - Expense & Income Ledger</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    body { background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .nav-tab.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet PWA</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 70px; }
+        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Navigation Bar */
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); border-top: 1px var(--border) solid; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
+        .nav-item { text-align: center; color: var(--text-muted); text-decoration: none; font-size: 12px; cursor: pointer; flex: 1; }
+        .nav-item.active { color: var(--primary); font-weight: bold; }
+        .nav-item svg { width: 24px; height: 24px; display: block; margin: 0 auto 2px; fill: currentColor; }
+
+        /* Cards & UI */
+        .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
+        h2 { font-size: 20px; margin-bottom: 12px; color: var(--text-main); }
+        h3 { font-size: 16px; margin-bottom: 8px; color: var(--text-muted); }
+        
+        /* Form elements */
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: var(--text-muted); }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; background: #fff; }
+        button { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; font-weight: bold; cursor: pointer; }
+        button:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #6b7280; }
+        
+        /* Tables & Lists */
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+        th { color: var(--text-muted); font-weight: 600; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .badge-expense { background: #fee2e2; color: #991b1b; }
+        .badge-income { background: #d1fae5; color: #065f46; }
+        
+        .flex-row { display: flex; gap: 8px; }
+        .flex-row > * { flex: 1; }
+    </style>
 </head>
-<body class="text-gray-800">
+<body>
 
-  <!-- Navigation Bar -->
-  <header class="bg-white shadow-sm sticky top-0 z-50">
-    <div class="max-w-4xl mx-auto px-4 flex justify-between items-center h-16">
-      <h1 class="text-xl font-bold text-blue-600 flex items-center gap-2">
-        <i class="fa-solid fa-wallet"></i> Wallet Tracker
-      </h1>
-      <nav class="flex gap-6 h-full">
-        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-tab active flex items-center gap-2 px-1 text-gray-600">
-          <i class="fa-solid fa-chart-pie"></i> Dashboard
-        </button>
-        <button onclick="switchTab('transactions')" id="tab-transactions" class="nav-tab flex items-center gap-2 px-1 text-gray-600">
-          <i class="fa-solid fa-list-check"></i> Transactions
-        </button>
-        <button onclick="switchTab('settings')" id="tab-settings" class="nav-tab flex items-center gap-2 px-1 text-gray-600">
-          <i class="fa-solid fa-gear"></i> Settings
-        </button>
-      </nav>
+<div class="container">
+    <!-- DASHBOARD TAB -->
+    <div id="tab-dashboard" class="tab-content active">
+        <h2>Dashboard</h2>
+        <div class="card" style="text-align: center;">
+            <h3>Total Balance</h3>
+            <h1 id="total-balance" style="font-size: 32px; margin: 8px 0; color: var(--primary);">$0.00</h1>
+        </div>
+        <div class="card">
+            <h3>Recent Transactions</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
+                    </thead>
+                    <tbody id="dashboard-tx-list">
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-  </header>
 
-  <main class="max-w-4xl mx-auto p-4 space-y-6">
-
-    <!-- 1. DASHBOARD TAB -->
-    <section id="page-dashboard" class="space-y-6">
-      <!-- Balance Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Income</span>
-          <p id="total-income" class="text-2xl font-bold text-green-600 mt-1">$0.00 CAD</p>
+    <!-- ADD TRANSACTION TAB -->
+    <div id="tab-add" class="tab-content">
+        <h2>Add Transaction</h2>
+        <div class="card">
+            <form id="tx-form" onsubmit="handleFormSubmit(event)">
+                <div class="flex-row form-group">
+                    <div>
+                        <label>Type</label>
+                        <select id="tx-kind" onchange="updateCategoryDropdowns()">
+                            <option value="Expense">Expense</option>
+                            <option value="Income">Income</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Date</label>
+                        <input type="date" id="tx-date" required>
+                    </div>
+                </div>
+                <div class="flex-row form-group">
+                    <div>
+                        <label>Account</label>
+                        <select id="tx-account">
+                            <option value="Scotia POM">Scotia POM</option>
+                            <option value="Momentum master">Momentum master</option>
+                            <option value="Momentum Visa">Momentum Visa</option>
+                            <option value="WealthSimple">WealthSimple</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Currency</label>
+                        <select id="tx-cur">
+                            <option value="CAD">CAD</option>
+                            <option value="THB">THB</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Main Category</label>
+                    <select id="tx-cat" onchange="updateSubCategoryDropdowns()"></select>
+                </div>
+                <div class="form-group">
+                    <label>Sub-Category</label>
+                    <select id="tx-subcat"></select>
+                </div>
+                <div class="flex-row form-group">
+                    <div>
+                        <label>Amount</label>
+                        <input type="number" step="0.01" id="tx-amt" placeholder="0.00" required>
+                    </div>
+                    <div>
+                        <label>Payee / Description</label>
+                        <input type="text" id="tx-desc" placeholder="Note or Payee">
+                    </div>
+                </div>
+                <button type="submit">Save Transaction</button>
+            </form>
         </div>
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Expense</span>
-          <p id="total-expense" class="text-2xl font-bold text-red-600 mt-1">$0.00 CAD</p>
+    </div>
+
+    <!-- ACCOUNTS TAB -->
+    <div id="tab-accounts" class="tab-content">
+        <h2>Accounts & History</h2>
+        <div class="card">
+            <h3>All Transactions</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
+                    </thead>
+                    <tbody id="full-tx-list">
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions recorded</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Net Balance</span>
-          <p id="net-balance" class="text-2xl font-bold text-blue-600 mt-1">$0.00 CAD</p>
-        </div>
-      </div>
+    </div>
 
-      <!-- Quick Add Transaction Form -->
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-gray-700">
-          <i class="fa-solid fa-circle-plus text-blue-600"></i> Add New Transaction
-        </h2>
-        <form id="add-tx-form" onsubmit="handleAddTransaction(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Date</label>
-            <input type="date" id="tx-date" required class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Account</label>
-            <select id="tx-account" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="Scotia POM">Scotia POM</option>
-              <option value="Momentum master">Momentum master</option>
-              <option value="Momentum Visa">Momentum Visa</option>
-              <option value="Cash">Cash</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
-            <select id="tx-kind" onchange="updateCategoryDropdowns()" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              <option value="Expense">Expense</option>
-              <option value="Income">Income</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
-            <select id="tx-category" onchange="updateSubCategoryDropdown()" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Sub-Category</label>
-            <select id="tx-subcat" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Amount (CAD)</label>
-            <input type="number" step="0.01" id="tx-amount" placeholder="0.00" required class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Description / Note</label>
-            <input type="text" id="tx-desc" placeholder="e.g. Groceries at Superstore" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-          </div>
-          <div class="md:col-span-2 flex justify-end">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
-              <i class="fa-solid fa-check"></i> Save Record
-            </button>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <!-- 2. TRANSACTIONS TAB -->
-    <section id="page-transactions" class="hidden space-y-4">
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 class="text-lg font-bold mb-4 text-gray-700">Recent Transactions</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr class="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                <th class="p-3">Date</th>
-                <th class="p-3">Account</th>
-                <th class="p-3">Category</th>
-                <th class="p-3">Sub-Category</th>
-                <th class="p-3">Description</th>
-                <th class="p-3 text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody id="tx-table-body" class="divide-y">
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. SETTINGS TAB -->
-    <section id="page-settings" class="hidden space-y-6">
-
-      <!-- Google Sheets Webhook Configuration -->
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-gray-700">
-          <i class="fa-solid fa-link text-blue-600"></i> Google Sheets Webhook Integration
-        </h2>
-        <p class="text-xs text-gray-500 mb-4">Paste your Google Apps Script Web App URL below to automatically sync new records.</p>
-        <div class="space-y-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Google Apps Script Webhook URL</label>
-            <input type="url" id="webhook-url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-          </div>
-          <button onclick="saveWebhookSettings()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-            Save Webhook URL
-          </button>
-        </div>
-      </div>
-
-      <!-- Categories & Sub-Categories Manager -->
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
-        <h2 class="text-lg font-bold flex items-center gap-2 text-gray-700">
-          <i class="fa-solid fa-layer-group text-blue-600"></i> Manage Categories & Sub-Categories
-        </h2>
-
-        <!-- Add Category Form -->
-        <div class="bg-gray-50 p-4 rounded-lg border space-y-3">
-          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Main Category</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <input type="text" id="new-cat-name" placeholder="Category Name (e.g. Health)" class="p-2 border rounded-lg text-sm outline-none">
-            <select id="new-cat-type" class="p-2 border rounded-lg text-sm outline-none">
-              <option value="Expense">Expense</option>
-              <option value="Income">Income</option>
-            </select>
-            <button onclick="handleAddCategory()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-              + Add Main Category
-            </button>
-          </div>
+    <!-- SETTINGS TAB -->
+    <div id="tab-settings" class="tab-content">
+        <h2>Settings</h2>
+        
+        <!-- Webhook Settings -->
+        <div class="card">
+            <h3>Google Sheets Webhook URL</h3>
+            <div class="form-group" style="margin-top: 8px;">
+                <input type="text" id="setting-webhook" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            <button onclick="saveWebhook()">Save Webhook</button>
         </div>
 
-        <!-- Add Sub-Category Form -->
-        <div class="bg-gray-50 p-4 rounded-lg border space-y-3">
-          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider">Add New Sub-Category</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <select id="parent-cat-select" class="p-2 border rounded-lg text-sm outline-none">
-            </select>
-            <input type="text" id="new-subcat-name" placeholder="Sub-category Name (e.g. Pharmacy)" class="p-2 border rounded-lg text-sm outline-none">
-            <button onclick="handleAddSubCategory()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
-              + Add Sub-Category
-            </button>
-          </div>
+        <!-- Category Manager -->
+        <div class="card">
+            <h3>Manage Categories</h3>
+            <div class="form-group" style="margin-top: 8px;">
+                <label>Add Main Category</label>
+                <div class="flex-row">
+                    <input type="text" id="new-cat-name" placeholder="Category Name">
+                    <select id="new-cat-type">
+                        <option value="Expense">Expense</option>
+                        <option value="Income">Income</option>
+                    </select>
+                </div>
+                <button type="button" style="margin-top: 8px;" onclick="addMainCategory()">Add Category</button>
+            </div>
+
+            <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
+
+            <div class="form-group">
+                <label>Add Sub-Category</label>
+                <select id="parent-cat-select"></select>
+                <input type="text" id="new-subcat-name" placeholder="Sub-category Name" style="margin-top: 8px;">
+                <button type="button" style="margin-top: 8px;" onclick="addSubCategory()">Add Sub-Category</button>
+            </div>
+
+            <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
+
+            <h3>Existing Categories</h3>
+            <div id="category-list-container" style="max-height: 200px; overflow-y: auto; margin-top: 8px;"></div>
         </div>
+    </div>
+</div>
 
-        <!-- Categories Display List -->
-        <div>
-          <h3 class="text-xs font-bold text-gray-600 uppercase tracking-wider mb-3">Existing Categories</h3>
-          <div id="category-list-container" class="space-y-3">
-          </div>
-        </div>
-      </div>
+<!-- Bottom Navigation -->
+<div class="nav-bar">
+    <a class="nav-item active" onclick="switchTab('dashboard', this)">
+        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
+    </a>
+    <a class="nav-item" onclick="switchTab('add', this)">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add
+    </a>
+    <a class="nav-item" onclick="switchTab('accounts', this)">
+        <svg viewBox="0 0 24 24"><path d="M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
+    </a>
+    <a class="nav-item" onclick="switchTab('settings', this)">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
+    </a>
+</div>
 
-    </section>
+<script>
+    // Default Data Structures & LocalStorage sync
+    let categories = JSON.parse(localStorage.getItem('wallet_categories')) || {
+        "Groceries": { type: "Expense", subs: ["Supermarket", "Daily Groceries"] },
+        "Restaurants": { type: "Expense", subs: ["Dining Out", "Lunch"] },
+        "Utilities": { type: "Income", subs: ["Refund", "Cashback"] },
+        "Maintenance": { type: "Expense", subs: ["Home Repair"] }
+    };
 
-  </main>
-
-  <script>
-    // Initial Default Categories Schema
-    const defaultCategories = [
-      { id: '1', name: 'Groceries', type: 'Expense', subcats: ['Supermarket', 'Fruits', 'Snacks'] },
-      { id: '2', name: 'Restaurants', type: 'Expense', subcats: ['Dining Out', 'Coffee', 'Fast Food'] },
-      { id: '3', name: 'Utilities', type: 'Expense', subcats: ['Electricity', 'Internet', 'Mobile'] },
-      { id: '4', name: 'Wellness', type: 'Expense', subcats: ['Health & Fitness', 'Doctor', 'Pharmacy'] },
-      { id: '5', name: 'Salary', type: 'Income', subcats: ['Regular Job', 'Bonus'] },
-      { id: '6', name: 'Other Income', type: 'Income', subcats: ['Refund / Cashback', 'Gifts'] }
-    ];
-
-    let categories = JSON.parse(localStorage.getItem('wallet_categories')) || defaultCategories;
     let transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
 
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById('tx-date').valueAsDate = new Date();
-      loadWebhookSettings();
-      updateCategoryDropdowns();
-      renderCategorySettings();
-      renderTransactions();
-      updateSummary();
-    });
+    document.getElementById('tx-date').valueAsDate = new Date();
+    document.getElementById('setting-webhook').value = localStorage.getItem('wallet_webhook') || '';
 
-    function switchTab(tab) {
-      ['dashboard', 'transactions', 'settings'].forEach(t => {
-        document.getElementById(`page-${t}`).classList.add('hidden');
-        document.getElementById(`tab-${t}`).classList.remove('active');
-      });
-      document.getElementById(`page-${tab}`).classList.remove('hidden');
-      document.getElementById(`tab-${tab}`).classList.add('active');
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabId).classList.add('active');
+        element.classList.add('active');
+        if(tabId === 'dashboard' || tabId === 'accounts') renderTransactions();
+        if(tabId === 'settings') renderCategoryManagement();
     }
 
-    function saveCategories() {
-      localStorage.setItem('wallet_categories', JSON.stringify(categories));
-      updateCategoryDropdowns();
-      renderCategorySettings();
+    function saveWebhook() {
+        const url = document.getElementById('setting-webhook').value.trim();
+        localStorage.setItem('wallet_webhook', url);
+        alert('Webhook URL saved successfully!');
     }
 
+    // Category Management
     function updateCategoryDropdowns() {
-      const type = document.getElementById('tx-kind').value;
-      const catSelect = document.getElementById('tx-category');
-      catSelect.innerHTML = '';
-
-      const filtered = categories.filter(c => c.type === type);
-      filtered.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.name;
-        opt.textContent = c.name;
-        catSelect.appendChild(opt);
-      });
-
-      updateSubCategoryDropdown();
-
-      // Parent select for setting subcategory
-      const parentSelect = document.getElementById('parent-cat-select');
-      if (parentSelect) {
-        parentSelect.innerHTML = '';
-        categories.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.id;
-          opt.textContent = `${c.name} (${c.type})`;
-          parentSelect.appendChild(opt);
-        });
-      }
-    }
-
-    function updateSubCategoryDropdown() {
-      const catName = document.getElementById('tx-category').value;
-      const subSelect = document.getElementById('tx-subcat');
-      subSelect.innerHTML = '';
-
-      const catObj = categories.find(c => c.name === catName);
-      if (catObj && catObj.subcats.length > 0) {
-        catObj.subcats.forEach(sub => {
-          const opt = document.createElement('option');
-          opt.value = sub;
-          opt.textContent = sub;
-          subSelect.appendChild(opt);
-        });
-      } else {
-        const opt = document.createElement('option');
-        opt.value = '-';
-        opt.textContent = 'None';
-        subSelect.appendChild(opt);
-      }
-    }
-
-    function handleAddCategory() {
-      const name = document.getElementById('new-cat-name').value.trim();
-      const type = document.getElementById('new-cat-type').value;
-
-      if (!name) return alert('Please enter category name');
-
-      categories.push({
-        id: Date.now().toString(),
-        name: name,
-        type: type,
-        subcats: []
-      });
-
-      document.getElementById('new-cat-name').value = '';
-      saveCategories();
-    }
-
-    function handleAddSubCategory() {
-      const parentId = document.getElementById('parent-cat-select').value;
-      const subName = document.getElementById('new-subcat-name').value.trim();
-
-      if (!subName) return alert('Please enter sub-category name');
-
-      const parentObj = categories.find(c => c.id === parentId);
-      if (parentObj) {
-        if (!parentObj.subcats.includes(subName)) {
-          parentObj.subcats.push(subName);
-          document.getElementById('new-subcat-name').value = '';
-          saveCategories();
-        } else {
-          alert('Sub-category already exists');
+        const kind = document.getElementById('tx-kind').value;
+        const catSelect = document.getElementById('tx-cat');
+        catSelect.innerHTML = '';
+        
+        for (let cat in categories) {
+            if (categories[cat].type === kind) {
+                let opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                catSelect.appendChild(opt);
+            }
         }
-      }
+        updateSubCategoryDropdowns();
     }
 
-    function deleteCategory(catId) {
-      if (confirm('Are you sure you want to delete this category?')) {
-        categories = categories.filter(c => c.id !== catId);
-        saveCategories();
-      }
-    }
-
-    function deleteSubCategory(catId, subName) {
-      const catObj = categories.find(c => c.id === catId);
-      if (catObj) {
-        catObj.subcats = catObj.subcats.filter(s => s !== subName);
-        saveCategories();
-      }
-    }
-
-    function renderCategorySettings() {
-      const container = document.getElementById('category-list-container');
-      container.innerHTML = '';
-
-      categories.forEach(cat => {
-        const div = document.createElement('div');
-        div.className = 'border rounded-lg p-3 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm';
+    function updateSubCategoryDropdowns() {
+        const cat = document.getElementById('tx-cat').value;
+        const subSelect = document.getElementById('tx-subcat');
+        subSelect.innerHTML = '';
         
-        const badgeColor = cat.type === 'Income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-        
-        let subHtml = cat.subcats.map(sub => `
-          <span class="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2.5 py-1 rounded-full">
-            ${sub}
-            <button onclick="deleteSubCategory('${cat.id}', '${sub}')" class="text-gray-400 hover:text-red-500 ml-1">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
-          </span>
-        `).join('');
-
-        div.innerHTML = `
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-gray-800">${cat.name}</span>
-              <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${badgeColor}">${cat.type}</span>
-            </div>
-            <div class="flex flex-wrap gap-1.5 mt-2">
-              ${subHtml || '<span class="text-xs text-gray-400 italic">No sub-categories</span>'}
-            </div>
-          </div>
-          <div>
-            <button onclick="deleteCategory('${cat.id}')" class="text-red-500 hover:text-red-700 text-xs font-medium border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition">
-              <i class="fa-solid fa-trash"></i> Delete
-            </button>
-          </div>
-        `;
-        container.appendChild(div);
-      });
+        if (categories[cat] && categories[cat].subs) {
+            categories[cat].subs.forEach(sub => {
+                let opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                subSelect.appendChild(opt);
+            });
+        }
     }
 
-    function handleAddTransaction(e) {
-      e.preventDefault();
-      const tx = {
-        id: Date.now().toString(),
-        d: document.getElementById('tx-date').value,
-        a: document.getElementById('tx-account').value,
-        kind: document.getElementById('tx-kind').value,
-        cat: document.getElementById('tx-category').value,
-        subcat: document.getElementById('tx-subcat').value,
-        amt: parseFloat(document.getElementById('tx-amount').value),
-        desc: document.getElementById('tx-desc').value,
-        cur: 'CAD'
-      };
+    function addMainCategory() {
+        const name = document.getElementById('new-cat-name').value.trim();
+        const type = document.getElementById('new-cat-type').value;
+        if(!name) return alert('Please enter category name');
+        if(categories[name]) return alert('Category already exists');
 
-      transactions.unshift(tx);
-      localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+        categories[name] = { type: type, subs: [] };
+        localStorage.setItem('wallet_categories', JSON.stringify(categories));
+        document.getElementById('new-cat-name').value = '';
+        updateCategoryDropdowns();
+        renderCategoryManagement();
+    }
 
-      renderTransactions();
-      updateSummary();
-      syncToGoogleSheet(tx);
+    function addSubCategory() {
+        const parent = document.getElementById('parent-cat-select').value;
+        const subName = document.getElementById('new-subcat-name').value.trim();
+        if(!subName || !parent) return alert('Select parent category and enter sub-category name');
+        
+        if(!categories[parent].subs.includes(subName)) {
+            categories[parent].subs.push(subName);
+            localStorage.setItem('wallet_categories', JSON.stringify(categories));
+            document.getElementById('new-subcat-name').value = '';
+            renderCategoryManagement();
+            updateCategoryDropdowns();
+        }
+    }
 
-      document.getElementById('add-tx-form').reset();
-      document.getElementById('tx-date').valueAsDate = new Date();
-      updateCategoryDropdowns();
-      alert('Transaction saved!');
+    function deleteCategory(catName) {
+        if(confirm(`Delete category "${catName}"?`)) {
+            delete categories[catName];
+            localStorage.setItem('wallet_categories', JSON.stringify(categories));
+            renderCategoryManagement();
+            updateCategoryDropdowns();
+        }
+    }
+
+    function renderCategoryManagement() {
+        const container = document.getElementById('category-list-container');
+        const parentSelect = document.getElementById('parent-cat-select');
+        container.innerHTML = '';
+        parentSelect.innerHTML = '';
+
+        let html = '<table><thead><tr><th>Category</th><th>Type</th><th>Sub-categories</th><th>Action</th></tr></thead><tbody>';
+        for(let cat in categories) {
+            parentSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+            html += `<tr>
+                <td><b>${cat}</b></td>
+                <td><span class="badge badge-${categories[cat].type.toLowerCase()}">${categories[cat].type}</span></td>
+                <td>${categories[cat].subs.join(', ')}</td>
+                <td><button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteCategory('${cat}')">Delete</button></td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    // Transactions handling
+    function handleFormSubmit(event) {
+        event.preventDefault();
+        const tx = {
+            d: document.getElementById('tx-date').value,
+            a: document.getElementById('tx-account').value,
+            kind: document.getElementById('tx-kind').value,
+            cat: document.getElementById('tx-cat').value,
+            subcat: document.getElementById('tx-subcat').value,
+            amt: parseFloat(document.getElementById('tx-amt').value),
+            cur: document.getElementById('tx-cur').value,
+            desc: document.getElementById('tx-desc').value
+        };
+
+        transactions.unshift(tx);
+        localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+
+        // Send to Google Sheets Webhook if configured
+        const webhookUrl = localStorage.getItem('wallet_webhook');
+        if(webhookUrl) {
+            fetch(webhookUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add_tx', tx: tx })
+            }).catch(err => console.log('Webhook error:', err));
+        }
+
+        alert('Transaction saved successfully!');
+        document.getElementById('tx-form').reset();
+        document.getElementById('tx-date').valueAsDate = new Date();
+        updateCategoryDropdowns();
+        switchTab('dashboard', document.querySelectorAll('.nav-item')[0]);
     }
 
     function renderTransactions() {
-      const tbody = document.getElementById('tx-table-body');
-      tbody.innerHTML = '';
+        const dashList = document.getElementById('dashboard-tx-list');
+        const fullList = document.getElementById('full-tx-list');
+        
+        if(transactions.length === 0) {
+            dashList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions yet</td></tr>`;
+            fullList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions recorded</td></tr>`;
+            document.getElementById('total-balance').textContent = '$0.00';
+            return;
+        }
 
-      transactions.slice(0, 50).forEach(t => {
-        const tr = document.createElement('tr');
-        const amtColor = t.kind === 'Income' ? 'text-green-600 font-semibold' : 'text-gray-800';
-        const sign = t.kind === 'Income' ? '+' : '-';
+        let total = 0;
+        let html = '';
+        transactions.forEach(t => {
+            let amtVal = t.kind === 'Expense' ? -Math.abs(t.amt) : Math.abs(t.amt);
+            total += amtVal;
+            html += `<tr>
+                <td>${t.d}</td>
+                <td>${t.a}</td>
+                <td>${t.cat} <br><small style="color:var(--text-muted);">${t.subcat || ''}</small></td>
+                <td style="color: ${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal < 0 ? '-' : '+'}$${Math.abs(t.amt).toFixed(2)} ${t.cur}</td>
+            </tr>`;
+        });
 
-        tr.innerHTML = `
-          <td class="p-3 text-xs text-gray-500">${t.d}</td>
-          <td class="p-3 text-xs font-medium">${t.a}</td>
-          <td class="p-3 text-xs">${t.cat || '-'}</td>
-          <td class="p-3 text-xs text-gray-500">${t.subcat || '-'}</td>
-          <td class="p-3 text-xs text-gray-600">${t.desc || '-'}</td>
-          <td class="p-3 text-xs text-right ${amtColor}">${sign}$${t.amt.toFixed(2)} ${t.cur}</td>
-        `;
-        tbody.appendChild(tr);
-      });
+        dashList.innerHTML = html;
+        fullList.innerHTML = html;
+        document.getElementById('total-balance').textContent = `$${total.toFixed(2)}`;
     }
 
-    function updateSummary() {
-      let income = 0, expense = 0;
-      transactions.forEach(t => {
-        if (t.kind === 'Income') income += t.amt;
-        else expense += t.amt;
-      });
-
-      document.getElementById('total-income').textContent = `$${income.toFixed(2)} CAD`;
-      document.getElementById('total-expense').textContent = `$${expense.toFixed(2)} CAD`;
-      document.getElementById('net-balance').textContent = `$${(income - expense).toFixed(2)} CAD`;
-    }
-
-    function saveWebhookSettings() {
-      const url = document.getElementById('webhook-url').value.trim();
-      localStorage.setItem('wallet_webhook_url', url);
-      alert('Webhook URL saved successfully!');
-    }
-
-    function loadWebhookSettings() {
-      const url = localStorage.getItem('wallet_webhook_url') || '';
-      document.getElementById('webhook-url').value = url;
-    }
-
-    function syncToGoogleSheet(tx) {
-      const url = localStorage.getItem('wallet_webhook_url');
-      if (!url) return;
-
-      fetch(url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'add_tx', tx: tx })
-      }).catch(err => console.error('Sync Error:', err));
-    }
-  </script>
+    // Initialize dropdowns on load
+    updateCategoryDropdowns();
+    renderTransactions();
+</script>
 </body>
 </html>
