@@ -22,27 +22,19 @@
         .container { max-width: 600px; margin: 0 auto; padding: 16px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        
-        /* Navigation Bar */
         .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); border-top: 1px var(--border) solid; display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000; }
         .nav-item { text-align: center; color: var(--text-muted); text-decoration: none; font-size: 12px; cursor: pointer; flex: 1; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-item svg { width: 24px; height: 24px; display: block; margin: 0 auto 2px; fill: currentColor; }
-
-        /* Cards & UI */
         .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
         h2 { font-size: 20px; margin-bottom: 12px; color: var(--text-main); }
         h3 { font-size: 16px; margin-bottom: 8px; color: var(--text-muted); }
-        
-        /* Form elements */
         .form-group { margin-bottom: 12px; }
         label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; color: var(--text-muted); }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; background: #fff; }
         button { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; font-weight: bold; cursor: pointer; }
         button:hover { background: var(--primary-hover); }
         .btn-danger { background: var(--danger); }
-        
-        /* Tables & Lists */
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
@@ -56,7 +48,6 @@
 <body>
 
 <div class="container">
-    <!-- DASHBOARD TAB -->
     <div id="tab-dashboard" class="tab-content active">
         <h2>Dashboard</h2>
         <div class="card" style="text-align: center;">
@@ -78,7 +69,6 @@
         </div>
     </div>
 
-    <!-- ADD TRANSACTION TAB -->
     <div id="tab-add" class="tab-content">
         <h2>Add Transaction</h2>
         <div class="card">
@@ -137,7 +127,6 @@
         </div>
     </div>
 
-    <!-- ACCOUNTS TAB -->
     <div id="tab-accounts" class="tab-content">
         <h2>Accounts & History</h2>
         <div class="card">
@@ -155,54 +144,27 @@
         </div>
     </div>
 
-    <!-- SETTINGS TAB -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
             <h3>Google Sheets Connection</h3>
             <p style="font-size: 14px; color: var(--success); margin-top: 4px; font-weight: 500;">✓ Connected to Google Sheet (Untitled)</p>
         </div>
-
-        <div class="card">
-            <h3>Manage Categories</h3>
-            <div class="form-group" style="margin-top: 8px;">
-                <label>Add Main Category</label>
-                <div class="flex-row">
-                    <input type="text" id="new-cat-name" placeholder="Category Name">
-                    <select id="new-cat-type">
-                        <option value="Expense">Expense</option>
-                        <option value="Income">Income</option>
-                    </select>
-                </div>
-                <button type="button" style="margin-top: 8px;" onclick="addMainCategory()">Add Category</button>
-            </div>
-            <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
-            <div class="form-group">
-                <label>Add Sub-Category</label>
-                <select id="parent-cat-select"></select>
-                <input type="text" id="new-subcat-name" placeholder="Sub-category Name" style="margin-top: 8px;">
-                <button type="button" style="margin-top: 8px;" onclick="addSubCategory()">Add Sub-Category</button>
-            </div>
-            <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
-            <h3>Existing Categories</h3>
-            <div id="category-list-container" style="max-height: 200px; overflow-y: auto; margin-top: 8px;"></div>
-        </div>
     </div>
 </div>
 
-<!-- Bottom Navigation -->
 <div class="nav-bar">
     <a class="nav-item active" onclick="switchTab('dashboard', this)">
-        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
+        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
     </a>
     <a class="nav-item" onclick="switchTab('add', this)">
-        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add
+        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add
     </a>
     <a class="nav-item" onclick="switchTab('accounts', this)">
-        <svg viewBox="0 0 24 24"><path d="M20 6h-4V4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
+        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 6h-4V4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
     </a>
     <a class="nav-item" onclick="switchTab('settings', this)">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
+        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
     </a>
 </div>
 
@@ -217,7 +179,6 @@
     };
 
     let transactions = [];
-
     document.getElementById('tx-date').valueAsDate = new Date();
 
     function switchTab(tabId, element) {
@@ -226,10 +187,10 @@
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
         if(tabId === 'dashboard' || tabId === 'accounts') fetchTransactionsFromSheet();
-        if(tabId === 'settings') renderCategoryManagement();
     }
 
     function fetchTransactionsFromSheet() {
+        // Use JSONP-like approach or standard fetch with redirect handling
         fetch(WEBHOOK_URL)
             .then(res => res.json())
             .then(data => {
@@ -239,7 +200,7 @@
                 }
             })
             .catch(err => {
-                console.log('Error fetching transactions:', err);
+                console.log('Using local fallback due to CORS/Network:', err);
                 transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
                 renderTransactions();
             });
@@ -274,62 +235,6 @@
         }
     }
 
-    function addMainCategory() {
-        const name = document.getElementById('new-cat-name').value.trim();
-        const type = document.getElementById('new-cat-type').value;
-        if(!name) return alert('Please enter category name');
-        if(categories[name]) return alert('Category already exists');
-
-        categories[name] = { type: type, subs: [] };
-        localStorage.setItem('wallet_categories', JSON.stringify(categories));
-        document.getElementById('new-cat-name').value = '';
-        updateCategoryDropdowns();
-        renderCategoryManagement();
-    }
-
-    function addSubCategory() {
-        const parent = document.getElementById('parent-cat-select').value;
-        const subName = document.getElementById('new-subcat-name').value.trim();
-        if(!subName || !parent) return alert('Select parent category and enter sub-category name');
-        
-        if(!categories[parent].subs.includes(subName)) {
-            categories[parent].subs.push(subName);
-            localStorage.setItem('wallet_categories', JSON.stringify(categories));
-            document.getElementById('new-subcat-name').value = '';
-            renderCategoryManagement();
-            updateCategoryDropdowns();
-        }
-    }
-
-    function deleteCategory(catName) {
-        if(confirm(`Delete category "${catName}"?`)) {
-            delete categories[catName];
-            localStorage.setItem('wallet_categories', JSON.stringify(categories));
-            renderCategoryManagement();
-            updateCategoryDropdowns();
-        }
-    }
-
-    function renderCategoryManagement() {
-        const container = document.getElementById('category-list-container');
-        const parentSelect = document.getElementById('parent-cat-select');
-        container.innerHTML = '';
-        parentSelect.innerHTML = '';
-
-        let html = '<table><thead><tr><th>Category</th><th>Type</th><th>Sub-categories</th><th>Action</th></tr></thead><tbody>';
-        for(let cat in categories) {
-            parentSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
-            html += `<tr>
-                <td><b>${cat}</b></td>
-                <td><span class="badge badge-${categories[cat].type.toLowerCase()}">${categories[cat].type}</span></td>
-                <td>${categories[cat].subs.join(', ')}</td>
-                <td><button class="btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteCategory('${cat}')">Delete</button></td>
-            </tr>`;
-        }
-        html += '</tbody></table>';
-        container.innerHTML = html;
-    }
-
     function handleFormSubmit(event) {
         event.preventDefault();
         const tx = {
@@ -344,7 +249,8 @@
         };
 
         transactions.unshift(tx);
-        
+        localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
