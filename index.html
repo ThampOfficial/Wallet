@@ -41,8 +41,6 @@
         button { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; font-weight: bold; cursor: pointer; }
         button:hover { background: var(--primary-hover); }
         .btn-danger { background: var(--danger); }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-secondary { background: #6b7280; }
         
         /* Tables & Lists */
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -51,7 +49,6 @@
         .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
         .badge-expense { background: #fee2e2; color: #991b1b; }
         .badge-income { background: #d1fae5; color: #065f46; }
-        
         .flex-row { display: flex; gap: 8px; }
         .flex-row > * { flex: 1; }
     </style>
@@ -74,7 +71,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="dashboard-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions yet</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -151,7 +148,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="full-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions recorded</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -161,8 +158,6 @@
     <!-- SETTINGS TAB -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
-        
-        <!-- Webhook Settings -->
         <div class="card">
             <h3>Google Sheets Webhook URL</h3>
             <div class="form-group" style="margin-top: 8px;">
@@ -171,7 +166,6 @@
             <button onclick="saveWebhook()">Save Webhook</button>
         </div>
 
-        <!-- Category Manager -->
         <div class="card">
             <h3>Manage Categories</h3>
             <div class="form-group" style="margin-top: 8px;">
@@ -185,18 +179,14 @@
                 </div>
                 <button type="button" style="margin-top: 8px;" onclick="addMainCategory()">Add Category</button>
             </div>
-
             <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
-
             <div class="form-group">
                 <label>Add Sub-Category</label>
                 <select id="parent-cat-select"></select>
                 <input type="text" id="new-subcat-name" placeholder="Sub-category Name" style="margin-top: 8px;">
                 <button type="button" style="margin-top: 8px;" onclick="addSubCategory()">Add Sub-Category</button>
             </div>
-
             <hr style="border:0; border-top:1px solid var(--border); margin: 16px 0;">
-
             <h3>Existing Categories</h3>
             <div id="category-list-container" style="max-height: 200px; overflow-y: auto; margin-top: 8px;"></div>
         </div>
@@ -215,12 +205,11 @@
         <svg viewBox="0 0 24 24"><path d="M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
     </a>
     <a class="nav-item" onclick="switchTab('settings', this)">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
     </a>
 </div>
 
 <script>
-    // Default Data Structures & LocalStorage sync
     let categories = JSON.parse(localStorage.getItem('wallet_categories')) || {
         "Groceries": { type: "Expense", subs: ["Supermarket", "Daily Groceries"] },
         "Restaurants": { type: "Expense", subs: ["Dining Out", "Lunch"] },
@@ -228,7 +217,7 @@
         "Maintenance": { type: "Expense", subs: ["Home Repair"] }
     };
 
-    let transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
+    let transactions = [];
 
     document.getElementById('tx-date').valueAsDate = new Date();
     document.getElementById('setting-webhook').value = localStorage.getItem('wallet_webhook') || '';
@@ -238,7 +227,7 @@
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
-        if(tabId === 'dashboard' || tabId === 'accounts') renderTransactions();
+        if(tabId === 'dashboard' || tabId === 'accounts') fetchTransactionsFromSheet();
         if(tabId === 'settings') renderCategoryManagement();
     }
 
@@ -246,14 +235,39 @@
         const url = document.getElementById('setting-webhook').value.trim();
         localStorage.setItem('wallet_webhook', url);
         alert('Webhook URL saved successfully!');
+        fetchTransactionsFromSheet();
     }
 
-    // Category Management
+    // Fetch transactions from Google Apps Script Webhook (GET request or JSONP / CORS proxy if needed)
+    function fetchTransactionsFromSheet() {
+        const webhookUrl = localStorage.getItem('wallet_webhook');
+        if (!webhookUrl) {
+            document.getElementById('dashboard-tx-list').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Please set Webhook URL in Settings</td></tr>`;
+            document.getElementById('full-tx-list').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Please set Webhook URL in Settings</td></tr>`;
+            return;
+        }
+
+        // Fetching data from Google Sheet via Apps Script doGet
+        fetch(webhookUrl)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.transactions) {
+                    transactions = data.transactions;
+                    renderTransactions();
+                }
+            })
+            .catch(err => {
+                console.log('Error fetching transactions:', err);
+                // Fallback to local storage if offline
+                transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
+                renderTransactions();
+            });
+    }
+
     function updateCategoryDropdowns() {
         const kind = document.getElementById('tx-kind').value;
         const catSelect = document.getElementById('tx-cat');
         catSelect.innerHTML = '';
-        
         for (let cat in categories) {
             if (categories[cat].type === kind) {
                 let opt = document.createElement('option');
@@ -269,7 +283,6 @@
         const cat = document.getElementById('tx-cat').value;
         const subSelect = document.getElementById('tx-subcat');
         subSelect.innerHTML = '';
-        
         if (categories[cat] && categories[cat].subs) {
             categories[cat].subs.forEach(sub => {
                 let opt = document.createElement('option');
@@ -336,7 +349,6 @@
         container.innerHTML = html;
     }
 
-    // Transactions handling
     function handleFormSubmit(event) {
         event.preventDefault();
         const tx = {
@@ -353,7 +365,6 @@
         transactions.unshift(tx);
         localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
 
-        // Send to Google Sheets Webhook if configured
         const webhookUrl = localStorage.getItem('wallet_webhook');
         if(webhookUrl) {
             fetch(webhookUrl, {
@@ -375,7 +386,7 @@
         const dashList = document.getElementById('dashboard-tx-list');
         const fullList = document.getElementById('full-tx-list');
         
-        if(transactions.length === 0) {
+        if(!transactions || transactions.length === 0) {
             dashList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions yet</td></tr>`;
             fullList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions recorded</td></tr>`;
             document.getElementById('total-balance').textContent = '$0.00';
@@ -388,10 +399,10 @@
             let amtVal = t.kind === 'Expense' ? -Math.abs(t.amt) : Math.abs(t.amt);
             total += amtVal;
             html += `<tr>
-                <td>${t.d}</td>
-                <td>${t.a}</td>
-                <td>${t.cat} <br><small style="color:var(--text-muted);">${t.subcat || ''}</small></td>
-                <td style="color: ${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal < 0 ? '-' : '+'}$${Math.abs(t.amt).toFixed(2)} ${t.cur}</td>
+                <td>${t.d || ''}</td>
+                <td>${t.a || ''}</td>
+                <td>${t.cat || ''} <br><small style="color:var(--text-muted);">${t.subcat || ''}</small></td>
+                <td style="color: ${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal < 0 ? '-' : '+'}$${Math.abs(t.amt || 0).toFixed(2)} ${t.cur || 'CAD'}</td>
             </tr>`;
         });
 
@@ -400,9 +411,8 @@
         document.getElementById('total-balance').textContent = `$${total.toFixed(2)}`;
     }
 
-    // Initialize dropdowns on load
     updateCategoryDropdowns();
-    renderTransactions();
+    fetchTransactionsFromSheet();
 </script>
 </body>
 </html>
