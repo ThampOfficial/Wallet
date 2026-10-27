@@ -190,8 +190,9 @@
     }
 
     // Bypass CORS & CORB completely using public API proxy
-   function fetchTransactionsFromSheet() {
-        fetch(WEBURL = "https://script.google.com/macros/s/AKfycbxqx2nybmm9PW_wQAe0u0ce0B7TM7ShpzBrvv4aBdmP1txv_o1mG_odvzx5BjJ57G0/exec")
+ function fetchTransactionsFromSheet() {
+        // ดึงข้อมูลตรงจาก Google Apps Script Webhook URL ทันที
+        fetch(WEBHOOK_URL)
             .then(res => res.json())
             .then(data => {
                 if (data && data.transactions) {
@@ -200,7 +201,7 @@
                 }
             })
             .catch(err => {
-                console.log('Error fetching:', err);
+                console.log('Using local fallback:', err);
                 transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
                 renderTransactions();
             });
