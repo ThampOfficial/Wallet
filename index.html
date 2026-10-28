@@ -28,6 +28,7 @@
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
         .status-banner { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 500; text-align: center; background: #d1fae5; color: #065f46; }
+        .balance-summary { font-size: 20px; margin: 6px 0; font-weight: bold; color: var(--primary); }
     </style>
 </head>
 <body>
@@ -36,10 +37,13 @@
     <div id="connection-status" class="status-banner">Connected to Google Sheet</div>
 
     <div id="tab-dashboard" class="tab-content active">
-        <h2>Dashboard (ข้อมูลจาก Sheet)</h2>
+        <h2>Dashboard (ข้อมูลจาก Google Sheet)</h2>
         <div class="card" style="text-align: center;">
-            <h3>Total Balance</h3>
-            <h1 id="total-balance" style="font-size: 32px; margin: 8px 0; color: var(--primary);">$0.00</h1>
+            <h3>Total Balance by Currency</h3>
+            <!-- ยอดรวมจะแสดงแยกตามสกุลเงิน (เช่น THB, CAD) อัตโนมัติ -->
+            <div id="total-balance-container" style="margin-top: 8px;">
+                <div class="balance-summary">Loading balances...</div>
+            </div>
         </div>
         <div class="card">
             <h3>All Transactions</h3>
@@ -80,18 +84,26 @@
 
     function renderTransactions() {
         const dashList = document.getElementById('dashboard-tx-list');
+        const balanceContainer = document.getElementById('total-balance-container');
         
         if(!transactions || transactions.length === 0) {
             dashList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
-            document.getElementById('total-balance').textContent = '0.00 THB';
+            balanceContainer.innerHTML = `<div class="balance-summary">0.00</div>`;
             return;
         }
 
-        let total = 0;
+        let totalsByCur = {};
         let html = '';
+
         transactions.forEach(t => {
-            let amtVal = t.amt; 
-            total += amtVal;
+            let amtVal = t.amt || 0;
+            let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB'; // ถ้าไม่ได้ระบุสกุลเงิน ให้มองเป็น THB
+
+            // รวมยอดแยกตามสกุลเงิน
+            if (!totalsByCur[cur]) {
+                totalsByCur[cur] = 0;
+            }
+            totalsByCur[cur] += amtVal;
             
             let dateStr = t.d ? t.d.split('T')[0] : '';
 
@@ -100,16 +112,25 @@
                 <td>${t.a || ''}</td>
                 <td>${t.cat || ''} <br><small style="color:var(--text-muted);">${t.desc || ''}</small></td>
                 <td style="color: ${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">
-                    ${amtVal.toLocaleString()} ${t.cur || 'THB'}
+                    ${amtVal.toLocaleString()} ${cur}
                 </td>
             </tr>`;
         });
 
+        // สร้าง HTML แสดงยอดรวมแยกตามสกุลเงิน
+        let balanceHtml = '';
+        for (let cur in totalsByCur) {
+            let val = totalsByCur[cur];
+            balanceHtml += `<div class="balance-summary" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">
+                ${val.toLocaleString()} ${cur}
+            </div>`;
+        }
+
+        balanceContainer.innerHTML = balanceHtml;
         dashList.innerHTML = html;
-        document.getElementById('total-balance').textContent = total.toLocaleString() + ' THB';
     }
 
-    // โหลดข้อมูลทันทีเมื่อเปิดเว็บ
+    // โหลดข้อมูลทันทีเมื่อเปิดหน้าเว็บ
     fetchTransactionsFromSheet();
 </script>
 </body>
