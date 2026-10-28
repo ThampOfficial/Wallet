@@ -44,7 +44,8 @@
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
         
-        .sub-acc { padding-left: 20px; font-size: 13px; color: var(--text-muted); border-left: 2px solid var(--border); margin: 4px 0 4px 10px; }
+        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 4px 0; }
+        .cat-group { margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -59,12 +60,6 @@
             <h3>Total Balance by Currency</h3>
             <div id="total-balance-container" style="margin-top: 8px;">
                 <div class="balance-summary">Loading...</div>
-            </div>
-        </div>
-        <div class="card">
-            <h3>Account Overview</h3>
-            <div id="accounts-list">
-                <p style="color: var(--text-muted); font-size: 13px;">Loading accounts...</p>
             </div>
         </div>
         <div class="card">
@@ -86,7 +81,7 @@
     <div id="tab-budget" class="tab-content">
         <h2>Monthly Budget</h2>
         <div class="card">
-            <p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณ (กำลังพัฒนาต่อจากโครงสร้างนี้)</p>
+            <p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p>
         </div>
     </div>
 
@@ -94,7 +89,7 @@
     <div id="tab-schedule" class="tab-content">
         <h2>Scheduled Transactions</h2>
         <div class="card">
-            <p style="color: var(--text-muted); font-size: 14px;">รายการจ่ายประจำ / ล่วงหน้า (Recurring)</p>
+            <p style="color: var(--text-muted); font-size: 14px;">รายการจ่ายประจำ / ล่วงหน้า</p>
         </div>
     </div>
 
@@ -102,30 +97,42 @@
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
         <div class="card">
-            <p style="color: var(--text-muted); font-size: 14px;">กราฟสรุปและสถิติรายรับ-รายจ่าย</p>
+            <p style="color: var(--text-muted); font-size: 14px;">กราฟสรุปและสถิติ</p>
         </div>
     </div>
 
     <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
+        
+        <!-- Manage Categories & Sub-categories -->
         <div class="card">
-            <h3>Manage Categories</h3>
+            <h3>Manage Categories & Sub-categories</h3>
             <div class="form-group">
-                <label>Add New Category</label>
-                <input type="text" id="new-cat-input" placeholder="e.g., Food, Transport">
+                <label>Main Category Name</label>
+                <input type="text" id="main-cat-input" placeholder="e.g., Food & Dining, Shopping">
             </div>
-            <button class="btn" onclick="addCategory()">Add Category</button>
-            <div id="cat-list" style="margin-top: 12px; font-size: 13px;"></div>
+            <div class="form-group">
+                <label>Sub-category Name</label>
+                <input type="text" id="sub-cat-input" placeholder="e.g., Restaurants, Clothes">
+            </div>
+            <button class="btn" onclick="addCategory()">Add Category / Sub-category</button>
+            <div id="categories-manage-list" style="margin-top: 16px;"></div>
         </div>
+
+        <!-- Manage Currencies & Exchange Rates -->
         <div class="card">
-            <h3>Manage Currencies</h3>
+            <h3>Manage Currencies & Exchange Rates</h3>
             <div class="form-group">
-                <label>Add Currency Code</label>
-                <input type="text" id="new-cur-input" placeholder="e.g., USD, EUR">
+                <label>Currency Code</label>
+                <input type="text" id="cur-code-input" placeholder="e.g., CAD, JPY, EUR">
             </div>
-            <button class="btn" onclick="addCurrency()">Add Currency</button>
-            <div id="cur-list" style="margin-top: 12px; font-size: 13px;"></div>
+            <div class="form-group">
+                <label>Exchange Rate (vs Base Currency THB)</label>
+                <input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50 for 1 CAD">
+            </div>
+            <button class="btn" onclick="addCurrency()">Add / Update Currency</button>
+            <div id="currencies-manage-list" style="margin-top: 16px;"></div>
         </div>
     </div>
 </div>
@@ -150,11 +157,25 @@
 </div>
 
 <script>
+    // ** ใส่ Web App URL ของคุณเรียบร้อยแล้ว **
     const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby9TCscIYYWmpa_12wi1YjyG3lgz9DxHzmgjnecIfkDaCEgEb_qR8GJsLHWoc4hxf6S/exec";
 
     let transactions = [];
-    let categories = JSON.parse(localStorage.getItem('wallet_cats')) || ['Food', 'Transport', 'Shopping', 'Bills'];
-    let currencies = JSON.parse(localStorage.getItem('wallet_curs')) || ['THB', 'CAD'];
+    
+    let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
+        "Shopping": ["Clothes", "Technology", "Accessories", "Gifts", "Pets", "Tools"],
+        "Food & Dining": ["Restaurants", "Groceries"],
+        "Transportation": ["Public Transportation", "Parking", "Gas/Fuel", "Car Insurance", "Maintenance"],
+        "Bills": [],
+        "Personal": ["Wellness", "Incidental"]
+    };
+
+    let currenciesData = JSON.parse(localStorage.getItem('wallet_currencies_map')) || {
+        "THB": 1.00,
+        "CAD": 26.50,
+        "JPY": 0.23,
+        "EUR": 38.00
+    };
 
     function switchTab(tabId, element) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -168,10 +189,12 @@
         }
     }
 
+    // รองรับ JSONP callback เพื่อหลบ CORS
     function handleResponse(data) {
         if (data && data.transactions) {
             transactions = data.transactions;
             renderDashboard();
+            extractCategoriesFromTransactions(transactions);
         }
     }
 
@@ -181,10 +204,27 @@
         document.body.appendChild(script);
     }
 
+    function extractCategoriesFromTransactions(txs) {
+        txs.forEach(t => {
+            if (t.cat && t.cat.includes('►')) {
+                let parts = t.cat.split('►').map(s => s.trim());
+                let main = parts[0];
+                let sub = parts[1];
+                if (!categoriesData[main]) categoriesData[main] = [];
+                if (sub && !categoriesData[main].includes(sub)) {
+                    categoriesData[main].push(sub);
+                }
+            } else if (t.cat && t.cat.trim() !== '') {
+                let main = t.cat.trim();
+                if (!categoriesData[main]) categoriesData[main] = [];
+            }
+        });
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+    }
+
     function renderDashboard() {
         const dashList = document.getElementById('dashboard-tx-list');
         const balanceContainer = document.getElementById('total-balance-container');
-        const accountsList = document.getElementById('accounts-list');
         
         if(!transactions || transactions.length === 0) {
             dashList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
@@ -193,26 +233,19 @@
         }
 
         let totalsByCur = {};
-        let accountsMap = {};
         let html = '';
 
         transactions.forEach(t => {
             let amtVal = t.amt || 0;
             let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB';
-            let acc = (t.a && t.a.trim() !== "") ? t.a.trim() : 'General';
 
-            // รวมยอดแยกตามสกุลเงินหลัก
             if (!totalsByCur[cur]) totalsByCur[cur] = 0;
             totalsByCur[cur] += amtVal;
-
-            // จัดกลุ่มแยกตาม Account และ Sub-account (ถ้ามีเครื่องหมาย : หรือ / คั่น)
-            if (!accountsMap[acc]) accountsMap[acc] = { total: 0, subs: {} };
-            accountsMap[acc].total += amtVal;
 
             let dateStr = t.d ? t.d.split('T')[0] : '';
             html += `<tr>
                 <td>${dateStr}</td>
-                <td>${acc}</td>
+                <td>${t.a || ''}</td>
                 <td>${t.cat || ''}</td>
                 <td style="color: ${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">
                     ${amtVal.toLocaleString()} ${cur}
@@ -220,7 +253,6 @@
             </tr>`;
         });
 
-        // แสดงยอดรวม
         let balanceHtml = '';
         for (let cur in totalsByCur) {
             let val = totalsByCur[cur];
@@ -229,40 +261,89 @@
             </div>`;
         }
         balanceContainer.innerHTML = balanceHtml;
-
-        // แสดงรายชื่อ Account
-        let accHtml = '';
-        for (let acc in accountsMap) {
-            accHtml += `<div style="display:flex; justify-content:space-between; padding: 6px 0; border-bottom: 1px solid var(--border);">
-                <strong>${acc}</strong>
-                <span>${accountsMap[acc].total.toLocaleString()}</span>
-            </div>`;
-        }
-        accountsList.innerHTML = accHtml;
         dashList.innerHTML = html;
     }
 
     function renderSettings() {
-        document.getElementById('cat-list').innerHTML = categories.map(c => `<div>• ${c}</div>`).join('');
-        document.getElementById('cur-list').innerHTML = currencies.map(cu => `<div>• ${cu}</div>`).join('');
+        let catHtml = '';
+        for (let main in categoriesData) {
+            catHtml += `<div class="cat-group">
+                <strong>📁 ${main}</strong>
+                <button onclick="deleteCategory('${main}')" style="float:right; background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete Main</button>`;
+            
+            categoriesData[main].forEach(sub => {
+                catHtml += `<div class="sub-cat-item">└─ ${sub} 
+                    <button onclick="deleteSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:10px; margin-left:8px;">[x]</button>
+                </div>`;
+            });
+            catHtml += `</div>`;
+        }
+        document.getElementById('categories-manage-list').innerHTML = catHtml;
+
+        let curHtml = `<table><thead><tr><th>Currency</th><th>Exchange Rate (vs THB)</th><th>Action</th></tr></thead><tbody>`;
+        for (let cur in currenciesData) {
+            curHtml += `<tr>
+                <td><strong>${cur}</strong></td>
+                <td>${currenciesData[cur]}</td>
+                <td><button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
+            </tr>`;
+        }
+        curHtml += `</tbody></table>`;
+        document.getElementById('currencies-manage-list').innerHTML = curHtml;
     }
 
     function addCategory() {
-        const val = document.getElementById('new-cat-input').value.trim();
-        if(val && !categories.includes(val)) {
-            categories.push(val);
-            localStorage.setItem('wallet_cats', JSON.stringify(categories));
-            document.getElementById('new-cat-input').value = '';
+        const main = document.getElementById('main-cat-input').value.trim();
+        const sub = document.getElementById('sub-cat-input').value.trim();
+        
+        if (!main) return alert('Please enter Main Category name');
+
+        if (!categoriesData[main]) {
+            categoriesData[main] = [];
+        }
+        if (sub && !categoriesData[main].includes(sub)) {
+            categoriesData[main].push(sub);
+        }
+
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        document.getElementById('main-cat-input').value = '';
+        document.getElementById('sub-cat-input').value = '';
+        renderSettings();
+    }
+
+    function deleteCategory(main) {
+        if (confirm(`Delete category "${main}" and all its sub-categories?`)) {
+            delete categoriesData[main];
+            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
             renderSettings();
         }
     }
 
+    function deleteSubCategory(main, sub) {
+        categoriesData[main] = categoriesData[main].filter(s => s !== sub);
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        renderSettings();
+    }
+
     function addCurrency() {
-        const val = document.getElementById('new-cur-input').value.trim().toUpperCase();
-        if(val && !currencies.includes(val)) {
-            currencies.push(val);
-            localStorage.setItem('wallet_curs', JSON.stringify(currencies));
-            document.getElementById('new-cur-input').value = '';
+        const code = document.getElementById('cur-code-input').value.trim().toUpperCase();
+        const rate = parseFloat(document.getElementById('cur-rate-input').value);
+
+        if (!code || isNaN(rate)) return alert('Please enter valid Currency Code and Exchange Rate');
+
+        currenciesData[code] = rate;
+        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+        
+        document.getElementById('cur-code-input').value = '';
+        document.getElementById('cur-rate-input').value = '';
+        renderSettings();
+    }
+
+    function deleteCurrency(code) {
+        if (code === 'THB') return alert('Cannot delete base currency THB');
+        if (confirm(`Delete currency "${code}"?`)) {
+            delete currenciesData[code];
+            localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
             renderSettings();
         }
     }
