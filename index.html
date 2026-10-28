@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wallet PWA</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -16,6 +15,7 @@
             --border: #e5e7eb;
             --danger: #ef4444;
             --success: #10b981;
+            --warning: #f59e0b;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 70px; }
@@ -34,20 +34,26 @@
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; background: #fff; }
         button { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; font-weight: bold; cursor: pointer; }
         button:hover { background: var(--primary-hover); }
-        .btn-danger { background: var(--danger); }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-        .badge-expense { background: #fee2e2; color: #991b1b; }
-        .badge-income { background: #d1fae5; color: #065f46; }
         .flex-row { display: flex; gap: 8px; }
         .flex-row > * { flex: 1; }
+        
+        /* Status Banner */
+        .status-banner { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
+        .status-online { background: #d1fae5; color: #065f46; }
+        .status-offline { background: #fef3c7; color: #92400e; }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <div id="connection-status" class="status-banner status-online">
+        <span id="status-text">Online - Synced with Google Sheet</span>
+        <span id="pending-count" style="display:none;" class="badge"></span>
+    </div>
+
     <div id="tab-dashboard" class="tab-content active">
         <h2>Dashboard</h2>
         <div class="card" style="text-align: center;">
@@ -62,7 +68,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="dashboard-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions from Google Sheet...</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -137,7 +143,7 @@
                         <tr><th>Date</th><th>Account</th><th>Category</th><th>Amount</th></tr>
                     </thead>
                     <tbody id="full-tx-list">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading transactions from Google Sheet...</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -147,24 +153,25 @@
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
-            <h3>Google Sheets Connection</h3>
-            <p style="font-size: 14px; color: var(--success); margin-top: 4px; font-weight: 500;">✓ Connected to Google Sheet (Untitled)</p>
+            <h3>Sync Status</h3>
+            <p id="sync-details" style="font-size: 14px; margin-top: 4px;">Checking connection...</p>
+            <button onclick="syncOfflineQueue()" style="margin-top:12px;">Force Sync Now</button>
         </div>
     </div>
 </div>
 
 <div class="nav-bar">
     <a class="nav-item active" onclick="switchTab('dashboard', this)">
-        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
     </a>
     <a class="nav-item" onclick="switchTab('add', this)">
-        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>Add
     </a>
     <a class="nav-item" onclick="switchTab('accounts', this)">
-        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 6h-4V4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M20 6h-4V4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"/></svg>Accounts
     </a>
     <a class="nav-item" onclick="switchTab('settings', this)">
-        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c-.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Settings
+        <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c-.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c-.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>Settings
     </a>
 </div>
 
@@ -178,8 +185,38 @@
         "Maintenance": { type: "Expense", subs: ["Home Repair"] }
     };
 
-    let transactions = [];
+    let transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
+    let syncQueue = JSON.parse(localStorage.getItem('wallet_sync_queue')) || [];
+
     document.getElementById('tx-date').valueAsDate = new Date();
+
+    function updateNetworkStatus() {
+        const banner = document.getElementById('connection-status');
+        const statusText = document.getElementById('status-text');
+        const pendingBadge = document.getElementById('pending-count');
+        
+        if (navigator.onLine) {
+            banner.className = "status-banner status-online";
+            statusText.textContent = "Online - Ready";
+            if (syncQueue.length > 0) {
+                pendingBadge.style.display = "inline";
+                pendingBadge.textContent = `${syncQueue.length} pending sync`;
+                syncOfflineQueue();
+            } else {
+                pendingBadge.style.display = "none";
+            }
+        } else {
+            banner.className = "status-banner status-offline";
+            statusText.textContent = "Offline Mode - Saved Locally";
+            if (syncQueue.length > 0) {
+                pendingBadge.style.display = "inline";
+                pendingBadge.textContent = `${syncQueue.length} pending`;
+            }
+        }
+    }
+
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
 
     function switchTab(tabId, element) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -189,22 +226,22 @@
         if(tabId === 'dashboard' || tabId === 'accounts') fetchTransactionsFromSheet();
     }
 
-    // Bypass CORS & CORB completely using public API proxy
- function fetchTransactionsFromSheet() {
-        // ดึงข้อมูลตรงจาก Google Apps Script Webhook URL ทันที
+    function fetchTransactionsFromSheet() {
+        renderTransactions(); // โหลดข้อมูลใน Local ขึ้นมาก่อนทันที
+
+        if (!navigator.onLine) return; // ถ้า offline ไม่ต้อง fetch
+
         fetch(WEBHOOK_URL)
             .then(res => res.json())
             .then(data => {
                 if (data && data.transactions) {
-                    transactions = data.transactions;
+                    // รวมข้อมูลจากเซิร์ฟเวอร์กับรายการ local ที่รอ sync
+                    transactions = [...syncQueue, ...data.transactions];
+                    localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
                     renderTransactions();
                 }
             })
-            .catch(err => {
-                console.log('Using local fallback:', err);
-                transactions = JSON.parse(localStorage.getItem('wallet_transactions')) || [];
-                renderTransactions();
-            });
+            .catch(err => console.log('Fetch error, using cached data:', err));
     }
 
     function updateCategoryDropdowns() {
@@ -239,6 +276,7 @@
     function handleFormSubmit(event) {
         event.preventDefault();
         const tx = {
+            id: Date.now().toString(),
             d: document.getElementById('tx-date').value,
             a: document.getElementById('tx-account').value,
             kind: document.getElementById('tx-kind').value,
@@ -249,20 +287,48 @@
             desc: document.getElementById('tx-desc').value
         };
 
+        // 1. เพิ่มใน Local State ทันที
         transactions.unshift(tx);
+        syncQueue.push(tx);
+
+        localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
+        localStorage.setItem('wallet_sync_queue', JSON.stringify(syncQueue));
+
+        renderTransactions();
+        updateNetworkStatus();
+
+        // 2. เคลียร์ Form
+        document.getElementById('tx-form').reset();
+        document.getElementById('tx-date').valueAsDate = new Date();
+        updateCategoryDropdowns();
+        
+        alert(navigator.onLine ? 'Transaction saved and syncing...' : 'Transaction saved locally (Offline)');
+        switchTab('dashboard', document.querySelectorAll('.nav-item')[0]);
+
+        // 3. ยิงข้อมูลขึ้นถ้า Online
+        if (navigator.onLine) {
+            syncOfflineQueue();
+        }
+    }
+
+    function syncOfflineQueue() {
+        if (syncQueue.length === 0 || !navigator.onLine) return;
+
+        const toSync = [...syncQueue];
 
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'add_tx', tx: tx })
-        }).catch(err => console.log('Webhook error:', err));
-
-        alert('Transaction saved successfully to Google Sheet!');
-        document.getElementById('tx-form').reset();
-        document.getElementById('tx-date').valueAsDate = new Date();
-        updateCategoryDropdowns();
-        switchTab('dashboard', document.querySelectorAll('.nav-item')[0]);
+            body: JSON.stringify({ action: 'sync_batch', list: toSync })
+        })
+        .then(() => {
+            // ลบรายการที่ sync สำเร็จออกจาก Queue
+            syncQueue = syncQueue.filter(item => !toSync.includes(item));
+            localStorage.setItem('wallet_sync_queue', JSON.stringify(syncQueue));
+            updateNetworkStatus();
+        })
+        .catch(err => console.log('Sync failed, will retry online:', err));
     }
 
     function renderTransactions() {
@@ -294,7 +360,9 @@
         document.getElementById('total-balance').textContent = `$${total.toFixed(2)}`;
     }
 
+    // Init
     updateCategoryDropdowns();
+    updateNetworkStatus();
     fetchTransactionsFromSheet();
 </script>
 </body>
