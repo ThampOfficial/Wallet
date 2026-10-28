@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Account & Sub-account Detail</title>
+    <title>Wallet PWA - Transaction & Accounts</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -34,7 +34,6 @@
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
-        .status-banner { padding: 6px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; font-weight: 500; text-align: center; background: #d1fae5; color: #065f46; }
         .balance-summary { font-size: 18px; margin: 4px 0; font-weight: bold; color: var(--primary); }
         
         /* Form elements & buttons */
@@ -61,8 +60,6 @@
 <body>
 
 <div class="container">
-    <div id="connection-status" class="status-banner">Connected to Google Sheet (Live)</div>
-
     <!-- TAB 1: ACCOUNTS -->
     <div id="tab-accounts" class="tab-content active">
         <div id="accounts-main-view">
@@ -80,9 +77,9 @@
             
             <div class="card">
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn" style="background: var(--success);" onclick="alert('Income Form')">+ Income</button>
-                    <button class="btn" style="background: var(--danger);" onclick="alert('Expense Form')">- Expense</button>
-                    <button class="btn" style="background: var(--primary);" onclick="alert('Transfer Form')">⇄ Transfer</button>
+                    <button class="btn" style="background: var(--success);" onclick="openTxModal('Income')">+ Income</button>
+                    <button class="btn" style="background: var(--danger);" onclick="openTxModal('Expense')">- Expense</button>
+                    <button class="btn" style="background: var(--primary);" onclick="openTxModal('Transfer')">⇄ Transfer</button>
                 </div>
             </div>
 
@@ -197,6 +194,40 @@
         </div>
         <div class="settings-menu-item" onclick="openSettingsDetail('currency')" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; cursor: pointer;">
             <span>💱 Currency & Exchange Rates</span><span style="color: var(--text-muted);">➔</span>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Transaction Input (Income / Expense / Transfer) -->
+<div id="tx-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
+        <input type="hidden" id="tx-type">
+        
+        <div class="form-group"><label>Date</label><input type="date" id="tx-date"></div>
+        <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
+        <div class="form-group"><label>Currency</label><select id="tx-currency"></select></div>
+
+        <div id="tx-single-acc-group" class="form-group">
+            <label>Account / Sub-account</label>
+            <select id="tx-account"></select>
+        </div>
+
+        <div id="tx-transfer-acc-group" style="display:none;">
+            <div class="form-group"><label>From Account</label><select id="tx-from-account"></select></div>
+            <div class="form-group"><label>To Account</label><select id="tx-to-account"></select></div>
+        </div>
+
+        <div class="form-group" id="tx-cat-group">
+            <label>Category</label>
+            <select id="tx-category"></select>
+        </div>
+
+        <div class="form-group"><label>Memo / Note</label><input type="text" id="tx-memo" placeholder="Optional note..."></div>
+
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveTransaction()">Save</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeTxModal()">Cancel</button>
         </div>
     </div>
 </div>
@@ -396,16 +427,12 @@
         document.getElementById('acc-currency-pref').value = accountPreferences[accName] || 'THB';
 
         const txList = document.getElementById('account-tx-list');
-        
-        // กรองเฉพาะ Transaction ของ Account นั้นๆ (รองรับกรณีคลิกดู Sub-account ตรงๆ หรือคลิกดูตัว Main รวมลูกด้วย)
         let subAccs = subAccountsData[accName] || [];
         let filtered = transactions.filter(t => {
             let a = t.a ? t.a.trim() : '';
             if (subAccs.length > 0) {
-                // ถ้าเป็น Main Account ให้ดึงทั้งของแม่และลูกมารวมกัน
                 return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             } else {
-                // ถ้าเป็น Sub-account หรือบัญชีเดี่ยว
                 return a.toLowerCase() === accName.toLowerCase();
             }
         }).sort((a, b) => new Date(b.d) - new Date(a.d));
@@ -436,802 +463,93 @@
         alert('Saved preferred currency');
     }
 
-    /* Account Manager Modal */
-    function openAccountManagerModal() {
-        renderAccountManagerList();
-        document.getElementById('account-manager-modal').classList.add('active');
-    }
+    /* Transaction Modal Logic (+ Income, - Expense, ⇄ Transfer) */
+    function openTxModal(type) {
+        document.getElementById('tx-type').value = type;
+        document.getElementById('tx-modal-title').textContent = `Add ${type}`;
+        document.getElementById('tx-date').valueAsDate = new Date();
+        document.getElementById('tx-amount').value = '';
+        document.getElementById('tx-memo').value = '';
 
-    function closeAccountManagerModal() {
-        document.getElementById('account-manager-modal').classList.remove('active');
-        renderAccountsList();
-    }
+        // Populate Currencies
+        let curSelect = document.getElementById('tx-currency');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
 
-    function renderAccountManagerList() {
-        const container = document.getElementById('accounts-manage-container');
-        let allRawAccs = new Set(transactions.map(t => t.a ? t.a.trim() : 'General'));
-        let html = '';
+        // Populate Accounts (Including Sub-accounts)
+        let allAccs = [];
+        transactions.forEach(t => { if(t.a) allAccs.push(t.a.trim()); });
+        Object.keys(subAccountsData).forEach(main => {
+            allAccs.push(main);
+            subAccountsData[main].forEach(sub => allAccs.push(sub));
+        });
+        allAccs = [...new Set(allAccs)];
+        if(allAccs.length === 0) allAccs = ['General'];
 
-        for (let main in subAccountsData) {
-            html += `<div class="cat-group">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong>💳 ${main} (Main)</strong>
-                    <div>
-                        <button onclick="editMainAccount('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
-                        <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                    </div>
-                </div>
-                <div style="margin-top:8px; padding-left:12px;">
-                    <div style="display:flex; gap:6px; margin-bottom:6px;">
-                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account name..." style="font-size:12px; padding:6px;">
-                        <button class="btn" style="width:auto; padding:4px 10px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Add Sub</button>
-                    </div>`;
-            
-            let subs = subAccountsData[main] || [];
-            subs.forEach((sub, sIdx) => {
-                html += `<div class="sub-cat-item">
-                    <span>└─ ${sub}</span>
-                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x] Remove</button>
-                </div>`;
-            });
-            html += `</div></div>`;
-        }
+        let singleAccSel = document.getElementById('tx-account');
+        let fromAccSel = document.getElementById('tx-from-account');
+        let toAccSel = document.getElementById('tx-to-account');
 
-        let assignedList = [];
-        Object.values(subAccountsData).forEach(arr => assignedList.push(...arr.map(s => s.toLowerCase())));
-        let unassigned = [...allRawAccs].filter(a => !subAccountsData[a] && !assignedList.includes(a.toLowerCase()));
+        let accHtml = allAccs.map(a => `<option value="${a}">${a}</option>`).join('');
+        singleAccSel.innerHTML = accHtml;
+        fromAccSel.innerHTML = accHtml;
+        toAccSel.innerHTML = accHtml;
 
-        if (unassigned.length > 0) {
-            html += `<h4 style="margin-top:16px; color:var(--text-muted);">Unassigned Accounts (จาก Sheet):</h4>`;
-            unassigned.forEach(acc => {
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
-                    <span>${acc}</span>
-                    <button class="btn" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openAssignModal('${acc}')">Assign to Main ➔</button>
-                </div>`;
-            });
-        }
-        container.innerHTML = html;
-    }
-
-    function addMainAccount() {
-        let name = document.getElementById('new-main-acc-input').value.trim();
-        if (!name) return alert('Enter account name');
-        if (!subAccountsData[name]) subAccountsData[name] = [];
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        document.getElementById('new-main-acc-input').value = '';
-        renderAccountManagerList();
-    }
-
-    function addSubAccountDirect(main) {
-        let input = document.getElementById(`sub-input-${main}`);
-        let val = input.value.trim();
-        if (!val) return alert('Enter sub-account name');
-        if (!subAccountsData[main]) subAccountsData[main] = [];
-        if (!subAccountsData[main].includes(val)) {
-            subAccountsData[main].push(val);
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            input.value = '';
-            renderAccountManagerList();
-        }
-    }
-
-    function editMainAccount(oldName) {
-        let newName = prompt("Edit Main Account name:", oldName);
-        if (newName && newName.trim() !== "" && newName !== oldName) {
-            subAccountsData[newName.trim()] = subAccountsData[oldName] || [];
-            if (oldName !== newName.trim()) delete subAccountsData[oldName];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderAccountManagerList();
-        }
-    }
-
-    function deleteMainAccount(acc) {
-        if (confirm(`Delete main account "${acc}"?`)) {
-            delete subAccountsData[acc];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderAccountManagerList();
-        }
-    }
-
-    function openAssignModal(accName) {
-        document.getElementById('assign-sub-target').value = accName;
-        let select = document.getElementById('assign-main-select');
-        select.innerHTML = '';
-        for (let main in subAccountsData) {
-            let opt = document.createElement('option');
-            opt.value = main;
-            opt.textContent = main;
-            select.appendChild(opt);
-        }
-        document.getElementById('assign-sub-modal').classList.add('active');
-    }
-
-    function closeAssignModal() {
-        document.getElementById('assign-sub-modal').classList.remove('active');
-    }
-
-    function saveAssignedSubAccount() {
-        let subAcc = document.getElementById('assign-sub-target').value;
-        let mainAcc = document.getElementById('assign-main-select').value;
-        if (!subAccountsData[mainAcc]) subAccountsData[mainAcc] = [];
-        if (!subAccountsData[mainAcc].includes(subAcc)) {
-            subAccountsData[mainAcc].push(subAcc);
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        }
-        closeAssignModal();
-        renderAccountManagerList();
-    }
-
-    function removeSubFromMain(main, idx) {
-        subAccountsData[main].splice(idx, 1);
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        renderAccountManagerList();
-    }
-
-    /* Settings Detail Modal */
-    function openSettingsDetail(type) {
-        const modal = document.getElementById('settings-detail-modal');
-        const title = document.getElementById('settings-modal-title');
-        const body = document.getElementById('settings-modal-body');
-
-        if (type === 'categories') {
-            title.textContent = "Manage Categories & Sub-categories";
-            body.innerHTML = `<div class="form-group"><label>Main Category</label><input type="text" id="main-cat-input" placeholder="e.g., Shopping"></div>
-                              <div class="form-group"><label>Sub-category (Optional)</label><input type="text" id="sub-cat-input" placeholder="e.g., Clothes"></div>
-                              <button class="btn" onclick="addCategorySettingModal()">Add Category</button>
-                              <div id="modal-categories-list" style="margin-top: 16px;"></div>`;
-            renderModalCategories();
-        } else if (type === 'currency') {
-            title.textContent = "Manage Currencies & Exchange Rates";
-            body.innerHTML = `<div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
-                              <div class="form-group"><label>Exchange Rate (vs THB)</label><input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50"></div>
-                              <button class="btn" onclick="addCurrencySettingModal()">Add / Update Currency</button>
-                              <div id="modal-currencies-list" style="margin-top: 16px;"></div>`;
-            renderModalCurrencies();
-        }
-        modal.classList.add('active');
-    }
-
-    function closeSettingsDetail() {
-        document.getElementById('settings-detail-modal').classList.remove('active');
-    }
-
-    function renderModalCategories() {
-        let container = document.getElementById('modal-categories-list');
-        if (!container) return;
+        // Populate Categories
+        let catSelect = document.getElementById('tx-category');
         let catHtml = '';
         for (let main in categoriesData) {
-            catHtml += `<div class="cat-group">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong>📁 ${main}</strong>
-                    <div>
-                        <button onclick="editMainCategoryModal('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
-                        <button onclick="deleteMainCategoryModal('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                    </div>
-                </div>`;
-            categoriesData[main].forEach(sub => {
-                catHtml += `<div class="sub-cat-item"><span>└─ ${sub}</span><button onclick="deleteSubCategoryModal('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>`;
-            });
-            catHtml += `</div>`;
-        }
-        container.innerHTML = catHtml;
-    }
-
-    function renderModalCurrencies() {
-        let container = document.getElementById('modal-currencies-list');
-        if (!container) return;
-        let curHtml = `<table><thead><tr><th>Currency</th><th>Rate vs THB</th><th>Action</th></tr></thead><tbody>`;
-        for (let cur in currenciesData) {
-            curHtml += `<tr><td><strong>${cur}</strong></td><td>${currenciesData[cur]}</td><td><button onclick="deleteCurrencyModal('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
-        }
-        curHtml += `</tbody></table>`;
-        container.innerHTML = curHtml;
-    }
-
-    function addCategorySettingModal() {
-        const main = document.getElementById('main-cat-input').value.trim();
-        const sub = document.getElementById('sub-cat-input').value.trim();
-        if (!main) return alert('Enter main category name');
-        if (!categoriesData[main]) categoriesData[main] = [];
-        if (sub && !categoriesData[main].includes(sub)) categoriesData[main].push(sub);
-        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-        document.getElementById('main-cat-input').value = '';
-        document.getElementById('sub-cat-input').value = '';
-        renderModalCategories();
-    }
-
-    function editMainCategoryModal(oldName) {
-        const newName = prompt("Edit Main Category name:", oldName);
-        if (newName && newName.trim() !== "" && newName !== oldName) {
-            categoriesData[newName.trim()] = categoriesData[oldName];
-            delete categoriesData[oldName];
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            renderModalCategories();
-        }
-    }
-
-    function deleteMainCategoryModal(main) {
-        if (confirm(`Delete category "${main}"?`)) {
-            delete categoriesData[main];
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            renderModalCategories();
-        }
-    }
-
-    function deleteSubCategoryModal(main, sub) {
-        categoriesData[main] = categoriesData[main].filter(s => s !== sub);
-        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-        renderModalCategories();
-    }
-
-    function addCurrencySettingModal() {
-        const code = document.getElementById('cur-code-input').value.trim().toUpperCase();
-        const rate = parseFloat(document.getElementById('cur-rate-input').value);
-        if (!code || isNaN(rate)) return alert('Enter valid currency code and rate');
-        currenciesData[code] = rate;
-        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
-        renderModalCurrencies();
-    }
-
-    function deleteCurrencyModal(code) {
-        if (code === 'THB') return alert('Cannot delete THB');
-        delete currenciesData[code];
-        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
-        renderModalCurrencies();
-    }
-
-    /* Schedule Logic */
-    function renderScheduleForm() {
-        let accSelects = ['sch-account', 'sch-from-account', 'sch-to-account'];
-        let accs = [...new Set(transactions.map(t => t.a))].filter(Boolean);
-        accSelects.forEach(id => {
-            let el = document.getElementById(id);
-            if(el) el.innerHTML = accs.map(a => `<option value="${a}">${a}</option>`).join('');
-        });
-        let catSelect = document.getElementById('sch-category');
-        if (catSelect) {
-            let catHtml = '';
-            for (let main in categoriesData) {
-                catHtml += `<optgroup label="${main}">`;
-                if (categoriesData[main].length === 0) {
-                    catHtml += `<option value="${main}">${main}</option>`;
-                } else {
-                    categoriesData[main].forEach(sub => {
-                        catHtml += `<option value="${main} ► ${sub}">${main} ► ${sub}</option>`;
-                    });
-                }
-                catHtml += `</optgroup>`;
-            }
-            catSelect.innerHTML = catHtml;
-        }
-        renderSchedules();
-    }
-
-    function toggleScheduleFormFields() {
-        const type = document.getElementById('sch-action-type').value;
-        if (type === 'Transfer') {
-            document.getElementById('sch-single-acc-group').style.display = 'none';
-            document.getElementById('sch-transfer-acc-group').style.display = 'block';
-        } else {
-            document.getElementById('sch-single-acc-group').style.display = 'block';
-            document.getElementById('sch-transfer-acc-group').style.display = 'none';
-        }
-    }
-
-    function addSchedule() {
-        const actionType = document.getElementById('sch-action-type').value;
-        const title = document.getElementById('sch-title').value.trim();
-        const amount = parseFloat(document.getElementById('sch-amount').value);
-        const category = document.getElementById('sch-category').value;
-        const date = document.getElementById('sch-date').value;
-        const freq = document.getElementById('sch-freq').value;
-        const memo = document.getElementById('sch-memo').value.trim();
-        if (!title || isNaN(amount) || !date) return alert('Please enter valid Title, Amount, and Date');
-        let accountInfo = actionType === 'Transfer' 
-            ? `${document.getElementById('sch-from-account').value} ➔ ${document.getElementById('sch-to-account').value}`
-            : document.getElementById('sch-account').value;
-        schedulesData.push({ actionType, title, amount, accountInfo, category, date, freq, memo, id: Date.now() });
-        localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
-        document.getElementById('sch-title').value = '';
-        document.getElementById('sch-amount').value = '';
-        document.getElementById('sch-memo').value = '';
-        renderSchedules();
-    }
-
-    function deleteSchedule(id) {
-        schedulesData = schedulesData.filter(s => s.id !== id);
-        localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
-        renderSchedules();
-    }
-
-    function renderSchedules() {
-        const list = document.getElementById('schedule-list');
-        if (!list) return;
-        if (schedulesData.length === 0) {
-            list.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No scheduled transactions.</p>`;
-            return;
-        }
-        let html = '';
-        schedulesData.forEach(s => {
-            html += `<div style="padding:10px 0; border-bottom:1px solid var(--border);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong>[${s.actionType}] ${s.title}</strong>
-                    <div style="font-weight:bold; color:${s.actionType === 'Income' ? 'var(--success)' : 'var(--text-main)'};">${s.amount.toLocaleString()}</div>
-                </div>
-                <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
-                    📌 Acc: ${s.accountInfo} | Cat: ${s.category}<br>
-                    🗓 Start: ${s.date} | 🔁 ${s.freq} ${s.memo ? '| 📝 ' + s.memo : ''}
-                </div>
-                <button onclick="deleteSchedule(${s.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px; margin-top:4px;">Remove</button>
-            </div>`;
-        });
-        list.innerHTML = html;
-    }
-
-    function renderReport() {
-        let totalInc = 0, totalExp = 0, catMap = {};
-        transactions.forEach(t => {
-            let amt = t.amt || 0;
-            if (amt > 0) totalInc += amt;
-            else if (amt < 0) {
-                let absAmt = Math.abs(amt);
-                totalExp += absAmt;
-                let cat = t.cat || 'Uncategorized';
-                catMap[cat] = (catMap[cat] || 0) + absAmt;
-            }
-        });
-        document.getElementById('rep-total-income').textContent = totalInc.toLocaleString() + ' THB';
-        document.getElementById('rep-total-expense').textContent = totalExp.toLocaleString() + ' THB';
-        let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
-        let catListHtml = '';
-        if (sortedCats.length === 0) {
-            catListHtml = `<p style="color:var(--text-muted); font-size:13px;">No expense data</p>`;
-        } else {
-            sortedCats.slice(0, 8).forEach(cat => {
-                let amt = catMap[cat];
-                let percent = totalExp > 0 ? ((amt / totalExp) * 100).toFixed(1) : 0;
-                catListHtml += `<div style="margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; font-size:13px;">
-                        <span>${cat}</span>
-                        <strong>${amt.toLocaleString()} (${percent}%)</strong>
-                    </div>
-                    <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
-                        <div style="background:var(--primary); height:100%; width: ${percent}%;"></div>
-                    </div>
-                </div>`;
-            });
-        }
-        document.getElementById('report-category-list').innerHTML = catListHtml;
-    }
-
-    fetchTransactionsFromSheet();
-</script>
-</body>
-</html><!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Accounts & Sub-accounts</title>
-    <style>
-        :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg-color: #f3f4f6;
-            --card-bg: #ffffff;
-            --text-main: #1f2937;
-            --text-muted: #6b7280;
-            --border: #e5e7eb;
-            --danger: #ef4444;
-            --success: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 80px; }
-        .container { max-width: 600px; margin: 0 auto; padding: 16px; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
-        /* Bottom Navigation Bar */
-        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 8px 0; z-index: 1000; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
-        .nav-item { text-align: center; color: var(--text-muted); text-decoration: none; font-size: 11px; cursor: pointer; flex: 1; transition: color 0.2s; }
-        .nav-item.active { color: var(--primary); font-weight: bold; }
-        .nav-item div { font-size: 18px; margin-bottom: 2px; }
-
-        .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
-        h2 { font-size: 18px; margin-bottom: 12px; color: var(--text-main); }
-        h3 { font-size: 14px; margin-bottom: 8px; color: var(--text-muted); }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
-        th { color: var(--text-muted); font-weight: 600; }
-        .status-banner { padding: 6px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; font-weight: 500; text-align: center; background: #d1fae5; color: #065f46; }
-        .balance-summary { font-size: 18px; margin: 4px 0; font-weight: bold; color: var(--primary); }
-        
-        /* Form elements & buttons */
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
-        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
-        .btn:hover { background: var(--primary-hover); }
-
-        .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
-        .acc-item:hover { background: #f9fafb; }
-        .sub-acc-display { padding-left: 16px; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-        
-        .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
-
-        /* Modal Overlay */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
-        .modal-overlay.active { display: flex; }
-        .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div id="connection-status" class="status-banner">Connected to Google Sheet (Live)</div>
-
-    <!-- TAB 1: ACCOUNTS -->
-    <div id="tab-accounts" class="tab-content active">
-        <div id="accounts-main-view">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h2 style="margin-bottom: 0;">Accounts & Sub-accounts</h2>
-                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
-            </div>
-
-            <div class="card" style="text-align: center;">
-                <h3>Total Balance</h3>
-                <div id="total-balance-container" style="margin-top: 8px;">
-                    <div class="balance-summary">Loading...</div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn" style="background: var(--success);" onclick="alert('Income Form')">+ Income</button>
-                    <button class="btn" style="background: var(--danger);" onclick="alert('Expense Form')">- Expense</button>
-                    <button class="btn" style="background: var(--primary);" onclick="alert('Transfer Form')">⇄ Transfer</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Accounts List</h3>
-                <div id="accounts-list">
-                    <p style="color: var(--text-muted); font-size: 13px;">Loading accounts...</p>
-                </div>
-            </div>
-        </div>
-
-        <div id="account-detail-view" style="display: none;">
-            <button class="btn" style="width: auto; margin-bottom: 12px; background: var(--text-muted);" onclick="backToAccountsList()">← Back to Accounts</button>
-            <h2 id="detail-account-title">Account Details</h2>
-            
-            <div class="card">
-                <div class="form-group">
-                    <label>Preferred Currency Display</label>
-                    <select id="acc-currency-pref" onchange="updateAccountCurrencyPref()">
-                        <option value="THB">THB</option>
-                        <option value="CAD">CAD</option>
-                        <option value="JPY">JPY</option>
-                        <option value="EUR">EUR</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Transactions (Newest First)</h3>
-                <div style="overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
-                        </thead>
-                        <tbody id="account-tx-list">
-                            <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- TAB 2: BUDGET -->
-    <div id="tab-budget" class="tab-content">
-        <h2>Monthly Budget</h2>
-        <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
-    </div>
-
-    <!-- TAB 3: SCHEDULE -->
-    <div id="tab-schedule" class="tab-content">
-        <h2>Schedule & Recurring</h2>
-        <div class="card">
-            <h3>Add Scheduled / Recurring Entry</h3>
-            <div class="form-group">
-                <label>Action Type (ทำอะไร)</label>
-                <select id="sch-action-type" onchange="toggleScheduleFormFields()">
-                    <option value="Expense">Expense (เงินออก)</option>
-                    <option value="Income">Income (เงินเข้า)</option>
-                    <option value="Transfer">Transfer (ย้าย/โอนเงิน)</option>
-                </select>
-            </div>
-            <div class="form-group"><label>Title / Description</label><input type="text" id="sch-title" placeholder="e.g., Rent, Salary"></div>
-            <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
-            
-            <div id="sch-single-acc-group" class="form-group"><label>Account</label><select id="sch-account"></select></div>
-            <div id="sch-transfer-acc-group" style="display:none;">
-                <div class="form-group"><label>From Account</label><select id="sch-from-account"></select></div>
-                <div class="form-group"><label>To Account</label><select id="sch-to-account"></select></div>
-            </div>
-
-            <div class="form-group"><label>Category</label><select id="sch-category"></select></div>
-            <div class="form-group"><label>Start / Due Date</label><input type="date" id="sch-date"></div>
-            <div class="form-group">
-                <label>Frequency (บ่อยแค่ไหน)</label>
-                <select id="sch-freq">
-                    <option value="One-time">One-time (ครั้งเดียว)</option>
-                    <option value="Daily">Daily (ทุกวัน)</option>
-                    <option value="Weekly">Weekly (ทุกสัปดาห์)</option>
-                    <option value="Monthly" selected>Monthly (ทุกเดือน)</option>
-                    <option value="Yearly">Yearly (ทุกปี)</option>
-                </select>
-            </div>
-            <div class="form-group"><label>Memo / Notes</label><input type="text" id="sch-memo" placeholder="Optional..."></div>
-            <button class="btn" onclick="addSchedule()">Save Scheduled Entry</button>
-        </div>
-        <div class="card"><h3>Scheduled List</h3><div id="schedule-list"><p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p></div></div>
-    </div>
-
-    <!-- TAB 4: REPORT -->
-    <div id="tab-report" class="tab-content">
-        <h2>Reports & Analytics</h2>
-        <div class="card" style="text-align:center;">
-            <h3>Summary Overview</h3>
-            <div style="display:flex; justify-content:space-around; margin-top:12px;">
-                <div><small style="color:var(--text-muted);">Total Income</small><div id="rep-total-income" style="color:var(--success); font-weight:bold; font-size:16px;">0.00</div></div>
-                <div><small style="color:var(--text-muted);">Total Expense</small><div id="rep-total-expense" style="color:var(--danger); font-weight:bold; font-size:16px;">0.00</div></div>
-            </div>
-        </div>
-        <div class="card">
-            <h3>Top Expense Categories</h3>
-            <div id="report-category-list"><p style="color:var(--text-muted); font-size:13px;">Analyzing data...</p></div>
-        </div>
-    </div>
-
-    <!-- TAB 5: SETTINGS -->
-    <div id="tab-settings" class="tab-content">
-        <h2>Settings</h2>
-        <div class="settings-menu-item" onclick="openSettingsDetail('categories')" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; cursor: pointer;">
-            <span>📁 Categories Management</span><span style="color: var(--text-muted);">➔</span>
-        </div>
-        <div class="settings-menu-item" onclick="openSettingsDetail('currency')" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: white; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; cursor: pointer;">
-            <span>💱 Currency & Exchange Rates</span><span style="color: var(--text-muted);">➔</span>
-        </div>
-    </div>
-</div>
-
-<!-- Modal for Settings Detail -->
-<div id="settings-detail-modal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 id="settings-modal-title" style="margin-bottom: 12px;">Manage Detail</h3>
-        <div id="settings-modal-body" style="max-height: 60vh; overflow-y: auto;"></div>
-        <div style="margin-top: 16px;"><button class="btn" onclick="closeSettingsDetail()">Close / Back</button></div>
-    </div>
-</div>
-
-<!-- Modal for Managing Accounts & Sub-accounts -->
-<div id="account-manager-modal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Manage Accounts & Sub-accounts</h3>
-        <div class="form-group">
-            <label>Add New Main Account</label>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="new-main-acc-input" placeholder="e.g., SCOTIA">
-                <button class="btn" style="width: auto;" onclick="addMainAccount()">Add Main</button>
-            </div>
-        </div>
-        <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
-        <div id="accounts-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
-        <div style="margin-top: 16px;">
-            <button class="btn" onclick="closeAccountManagerModal()">Done / Close</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal for Assigning Sub-account -->
-<div id="assign-sub-modal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Assign Sub-account to Main Account</h3>
-        <input type="hidden" id="assign-sub-target">
-        <div class="form-group"><label>Select Parent Main Account</label><select id="assign-main-select"></select></div>
-        <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveAssignedSubAccount()">Move / Assign</button>
-            <button class="btn" style="background: var(--text-muted);" onclick="closeAssignModal()">Cancel</button>
-        </div>
-    </div>
-</div>
-
-<!-- Bottom Navigation Bar -->
-<div class="nav-bar">
-    <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
-    <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
-    <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
-    <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
-    <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
-</div>
-
-<script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby9TCscIYYWmpa_12wi1YjyG3lgz9DxHzmgjnecIfkDaCEgEb_qR8GJsLHWoc4hxf6S/exec";
-
-    let transactions = [];
-    let selectedAccount = null;
-
-    let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
-        "Shopping": ["Clothes", "Technology", "Accessories", "Gifts", "Pets", "Tools"],
-        "Food & Dining": ["Restaurants", "Groceries"],
-        "Transportation": ["Public Transportation", "Parking", "Gas/Fuel", "Car Insurance", "Maintenance"]
-    };
-
-    let currenciesData = JSON.parse(localStorage.getItem('wallet_currencies_map')) || {
-        "THB": 1.00,
-        "CAD": 26.50,
-        "JPY": 0.23,
-        "EUR": 38.00
-    };
-
-    let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
-        "SCOTIA": []
-    };
-
-    let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
-    let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
-
-    document.getElementById('sch-date').valueAsDate = new Date();
-
-    function switchTab(tabId, element) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('tab-' + tabId).classList.add('active');
-        element.classList.add('active');
-        if(tabId === 'schedule') renderScheduleForm();
-        if(tabId === 'report') renderReport();
-    }
-
-    function handleResponse(data) {
-        if (data && data.transactions) {
-            transactions = data.transactions.sort((a, b) => new Date(b.d) - new Date(a.d));
-            renderAccountsList();
-        }
-    }
-
-    function fetchTransactionsFromSheet() {
-        const script = document.createElement('script');
-        script.src = `${WEBHOOK_URL}?callback=handleResponse`;
-        document.body.appendChild(script);
-    }
-
-    function renderAccountsList() {
-        const accountsList = document.getElementById('accounts-list');
-        const balanceContainer = document.getElementById('total-balance-container');
-        if(!transactions || transactions.length === 0) {
-            accountsList.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No accounts found</p>`;
-            balanceContainer.innerHTML = `<div class="balance-summary">0.00</div>`;
-            return;
-        }
-
-        let rawAccs = {};
-        let totalsByCur = {};
-
-        transactions.forEach(t => {
-            let amtVal = t.amt || 0;
-            let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB';
-            let acc = (t.a && t.a.trim() !== "") ? t.a.trim() : 'General';
-            
-            if (!totalsByCur[cur]) totalsByCur[cur] = 0;
-            totalsByCur[cur] += amtVal;
-
-            if (!rawAccs[acc]) rawAccs[acc] = { total: 0, currency: cur };
-            rawAccs[acc].total += amtVal;
-            rawAccs[acc].currency = cur;
-        });
-
-        let balanceHtml = '';
-        for (let cur in totalsByCur) {
-            balanceHtml += `<div class="balance-summary" style="color: ${totalsByCur[cur] < 0 ? 'var(--danger)' : 'var(--primary)'};">${totalsByCur[cur].toLocaleString()} ${cur}</div>`;
-        }
-        balanceContainer.innerHTML = balanceHtml;
-
-        let mainAccMap = {};
-        for (let main in subAccountsData) {
-            mainAccMap[main] = { total: 0, currency: 'THB', subs: subAccountsData[main] };
-        }
-
-        for (let rawAcc in rawAccs) {
-            let foundMain = null;
-            for (let main in subAccountsData) {
-                if (subAccountsData[main].some(s => s.toLowerCase() === rawAcc.toLowerCase())) {
-                    foundMain = main;
-                    break;
-                }
-            }
-
-            if (foundMain) {
-                mainAccMap[foundMain].total += rawAccs[rawAcc].total;
-                mainAccMap[foundMain].currency = rawAccs[rawAcc].currency;
+            catHtml += `<optgroup label="${main}">`;
+            if (categoriesData[main].length === 0) {
+                catHtml += `<option value="${main}">${main}</option>`;
             } else {
-                if (!mainAccMap[rawAcc]) {
-                    mainAccMap[rawAcc] = { total: 0, currency: rawAccs[rawAcc].currency, subs: [] };
-                }
-                mainAccMap[rawAcc].total += rawAccs[rawAcc].total;
+                categoriesData[main].forEach(sub => {
+                    catHtml += `<option value="${main} ► ${sub}">${main} ► ${sub}</option>`;
+                });
             }
+            catHtml += `</optgroup>`;
+        }
+        catSelect.innerHTML = catHtml;
+
+        if (type === 'Transfer') {
+            document.getElementById('tx-single-acc-group').style.display = 'none';
+            document.getElementById('tx-transfer-acc-group').style.display = 'block';
+            document.getElementById('tx-cat-group').style.display = 'none';
+        } else {
+            document.getElementById('tx-single-acc-group').style.display = 'block';
+            document.getElementById('tx-transfer-acc-group').style.display = 'none';
+            document.getElementById('tx-cat-group').style.display = 'block';
         }
 
-        let accHtml = '';
-        for (let main in mainAccMap) {
-            let data = mainAccMap[main];
-            let subs = data.subs || [];
-            
-            let subHtml = '';
-            subs.forEach(sub => {
-                let subTotal = rawAccs[sub] ? rawAccs[sub].total : 0;
-                subHtml += `<div class="sub-acc-display">
-                    <span>└─ ${sub}</span>
-                    <span style="font-weight:500;">${subTotal.toLocaleString()}</span>
-                </div>`;
-            });
-
-            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
-                <div class="acc-item" style="border:none; padding:0;" onclick="openAccountDetail('${main}')">
-                    <div>
-                        <strong>💳 ${main}</strong><br>
-                        <small style="color:var(--text-muted);">Main Account</small>
-                    </div>
-                    <div style="font-weight:bold; color:${data.total < 0 ? 'var(--danger)' : 'var(--success)'};">
-                        ${data.total.toLocaleString()} ${data.currency}
-                    </div>
-                </div>
-                ${subHtml}
-            </div>`;
-        }
-        accountsList.innerHTML = accHtml;
+        document.getElementById('tx-modal').classList.add('active');
     }
 
-    function openAccountDetail(accName) {
-        selectedAccount = accName;
-        document.getElementById('accounts-main-view').style.display = 'none';
-        document.getElementById('account-detail-view').style.display = 'block';
-        document.getElementById('detail-account-title').textContent = `Account: ${accName}`;
-        document.getElementById('acc-currency-pref').value = accountPreferences[accName] || 'THB';
-
-        const txList = document.getElementById('account-tx-list');
-        let subAccs = subAccountsData[accName] || [];
-        let filtered = transactions.filter(t => {
-            let a = t.a ? t.a.trim() : '';
-            return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
-        }).sort((a, b) => new Date(b.d) - new Date(a.d));
-
-        if (filtered.length === 0) {
-            txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>`;
-            return;
-        }
-        let html = '';
-        filtered.forEach(t => {
-            let amtVal = t.amt || 0;
-            html += `<tr><td>${t.d ? t.d.split('T')[0] : ''}</td><td>${t.cat || ''} (${t.a || ''})</td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.cur || 'THB'}</td></tr>`;
-        });
-        txList.innerHTML = html;
+    function closeTxModal() {
+        document.getElementById('tx-modal').classList.remove('active');
     }
 
-    function backToAccountsList() {
-        selectedAccount = null;
-        document.getElementById('account-detail-view').style.display = 'none';
-        document.getElementById('accounts-main-view').style.display = 'block';
+    function saveTransaction() {
+        const type = document.getElementById('tx-type').value;
+        const date = document.getElementById('tx-date').value;
+        const rawAmt = parseFloat(document.getElementById('tx-amount').value);
+        const currency = document.getElementById('tx-currency').value;
+        const memo = document.getElementById('tx-memo').value.trim();
+
+        if (isNaN(rawAmt) || rawAmt <= 0 || !date) {
+            return alert('Please enter a valid amount and date');
+        }
+
+        let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+        let account = type === 'Transfer' 
+            ? `${document.getElementById('tx-from-account').value} ➔ ${document.getElementById('tx-to-account').value}`
+            : document.getElementById('tx-account').value;
+        let category = type === 'Transfer' ? 'Transfer' : document.getElementById('tx-category').value;
+
+        let newTx = { d: date, amt: amount, cur: currency, a: account, cat: category, memo: memo };
+        transactions.unshift(newTx);
+        
         renderAccountsList();
-    }
-
-    function updateAccountCurrencyPref() {
-        if (!selectedAccount) return;
-        accountPreferences[selectedAccount] = document.getElementById('acc-currency-pref').value;
-        localStorage.setItem('wallet_acc_prefs', JSON.stringify(accountPreferences));
-        alert('Saved preferred currency');
+        closeTxModal();
+        alert('Transaction added successfully!');
     }
 
     /* Account Manager Modal */
@@ -1275,13 +593,12 @@
             html += `</div></div>`;
         }
 
-        // แสดงบัญชีย่อยที่ยังไม่ได้ Assign
         let assignedList = [];
         Object.values(subAccountsData).forEach(arr => assignedList.push(...arr.map(s => s.toLowerCase())));
         let unassigned = [...allRawAccs].filter(a => !subAccountsData[a] && !assignedList.includes(a.toLowerCase()));
 
         if (unassigned.length > 0) {
-            html += `<h4 style="margin-top:16px; color:var(--text-muted);">Unassigned Accounts (จาก Sheet):</h4>`;
+            html += `<h4 style="margin-top:16px; color:var(--text-muted);">Unassigned Accounts:</h4>`;
             unassigned.forEach(acc => {
                 html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
                     <span>${acc}</span>
