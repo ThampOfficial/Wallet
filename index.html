@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Account Manager</title>
+    <title>Wallet PWA - Accounts & Sub-accounts</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -46,6 +46,7 @@
 
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
         .acc-item:hover { background: #f9fafb; }
+        .sub-acc-display { padding-left: 20px; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
         
         .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
@@ -215,7 +216,7 @@
         <div class="form-group">
             <label>Add New Main Account</label>
             <div style="display:flex; gap:8px;">
-                <input type="text" id="new-main-acc-input" placeholder="e.g., SCB, UOB">
+                <input type="text" id="new-main-acc-input" placeholder="e.g., SCOTIA">
                 <button class="btn" style="width: auto;" onclick="addMainAccount()">Add</button>
             </div>
         </div>
@@ -273,7 +274,10 @@
         "EUR": 38.00
     };
 
-    let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {};
+    let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
+        "SCOTIA": ["Checking", "Savings", "Credit Card"]
+    };
+
     let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
     let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
 
@@ -313,7 +317,6 @@
 
         let accountsMap = {}, totalsByCur = {};
         
-        // รวบรวม Account จาก Transaction + Account ที่สร้างเพิ่มไว้ใน subAccountsData
         let allAccs = new Set(transactions.map(t => t.a ? t.a.trim() : 'General'));
         Object.keys(subAccountsData).forEach(acc => allAccs.add(acc));
 
@@ -343,10 +346,13 @@
             let prefCur = accountPreferences[acc] || accountsMap[acc].currency;
             let subAccs = subAccountsData[acc] || [];
             
+            let subAccText = subAccs.length > 0 ? `<div class="sub-acc-display">Sub-accounts: ${subAccs.join(', ')}</div>` : '';
+
             accHtml += `<div class="acc-item" onclick="openAccountDetail('${acc}')">
                 <div>
                     <strong>${acc}</strong><br>
-                    <small style="color:var(--text-muted);">Currency: ${prefCur} ${subAccs.length > 0 ? '| Subs: ' + subAccs.length : ''}</small>
+                    <small style="color:var(--text-muted);">Currency: ${prefCur}</small>
+                    ${subAccText}
                 </div>
                 <div style="font-weight:bold; color:${accountsMap[acc].total < 0 ? 'var(--danger)' : 'var(--success)'};">${accountsMap[acc].total.toLocaleString()} ${accountsMap[acc].currency}</div>
             </div>`;
@@ -504,7 +510,7 @@
     function renderScheduleForm() {
         let accSelects = ['sch-account', 'sch-from-account', 'sch-to-account'];
         let accs = [...new Set(transactions.map(t => t.a))].filter(Boolean);
-        if (accs.length === 0) accs = ['Krungsri', 'Cash', 'UOB'];
+        if (accs.length === 0) accs = ['Krungsri', 'Cash', 'SCOTIA'];
 
         accSelects.forEach(id => {
             let el = document.getElementById(id);
@@ -626,7 +632,7 @@
                         <span>${cat}</span>
                         <strong>${amt.toLocaleString()} (${percent}%)</strong>
                     </div>
-                    <div class="progress-bar-bg" style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
+                    <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
                         <div style="background:var(--primary); height:100%; width: ${percent}%;"></div>
                     </div>
                 </div>`;
