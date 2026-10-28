@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Flexible Settings</title>
+    <title>Wallet PWA - Full Featured Settings</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -48,7 +48,12 @@
         .acc-item:hover { background: #f9fafb; }
         
         .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 4px; }
+        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
+
+        /* Modal Overlay */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: white; width: 100%; max-width: 400px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -164,6 +169,29 @@
             <div class="form-group"><label>Exchange Rate (vs THB)</label><input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50"></div>
             <button class="btn" onclick="addCurrencySetting()">Add / Update Currency</button>
             <div id="currencies-manage-list" style="margin-top: 16px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Editing Sub-category -->
+<div id="edit-submodal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Edit Sub-category</h3>
+        <input type="hidden" id="edit-sub-old-main">
+        <input type="hidden" id="edit-sub-old-sub">
+        
+        <div class="form-group">
+            <label>Sub-category Name</label>
+            <input type="text" id="edit-sub-name-input">
+        </div>
+        <div class="form-group">
+            <label>Belongs to Main Category (Move to...)</label>
+            <select id="edit-sub-main-select"></select>
+        </div>
+        
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveSubCategoryEdit()">Save Changes</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeEditSubModal()">Cancel</button>
         </div>
     </div>
 </div>
@@ -293,33 +321,25 @@
         alert('Saved preferred currency');
     }
 
-    // Settings & Category Management (Full Edit & Move Support)
+    // Settings Render
     function renderSettings() {
         let catHtml = '';
-        let mainCategories = Object.keys(categoriesData);
 
         for (let main in categoriesData) {
             catHtml += `<div class="cat-group">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <strong>📁 ${main}</strong>
                     <div>
-                        <button onclick="editMainCategory('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit Name</button>
+                        <button onclick="editMainCategory('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
                         <button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
                     </div>
                 </div>`;
             
             categoriesData[main].forEach(sub => {
-                // สร้าง dropdown สำหรับเลือกย้ายไป Main อื่น
-                let moveOptions = mainCategories.map(m => `<option value="${m}" ${m === main ? 'selected' : ''}>${m}</option>`).join('');
-                
                 catHtml += `<div class="sub-cat-item">
                     <span>└─ ${sub}</span>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <select onchange="moveSubCategory('${main}', '${sub}', this.value)" style="font-size:11px; padding:2px;">
-                            <option value="" disabled selected>Move to...</option>
-                            ${moveOptions}
-                        </select>
-                        <button onclick="editSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">Edit</button>
+                    <div>
+                        <button onclick="openEditSubModal('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit</button>
                         <button onclick="deleteSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
                     </div>
                 </div>`;
@@ -368,31 +388,49 @@
         }
     }
 
-    function editSubCategory(main, oldSub) {
-        const newSub = prompt(`Edit sub-category name for "${main}":`, oldSub);
-        if (newSub && newSub.trim() !== "" && newSub !== oldSub) {
-            let idx = categoriesData[main].indexOf(oldSub);
-            if (idx !== -1) {
-                categoriesData[main][idx] = newSub.trim();
-                localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-                renderSettings();
-            }
+    /* Modal Logic for Sub-category Editing & Moving */
+    function openEditSubModal(main, sub) {
+        document.getElementById('edit-sub-old-main').value = main;
+        document.getElementById('edit-sub-old-sub').value = sub;
+        document.getElementById('edit-sub-name-input').value = sub;
+
+        // Populate Main Categories select list
+        let select = document.getElementById('edit-sub-main-select');
+        select.innerHTML = '';
+        for (let m in categoriesData) {
+            let opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            if (m === main) opt.selected = true;
+            select.appendChild(opt);
         }
+
+        document.getElementById('edit-submodal').classList.add('active');
     }
 
-    function moveSubCategory(currentMain, sub, targetMain) {
-        if (!targetMain || currentMain === targetMain) return;
-        
-        // ลบออกจากอันเก่า
-        categoriesData[currentMain] = categoriesData[currentMain].filter(s => s !== sub);
-        
-        // เพิ่มเข้าไปยังอันใหม่
-        if (!categoriesData[targetMain]) categoriesData[targetMain] = [];
-        if (!categoriesData[targetMain].includes(sub)) {
-            categoriesData[targetMain].push(sub);
+    function closeEditSubModal() {
+        document.getElementById('edit-submodal').classList.remove('active');
+    }
+
+    function saveSubCategoryEdit() {
+        const oldMain = document.getElementById('edit-sub-old-main').value;
+        const oldSub = document.getElementById('edit-sub-old-sub').value;
+        const newSub = document.getElementById('edit-sub-name-input').value.trim();
+        const newMain = document.getElementById('edit-sub-main-select').value;
+
+        if (!newSub) return alert('Sub-category name cannot be empty');
+
+        // 1. ลบออกจาก Main เดิม
+        categoriesData[oldMain] = categoriesData[oldMain].filter(s => s !== oldSub);
+
+        // 2. ใส่ชื่อใหม่ไปยัง Main ที่เลือก
+        if (!categoriesData[newMain]) categoriesData[newMain] = [];
+        if (!categoriesData[newMain].includes(newSub)) {
+            categoriesData[newMain].push(newSub);
         }
 
         localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        closeEditSubModal();
         renderSettings();
     }
 
