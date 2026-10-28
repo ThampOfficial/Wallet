@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Advanced</title>
+    <title>Wallet PWA - Account Manager</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -40,7 +40,7 @@
         /* Form elements & buttons */
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
 
@@ -50,14 +50,10 @@
         .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
 
-        /* Report Progress Bar */
-        .progress-bar-bg { background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; }
-        .progress-bar-fill { background: var(--primary); height: 100%; }
-
         /* Modal Overlay */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
-        .modal-box { background: white; width: 100%; max-width: 400px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -68,7 +64,11 @@
     <!-- TAB 1: ACCOUNTS -->
     <div id="tab-accounts" class="tab-content active">
         <div id="accounts-main-view">
-            <h2>Accounts & Sub-accounts</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 style="margin-bottom: 0;">Accounts & Sub-accounts</h2>
+                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
+            </div>
+
             <div class="card" style="text-align: center;">
                 <h3>Total Balance</h3>
                 <div id="total-balance-container" style="margin-top: 8px;">
@@ -110,15 +110,6 @@
             </div>
 
             <div class="card">
-                <h3>Manage Sub-accounts</h3>
-                <div class="form-group" style="display:flex; gap:8px; margin-top:8px;">
-                    <input type="text" id="new-subacc-input" placeholder="New Sub-account name">
-                    <button class="btn" style="width: auto;" onclick="addSubAccount()">Add</button>
-                </div>
-                <div id="subaccounts-manage-list" style="margin-top: 12px;"></div>
-            </div>
-
-            <div class="card">
                 <h3>Transactions (Newest First)</h3>
                 <div style="overflow-x: auto;">
                     <table>
@@ -140,12 +131,11 @@
         <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
     </div>
 
-    <!-- TAB 3: SCHEDULE & RECURRING -->
+    <!-- TAB 3: SCHEDULE -->
     <div id="tab-schedule" class="tab-content">
         <h2>Schedule & Recurring</h2>
         <div class="card">
             <h3>Add Scheduled / Recurring Entry</h3>
-            
             <div class="form-group">
                 <label>Action Type (ทำอะไร)</label>
                 <select id="sch-action-type" onchange="toggleScheduleFormFields()">
@@ -154,45 +144,17 @@
                     <option value="Transfer">Transfer (ย้าย/โอนเงิน)</option>
                 </select>
             </div>
-
-            <div class="form-group">
-                <label>Title / Description</label>
-                <input type="text" id="sch-title" placeholder="e.g., Rent, Netflix, Salary">
-            </div>
-
-            <div class="form-group">
-                <label>Amount</label>
-                <input type="number" id="sch-amount" placeholder="0.00">
-            </div>
-
-            <!-- Normal Accounts selection -->
-            <div id="sch-single-acc-group" class="form-group">
-                <label>Account</label>
-                <select id="sch-account"></select>
-            </div>
-
-            <!-- Transfer Accounts selection -->
+            <div class="form-group"><label>Title / Description</label><input type="text" id="sch-title" placeholder="e.g., Rent, Salary"></div>
+            <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
+            
+            <div id="sch-single-acc-group" class="form-group"><label>Account</label><select id="sch-account"></select></div>
             <div id="sch-transfer-acc-group" style="display:none;">
-                <div class="form-group">
-                    <label>From Account (โอนจาก)</label>
-                    <select id="sch-from-account"></select>
-                </div>
-                <div class="form-group">
-                    <label>To Account (ไปยัง)</label>
-                    <select id="sch-to-account"></select>
-                </div>
+                <div class="form-group"><label>From Account</label><select id="sch-from-account"></select></div>
+                <div class="form-group"><label>To Account</label><select id="sch-to-account"></select></div>
             </div>
 
-            <div class="form-group">
-                <label>Category</label>
-                <select id="sch-category"></select>
-            </div>
-
-            <div class="form-group">
-                <label>Start / Due Date</label>
-                <input type="date" id="sch-date">
-            </div>
-
+            <div class="form-group"><label>Category</label><select id="sch-category"></select></div>
+            <div class="form-group"><label>Start / Due Date</label><input type="date" id="sch-date"></div>
             <div class="form-group">
                 <label>Frequency (บ่อยแค่ไหน)</label>
                 <select id="sch-freq">
@@ -203,21 +165,10 @@
                     <option value="Yearly">Yearly (ทุกปี)</option>
                 </select>
             </div>
-
-            <div class="form-group">
-                <label>Memo / Notes (ข้อมูลเพิ่มเติม)</label>
-                <input type="text" id="sch-memo" placeholder="Optional notes...">
-            </div>
-
+            <div class="form-group"><label>Memo / Notes</label><input type="text" id="sch-memo" placeholder="Optional..."></div>
             <button class="btn" onclick="addSchedule()">Save Scheduled Entry</button>
         </div>
-
-        <div class="card">
-            <h3>Scheduled List</h3>
-            <div id="schedule-list">
-                <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
-            </div>
-        </div>
+        <div class="card"><h3>Scheduled List</h3><div id="schedule-list"><p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p></div></div>
     </div>
 
     <!-- TAB 4: REPORT -->
@@ -226,29 +177,19 @@
         <div class="card" style="text-align:center;">
             <h3>Summary Overview</h3>
             <div style="display:flex; justify-content:space-around; margin-top:12px;">
-                <div>
-                    <small style="color:var(--text-muted);">Total Income</small>
-                    <div id="rep-total-income" style="color:var(--success); font-weight:bold; font-size:16px;">0.00</div>
-                </div>
-                <div>
-                    <small style="color:var(--text-muted);">Total Expense</small>
-                    <div id="rep-total-expense" style="color:var(--danger); font-weight:bold; font-size:16px;">0.00</div>
-                </div>
+                <div><small style="color:var(--text-muted);">Total Income</small><div id="rep-total-income" style="color:var(--success); font-weight:bold; font-size:16px;">0.00</div></div>
+                <div><small style="color:var(--text-muted);">Total Expense</small><div id="rep-total-expense" style="color:var(--danger); font-weight:bold; font-size:16px;">0.00</div></div>
             </div>
         </div>
-
         <div class="card">
             <h3>Top Expense Categories</h3>
-            <div id="report-category-list">
-                <p style="color:var(--text-muted); font-size:13px;">Analyzing data...</p>
-            </div>
+            <div id="report-category-list"><p style="color:var(--text-muted); font-size:13px;">Analyzing data...</p></div>
         </div>
     </div>
 
     <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
-        
         <div class="card">
             <h3>Manage Categories & Sub-categories</h3>
             <div class="form-group"><label>Main Category</label><input type="text" id="main-cat-input" placeholder="e.g., Shopping"></div>
@@ -256,7 +197,6 @@
             <button class="btn" onclick="addCategorySetting()">Add Category</button>
             <div id="categories-manage-list" style="margin-top: 16px;"></div>
         </div>
-
         <div class="card">
             <h3>Manage Currencies & Exchange Rates</h3>
             <div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
@@ -267,7 +207,30 @@
     </div>
 </div>
 
-<!-- Modal for Editing Sub-category & Moving -->
+<!-- Modal for Managing Accounts & Sub-accounts -->
+<div id="account-manager-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Manage Accounts & Sub-accounts</h3>
+        
+        <div class="form-group">
+            <label>Add New Main Account</label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="new-main-acc-input" placeholder="e.g., SCB, UOB">
+                <button class="btn" style="width: auto;" onclick="addMainAccount()">Add</button>
+            </div>
+        </div>
+
+        <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
+
+        <div id="accounts-manage-container" style="max-height: 300px; overflow-y: auto;"></div>
+
+        <div style="margin-top: 16px;">
+            <button class="btn" onclick="closeAccountManagerModal()">Done / Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Editing Sub-category -->
 <div id="edit-submodal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Edit Sub-category</h3>
@@ -328,7 +291,6 @@
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            // Sort Transactions: Newer First
             transactions = data.transactions.sort((a, b) => new Date(b.d) - new Date(a.d));
             renderAccountsList();
         }
@@ -350,6 +312,15 @@
         }
 
         let accountsMap = {}, totalsByCur = {};
+        
+        // รวบรวม Account จาก Transaction + Account ที่สร้างเพิ่มไว้ใน subAccountsData
+        let allAccs = new Set(transactions.map(t => t.a ? t.a.trim() : 'General'));
+        Object.keys(subAccountsData).forEach(acc => allAccs.add(acc));
+
+        allAccs.forEach(acc => {
+            accountsMap[acc] = { total: 0, currency: 'THB' };
+        });
+
         transactions.forEach(t => {
             let amtVal = t.amt || 0;
             let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB';
@@ -358,6 +329,7 @@
             totalsByCur[cur] += amtVal;
             if (!accountsMap[acc]) accountsMap[acc] = { total: 0, currency: cur };
             accountsMap[acc].total += amtVal;
+            accountsMap[acc].currency = cur;
         });
 
         let balanceHtml = '';
@@ -389,10 +361,7 @@
         document.getElementById('detail-account-title').textContent = `Account: ${accName}`;
         document.getElementById('acc-currency-pref').value = accountPreferences[accName] || 'THB';
 
-        renderSubAccountsList();
-
         const txList = document.getElementById('account-tx-list');
-        // Filter & ensure Newer First
         let filtered = transactions.filter(t => t.a === accName).sort((a, b) => new Date(b.d) - new Date(a.d));
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>`;
@@ -420,55 +389,114 @@
         alert('Saved preferred currency');
     }
 
-    /* Sub-account Management */
-    function renderSubAccountsList() {
-        const listDiv = document.getElementById('subaccounts-manage-list');
-        let subs = subAccountsData[selectedAccount] || [];
-        if (subs.length === 0) {
-            listDiv.innerHTML = `<p style="color:var(--text-muted); font-size:12px;">No sub-accounts yet.</p>`;
+    /* Account Manager Modal Logic */
+    function openAccountManagerModal() {
+        renderAccountManagerList();
+        document.getElementById('account-manager-modal').classList.add('active');
+    }
+
+    function closeAccountManagerModal() {
+        document.getElementById('account-manager-modal').classList.remove('active');
+        renderAccountsList();
+    }
+
+    function renderAccountManagerList() {
+        const container = document.getElementById('accounts-manage-container');
+        let allAccs = new Set(transactions.map(t => t.a ? t.a.trim() : 'General'));
+        Object.keys(subAccountsData).forEach(acc => allAccs.add(acc));
+
+        if (allAccs.size === 0) {
+            container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No accounts found.</p>`;
             return;
         }
+
         let html = '';
-        subs.forEach((sub, idx) => {
-            html += `<div class="sub-cat-item">
-                <span>└─ ${sub}</span>
-                <div>
-                    <button onclick="editSubAccount('${selectedAccount}', ${idx})" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit</button>
-                    <button onclick="deleteSubAccount('${selectedAccount}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
+        allAccs.forEach(acc => {
+            let subs = subAccountsData[acc] || [];
+            html += `<div class="cat-group">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>💳 ${acc}</strong>
+                    <div>
+                        <button onclick="editMainAccount('${acc}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
+                        <button onclick="deleteMainAccount('${acc}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
+                    </div>
                 </div>
-            </div>`;
+                <div style="margin-top:6px; padding-left:12px;">
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <input type="text" id="sub-input-${acc}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;">
+                        <button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountInModal('${acc}')">+ Sub</button>
+                    </div>`;
+            
+            subs.forEach((sub, sIdx) => {
+                html += `<div class="sub-cat-item">
+                    <span>└─ ${sub}</span>
+                    <div>
+                        <button onclick="editSubAccountModal('${acc}', ${sIdx})" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit</button>
+                        <button onclick="deleteSubAccountModal('${acc}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
+                    </div>
+                </div>`;
+            });
+            html += `</div></div>`;
         });
-        listDiv.innerHTML = html;
+        container.innerHTML = html;
     }
 
-    function addSubAccount() {
-        const val = document.getElementById('new-subacc-input').value.trim();
-        if (!val || !selectedAccount) return alert('Enter sub-account name');
-        if (!subAccountsData[selectedAccount]) subAccountsData[selectedAccount] = [];
-        if (!subAccountsData[selectedAccount].includes(val)) {
-            subAccountsData[selectedAccount].push(val);
+    function addMainAccount() {
+        let name = document.getElementById('new-main-acc-input').value.trim();
+        if (!name) return alert('Enter account name');
+        if (!subAccountsData[name]) subAccountsData[name] = [];
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        document.getElementById('new-main-acc-input').value = '';
+        renderAccountManagerList();
+    }
+
+    function editMainAccount(oldName) {
+        let newName = prompt("Edit Account name:", oldName);
+        if (newName && newName.trim() !== "" && newName !== oldName) {
+            subAccountsData[newName.trim()] = subAccountsData[oldName] || [];
+            if (oldName !== newName.trim()) delete subAccountsData[oldName];
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            document.getElementById('new-subacc-input').value = '';
-            renderSubAccountsList();
+            renderAccountManagerList();
         }
     }
 
-    function editSubAccount(acc, idx) {
+    function deleteMainAccount(acc) {
+        if (confirm(`Delete account "${acc}" and its sub-accounts?`)) {
+            delete subAccountsData[acc];
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+            renderAccountManagerList();
+        }
+    }
+
+    function addSubAccountInModal(acc) {
+        let input = document.getElementById(`sub-input-${acc}`);
+        let val = input.value.trim();
+        if (!val) return;
+        if (!subAccountsData[acc]) subAccountsData[acc] = [];
+        if (!subAccountsData[acc].includes(val)) {
+            subAccountsData[acc].push(val);
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+            input.value = '';
+            renderAccountManagerList();
+        }
+    }
+
+    function editSubAccountModal(acc, idx) {
         let subs = subAccountsData[acc];
         let oldName = subs[idx];
-        let newName = prompt(`Edit sub-account name for "${acc}":`, oldName);
+        let newName = prompt(`Edit sub-account name:`, oldName);
         if (newName && newName.trim() !== "" && newName !== oldName) {
             subs[idx] = newName.trim();
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderSubAccountsList();
+            renderAccountManagerList();
         }
     }
 
-    function deleteSubAccount(acc, idx) {
+    function deleteSubAccountModal(acc, idx) {
         if (confirm('Delete this sub-account?')) {
             subAccountsData[acc].splice(idx, 1);
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderSubAccountsList();
+            renderAccountManagerList();
         }
     }
 
@@ -598,8 +626,8 @@
                         <span>${cat}</span>
                         <strong>${amt.toLocaleString()} (${percent}%)</strong>
                     </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+                    <div class="progress-bar-bg" style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
+                        <div style="background:var(--primary); height:100%; width: ${percent}%;"></div>
                     </div>
                 </div>`;
             });
@@ -703,10 +731,8 @@
 
         if (!newSub) return alert('Sub-category name cannot be empty');
 
-        // Remove from old main
         categoriesData[oldMain] = categoriesData[oldMain].filter(s => s !== oldSub);
 
-        // Add to new main
         if (!categoriesData[newMain]) categoriesData[newMain] = [];
         if (!categoriesData[newMain].includes(newSub)) {
             categoriesData[newMain].push(newSub);
