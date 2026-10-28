@@ -273,7 +273,7 @@
         }
     }
 
-    function handleFormSubmit(event) {
+   function handleFormSubmit(event) {
         event.preventDefault();
         const tx = {
             id: Date.now().toString(),
@@ -300,7 +300,7 @@
         document.getElementById('tx-date').valueAsDate = new Date();
         updateCategoryDropdowns();
         
-        alert(navigator.onLine ? 'Transaction saved!' : 'Saved locally (Offline Mode)');
+        alert('Transaction saved!');
         switchTab('dashboard', document.querySelectorAll('.nav-item')[0]);
 
         if (navigator.onLine) {
@@ -313,20 +313,25 @@
 
         const toSync = [...syncQueue];
 
+        // ใช้การส่งข้อมูลแบบ POST พร้อมแปลงเป็น JSON string ส่งไปตรงๆ
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'sync_batch', list: toSync })
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'add_tx', ...toSync[0] })
         })
         .then(() => {
-            syncQueue = syncQueue.filter(item => !toSync.includes(item));
+            // ตัดรายการที่ sync แล้วออก
+            syncQueue.shift();
             localStorage.setItem('wallet_sync_queue', JSON.stringify(syncQueue));
             updateNetworkStatus();
+            // ดึงข้อมูลล่าสุดจาก Sheet กลับมาแสดง
+            setTimeout(fetchTransactionsFromSheet, 1500);
         })
         .catch(err => console.log('Sync failed:', err));
     }
 
+   
     function renderTransactions() {
         const dashList = document.getElementById('dashboard-tx-list');
         const fullList = document.getElementById('full-tx-list');
