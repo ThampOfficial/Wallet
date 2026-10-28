@@ -40,17 +40,17 @@
         .flex-row { display: flex; gap: 8px; }
         .flex-row > * { flex: 1; }
         
-        /* Status Banner */
         .status-banner { padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
         .status-online { background: #d1fae5; color: #065f46; }
         .status-offline { background: #fef3c7; color: #92400e; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; background: #f59e0b; color: #fff; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div id="connection-status" class="status-banner status-online">
-        <span id="status-text">Online - Synced with Google Sheet</span>
+        <span id="status-text">Checking status...</span>
         <span id="pending-count" style="display:none;" class="badge"></span>
     </div>
 
@@ -154,7 +154,7 @@
         <h2>Settings</h2>
         <div class="card">
             <h3>Sync Status</h3>
-            <p id="sync-details" style="font-size: 14px; margin-top: 4px;">Checking connection...</p>
+            <p id="sync-details" style="font-size: 14px; margin-top: 4px; color: var(--text-muted);">System ready</p>
             <button onclick="syncOfflineQueue()" style="margin-top:12px;">Force Sync Now</button>
         </div>
     </div>
@@ -176,7 +176,8 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxqx2nybmm9PW_wQAe0u0ce0B7TM7ShpzBrvv4aBdmP1txv_o1mG_odvzx5BjJ57G0/exec";
+    // ** ใส่ Web App URL ของคุณที่นี่ **
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw40b5ppYk_kObofqWH2xpWIWirCH_DiE9NjU99_Fcq3icwplVk4FYw-C6B4XktJsgC/exec";
 
     let categories = JSON.parse(localStorage.getItem('wallet_categories')) || {
         "Groceries": { type: "Expense", subs: ["Supermarket", "Daily Groceries"] },
@@ -197,10 +198,10 @@
         
         if (navigator.onLine) {
             banner.className = "status-banner status-online";
-            statusText.textContent = "Online - Ready";
+            statusText.textContent = "Online - Connected";
             if (syncQueue.length > 0) {
                 pendingBadge.style.display = "inline";
-                pendingBadge.textContent = `${syncQueue.length} pending sync`;
+                pendingBadge.textContent = `${syncQueue.length} pending`;
                 syncOfflineQueue();
             } else {
                 pendingBadge.style.display = "none";
@@ -227,21 +228,20 @@
     }
 
     function fetchTransactionsFromSheet() {
-        renderTransactions(); // โหลดข้อมูลใน Local ขึ้นมาก่อนทันที
+        renderTransactions();
 
-        if (!navigator.onLine) return; // ถ้า offline ไม่ต้อง fetch
+        if (!navigator.onLine) return;
 
         fetch(WEBHOOK_URL)
             .then(res => res.json())
             .then(data => {
                 if (data && data.transactions) {
-                    // รวมข้อมูลจากเซิร์ฟเวอร์กับรายการ local ที่รอ sync
                     transactions = [...syncQueue, ...data.transactions];
                     localStorage.setItem('wallet_transactions', JSON.stringify(transactions));
                     renderTransactions();
                 }
             })
-            .catch(err => console.log('Fetch error, using cached data:', err));
+            .catch(err => console.log('Network error, using offline storage:', err));
     }
 
     function updateCategoryDropdowns() {
@@ -287,7 +287,6 @@
             desc: document.getElementById('tx-desc').value
         };
 
-        // 1. เพิ่มใน Local State ทันที
         transactions.unshift(tx);
         syncQueue.push(tx);
 
@@ -297,15 +296,13 @@
         renderTransactions();
         updateNetworkStatus();
 
-        // 2. เคลียร์ Form
         document.getElementById('tx-form').reset();
         document.getElementById('tx-date').valueAsDate = new Date();
         updateCategoryDropdowns();
         
-        alert(navigator.onLine ? 'Transaction saved and syncing...' : 'Transaction saved locally (Offline)');
+        alert(navigator.onLine ? 'Transaction saved!' : 'Saved locally (Offline Mode)');
         switchTab('dashboard', document.querySelectorAll('.nav-item')[0]);
 
-        // 3. ยิงข้อมูลขึ้นถ้า Online
         if (navigator.onLine) {
             syncOfflineQueue();
         }
@@ -323,12 +320,11 @@
             body: JSON.stringify({ action: 'sync_batch', list: toSync })
         })
         .then(() => {
-            // ลบรายการที่ sync สำเร็จออกจาก Queue
             syncQueue = syncQueue.filter(item => !toSync.includes(item));
             localStorage.setItem('wallet_sync_queue', JSON.stringify(syncQueue));
             updateNetworkStatus();
         })
-        .catch(err => console.log('Sync failed, will retry online:', err));
+        .catch(err => console.log('Sync failed:', err));
     }
 
     function renderTransactions() {
@@ -360,7 +356,6 @@
         document.getElementById('total-balance').textContent = `$${total.toFixed(2)}`;
     }
 
-    // Init
     updateCategoryDropdowns();
     updateNetworkStatus();
     fetchTransactionsFromSheet();
