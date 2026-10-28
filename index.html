@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Full Featured Settings</title>
+    <title>Wallet PWA - Schedule & Recurring</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -124,17 +124,42 @@
         <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
     </div>
 
-    <!-- TAB 3: SCHEDULE -->
+    <!-- TAB 3: SCHEDULE & RECURRING -->
     <div id="tab-schedule" class="tab-content">
-        <h2>Scheduled Transactions</h2>
+        <h2>Schedule & Recurring</h2>
         <div class="card">
-            <h3>Add Scheduled / Recurring Transaction</h3>
-            <div class="form-group"><label>Title</label><input type="text" id="sch-title" placeholder="e.g., Rent"></div>
-            <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
-            <div class="form-group"><label>Type</label><select id="sch-type"><option value="One-time">Normal (One-time)</option><option value="Recurring">Recurring (Repeat)</option></select></div>
-            <button class="btn" onclick="addSchedule()">Save Schedule</button>
+            <h3>Add Scheduled / Recurring Entry</h3>
+            <div class="form-group">
+                <label>Title / Description</label>
+                <input type="text" id="sch-title" placeholder="e.g., House Rent, Netflix, Salary">
+            </div>
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" id="sch-amount" placeholder="0.00">
+            </div>
+            <div class="form-group">
+                <label>Start / Due Date</label>
+                <input type="date" id="sch-date">
+            </div>
+            <div class="form-group">
+                <label>Frequency (บ่อยแค่ไหน)</label>
+                <select id="sch-freq">
+                    <option value="One-time">One-time (ครั้งเดียว)</option>
+                    <option value="Daily">Daily (ทุกวัน)</option>
+                    <option value="Weekly">Weekly (ทุกสัปดาห์)</option>
+                    <option value="Monthly" selected>Monthly (ทุกเดือน)</option>
+                    <option value="Yearly">Yearly (ทุกปี)</option>
+                </select>
+            </div>
+            <button class="btn" onclick="addSchedule()">Save Scheduled Entry</button>
         </div>
-        <div class="card"><h3>Scheduled List</h3><div id="schedule-list"><p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p></div></div>
+
+        <div class="card">
+            <h3>Scheduled & Recurring List</h3>
+            <div id="schedule-list">
+                <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
+            </div>
+        </div>
     </div>
 
     <!-- TAB 4: REPORT -->
@@ -147,7 +172,6 @@
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         
-        <!-- Manage Categories & Sub-categories -->
         <div class="card">
             <h3>Manage Categories & Sub-categories</h3>
             <div class="form-group">
@@ -162,7 +186,6 @@
             <div id="categories-manage-list" style="margin-top: 16px;"></div>
         </div>
 
-        <!-- Manage Currencies & Exchange Rates -->
         <div class="card">
             <h3>Manage Currencies & Exchange Rates</h3>
             <div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
@@ -200,7 +223,7 @@
 <div class="nav-bar">
     <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
     <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
-    <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
+    <div class="nav-item active-schedule" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
     <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
@@ -226,6 +249,9 @@
 
     let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
     let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
+
+    // Set default date picker to today
+    document.getElementById('sch-date').valueAsDate = new Date();
 
     function switchTab(tabId, element) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -321,6 +347,51 @@
         alert('Saved preferred currency');
     }
 
+    /* Schedule / Recurring Logic */
+    function addSchedule() {
+        const title = document.getElementById('sch-title').value.trim();
+        const amount = parseFloat(document.getElementById('sch-amount').value);
+        const date = document.getElementById('sch-date').value;
+        const freq = document.getElementById('sch-freq').value;
+
+        if (!title || isNaN(amount) || !date) return alert('Please enter valid Title, Amount, and Date');
+
+        schedulesData.push({ title, amount, date, freq, id: Date.now() });
+        localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
+        
+        document.getElementById('sch-title').value = '';
+        document.getElementById('sch-amount').value = '';
+        renderSchedules();
+    }
+
+    function deleteSchedule(id) {
+        schedulesData = schedulesData.filter(s => s.id !== id);
+        localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
+        renderSchedules();
+    }
+
+    function renderSchedules() {
+        const list = document.getElementById('schedule-list');
+        if (schedulesData.length === 0) {
+            list.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No scheduled transactions.</p>`;
+            return;
+        }
+        let html = '';
+        schedulesData.forEach(s => {
+            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+                <div>
+                    <strong>${s.title}</strong><br>
+                    <small style="color:var(--text-muted);">🗓 Start: ${s.date} | 🔁 ${s.freq}</small>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-weight:bold;">${s.amount.toLocaleString()}</span>
+                    <button onclick="deleteSchedule(${s.id})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button>
+                </div>
+            </div>`;
+        });
+        list.innerHTML = html;
+    }
+
     // Settings Render
     function renderSettings() {
         let catHtml = '';
@@ -388,13 +459,11 @@
         }
     }
 
-    /* Modal Logic for Sub-category Editing & Moving */
     function openEditSubModal(main, sub) {
         document.getElementById('edit-sub-old-main').value = main;
         document.getElementById('edit-sub-old-sub').value = sub;
         document.getElementById('edit-sub-name-input').value = sub;
 
-        // Populate Main Categories select list
         let select = document.getElementById('edit-sub-main-select');
         select.innerHTML = '';
         for (let m in categoriesData) {
@@ -420,10 +489,8 @@
 
         if (!newSub) return alert('Sub-category name cannot be empty');
 
-        // 1. ลบออกจาก Main เดิม
         categoriesData[oldMain] = categoriesData[oldMain].filter(s => s !== oldSub);
 
-        // 2. ใส่ชื่อใหม่ไปยัง Main ที่เลือก
         if (!categoriesData[newMain]) categoriesData[newMain] = [];
         if (!categoriesData[newMain].includes(newSub)) {
             categoriesData[newMain].push(newSub);
@@ -454,32 +521,6 @@
         delete currenciesData[code];
         localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
         renderSettings();
-    }
-
-    function addSchedule() {
-        const title = document.getElementById('sch-title').value.trim();
-        const amount = parseFloat(document.getElementById('sch-amount').value);
-        const type = document.getElementById('sch-type').value;
-        if (!title || isNaN(amount)) return alert('Enter valid title and amount');
-        schedulesData.push({ title, amount, type });
-        localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
-        renderSchedules();
-    }
-
-    function renderSchedules() {
-        const list = document.getElementById('schedule-list');
-        if (schedulesData.length === 0) {
-            list.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No scheduled transactions.</p>`;
-            return;
-        }
-        let html = '';
-        schedulesData.forEach(s => {
-            html += `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
-                <div><strong>${s.title}</strong><br><small style="color:var(--text-muted);">Type: ${s.type}</small></div>
-                <div style="font-weight:bold;">${s.amount.toLocaleString()}</div>
-            </div>`;
-        });
-        list.innerHTML = html;
     }
 
     fetchTransactionsFromSheet();
