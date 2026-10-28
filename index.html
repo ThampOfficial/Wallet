@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Account & Sub-account Management</title>
+    <title>Wallet PWA - Advanced</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -40,7 +40,7 @@
         /* Form elements & buttons */
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
 
@@ -49,6 +49,10 @@
         
         .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
+
+        /* Report Progress Bar */
+        .progress-bar-bg { background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .progress-bar-fill { background: var(--primary); height: 100%; }
 
         /* Modal Overlay */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
@@ -88,7 +92,7 @@
             </div>
         </div>
 
-        <!-- Account Detail & Sub-account Management View -->
+        <!-- Account Detail View -->
         <div id="account-detail-view" style="display: none;">
             <button class="btn" style="width: auto; margin-bottom: 12px; background: var(--text-muted);" onclick="backToAccountsList()">← Back to Accounts</button>
             <h2 id="detail-account-title">Account Details</h2>
@@ -105,7 +109,6 @@
                 </div>
             </div>
 
-            <!-- Sub-accounts Management Card -->
             <div class="card">
                 <h3>Manage Sub-accounts</h3>
                 <div class="form-group" style="display:flex; gap:8px; margin-top:8px;">
@@ -116,7 +119,7 @@
             </div>
 
             <div class="card">
-                <h3>Transactions</h3>
+                <h3>Transactions (Newest First)</h3>
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
@@ -137,14 +140,59 @@
         <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
     </div>
 
-    <!-- TAB 3: SCHEDULE -->
+    <!-- TAB 3: SCHEDULE & RECURRING -->
     <div id="tab-schedule" class="tab-content">
         <h2>Schedule & Recurring</h2>
         <div class="card">
             <h3>Add Scheduled / Recurring Entry</h3>
-            <div class="form-group"><label>Title / Description</label><input type="text" id="sch-title" placeholder="e.g., House Rent, Netflix"></div>
-            <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
-            <div class="form-group"><label>Start / Due Date</label><input type="date" id="sch-date"></div>
+            
+            <div class="form-group">
+                <label>Action Type (ทำอะไร)</label>
+                <select id="sch-action-type" onchange="toggleScheduleFormFields()">
+                    <option value="Expense">Expense (เงินออก)</option>
+                    <option value="Income">Income (เงินเข้า)</option>
+                    <option value="Transfer">Transfer (ย้าย/โอนเงิน)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Title / Description</label>
+                <input type="text" id="sch-title" placeholder="e.g., Rent, Netflix, Salary">
+            </div>
+
+            <div class="form-group">
+                <label>Amount</label>
+                <input type="number" id="sch-amount" placeholder="0.00">
+            </div>
+
+            <!-- Normal Accounts selection -->
+            <div id="sch-single-acc-group" class="form-group">
+                <label>Account</label>
+                <select id="sch-account"></select>
+            </div>
+
+            <!-- Transfer Accounts selection -->
+            <div id="sch-transfer-acc-group" style="display:none;">
+                <div class="form-group">
+                    <label>From Account (โอนจาก)</label>
+                    <select id="sch-from-account"></select>
+                </div>
+                <div class="form-group">
+                    <label>To Account (ไปยัง)</label>
+                    <select id="sch-to-account"></select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Category</label>
+                <select id="sch-category"></select>
+            </div>
+
+            <div class="form-group">
+                <label>Start / Due Date</label>
+                <input type="date" id="sch-date">
+            </div>
+
             <div class="form-group">
                 <label>Frequency (บ่อยแค่ไหน)</label>
                 <select id="sch-freq">
@@ -155,15 +203,46 @@
                     <option value="Yearly">Yearly (ทุกปี)</option>
                 </select>
             </div>
+
+            <div class="form-group">
+                <label>Memo / Notes (ข้อมูลเพิ่มเติม)</label>
+                <input type="text" id="sch-memo" placeholder="Optional notes...">
+            </div>
+
             <button class="btn" onclick="addSchedule()">Save Scheduled Entry</button>
         </div>
-        <div class="card"><h3>Scheduled & Recurring List</h3><div id="schedule-list"><p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p></div></div>
+
+        <div class="card">
+            <h3>Scheduled List</h3>
+            <div id="schedule-list">
+                <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
+            </div>
+        </div>
     </div>
 
     <!-- TAB 4: REPORT -->
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
-        <div class="card"><p style="color: var(--text-muted); font-size: 14px;">กราฟสรุปและสถิติรายรับ-รายจ่าย</p></div>
+        <div class="card" style="text-align:center;">
+            <h3>Summary Overview</h3>
+            <div style="display:flex; justify-content:space-around; margin-top:12px;">
+                <div>
+                    <small style="color:var(--text-muted);">Total Income</small>
+                    <div id="rep-total-income" style="color:var(--success); font-weight:bold; font-size:16px;">0.00</div>
+                </div>
+                <div>
+                    <small style="color:var(--text-muted);">Total Expense</small>
+                    <div id="rep-total-expense" style="color:var(--danger); font-weight:bold; font-size:16px;">0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Top Expense Categories</h3>
+            <div id="report-category-list">
+                <p style="color:var(--text-muted); font-size:13px;">Analyzing data...</p>
+            </div>
+        </div>
     </div>
 
     <!-- TAB 5: SETTINGS -->
@@ -188,7 +267,7 @@
     </div>
 </div>
 
-<!-- Modal for Editing Sub-category -->
+<!-- Modal for Editing Sub-category & Moving -->
 <div id="edit-submodal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Edit Sub-category</h3>
@@ -243,12 +322,14 @@
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
         if(tabId === 'settings') renderSettings();
-        if(tabId === 'schedule') renderSchedules();
+        if(tabId === 'schedule') renderScheduleForm();
+        if(tabId === 'report') renderReport();
     }
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            transactions = data.transactions;
+            // Sort Transactions: Newer First
+            transactions = data.transactions.sort((a, b) => new Date(b.d) - new Date(a.d));
             renderAccountsList();
         }
     }
@@ -293,7 +374,7 @@
             accHtml += `<div class="acc-item" onclick="openAccountDetail('${acc}')">
                 <div>
                     <strong>${acc}</strong><br>
-                    <small style="color:var(--text-muted);">Currency: ${prefCur} ${subAccs.length > 0 ? '| Sub-accs: ' + subAccs.length : ''}</small>
+                    <small style="color:var(--text-muted);">Currency: ${prefCur} ${subAccs.length > 0 ? '| Subs: ' + subAccs.length : ''}</small>
                 </div>
                 <div style="font-weight:bold; color:${accountsMap[acc].total < 0 ? 'var(--danger)' : 'var(--success)'};">${accountsMap[acc].total.toLocaleString()} ${accountsMap[acc].currency}</div>
             </div>`;
@@ -311,7 +392,8 @@
         renderSubAccountsList();
 
         const txList = document.getElementById('account-tx-list');
-        let filtered = transactions.filter(t => t.a === accName);
+        // Filter & ensure Newer First
+        let filtered = transactions.filter(t => t.a === accName).sort((a, b) => new Date(b.d) - new Date(a.d));
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>`;
             return;
@@ -342,12 +424,10 @@
     function renderSubAccountsList() {
         const listDiv = document.getElementById('subaccounts-manage-list');
         let subs = subAccountsData[selectedAccount] || [];
-        
         if (subs.length === 0) {
             listDiv.innerHTML = `<p style="color:var(--text-muted); font-size:12px;">No sub-accounts yet.</p>`;
             return;
         }
-
         let html = '';
         subs.forEach((sub, idx) => {
             html += `<div class="sub-cat-item">
@@ -364,7 +444,6 @@
     function addSubAccount() {
         const val = document.getElementById('new-subacc-input').value.trim();
         if (!val || !selectedAccount) return alert('Enter sub-account name');
-
         if (!subAccountsData[selectedAccount]) subAccountsData[selectedAccount] = [];
         if (!subAccountsData[selectedAccount].includes(val)) {
             subAccountsData[selectedAccount].push(val);
@@ -393,19 +472,66 @@
         }
     }
 
-    /* Schedule Logic */
+    /* Schedule Logic & Dynamic Options */
+    function renderScheduleForm() {
+        let accSelects = ['sch-account', 'sch-from-account', 'sch-to-account'];
+        let accs = [...new Set(transactions.map(t => t.a))].filter(Boolean);
+        if (accs.length === 0) accs = ['Krungsri', 'Cash', 'UOB'];
+
+        accSelects.forEach(id => {
+            let el = document.getElementById(id);
+            el.innerHTML = accs.map(a => `<option value="${a}">${a}</option>`).join('');
+        });
+
+        let catSelect = document.getElementById('sch-category');
+        let catHtml = '';
+        for (let main in categoriesData) {
+            catHtml += `<optgroup label="${main}">`;
+            if (categoriesData[main].length === 0) {
+                catHtml += `<option value="${main}">${main}</option>`;
+            } else {
+                categoriesData[main].forEach(sub => {
+                    catHtml += `<option value="${main} ► ${sub}">${main} ► ${sub}</option>`;
+                });
+            }
+            catHtml += `</optgroup>`;
+        }
+        catSelect.innerHTML = catHtml;
+        renderSchedules();
+    }
+
+    function toggleScheduleFormFields() {
+        const type = document.getElementById('sch-action-type').value;
+        if (type === 'Transfer') {
+            document.getElementById('sch-single-acc-group').style.display = 'none';
+            document.getElementById('sch-transfer-acc-group').style.display = 'block';
+        } else {
+            document.getElementById('sch-single-acc-group').style.display = 'block';
+            document.getElementById('sch-transfer-acc-group').style.display = 'none';
+        }
+    }
+
     function addSchedule() {
+        const actionType = document.getElementById('sch-action-type').value;
         const title = document.getElementById('sch-title').value.trim();
         const amount = parseFloat(document.getElementById('sch-amount').value);
+        const category = document.getElementById('sch-category').value;
         const date = document.getElementById('sch-date').value;
         const freq = document.getElementById('sch-freq').value;
+        const memo = document.getElementById('sch-memo').value.trim();
 
         if (!title || isNaN(amount) || !date) return alert('Please enter valid Title, Amount, and Date');
 
-        schedulesData.push({ title, amount, date, freq, id: Date.now() });
+        let accountInfo = actionType === 'Transfer' 
+            ? `${document.getElementById('sch-from-account').value} ➔ ${document.getElementById('sch-to-account').value}`
+            : document.getElementById('sch-account').value;
+
+        schedulesData.push({ actionType, title, amount, accountInfo, category, date, freq, memo, id: Date.now() });
         localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
+        
         document.getElementById('sch-title').value = '';
         document.getElementById('sch-amount').value = '';
+        document.getElementById('sch-memo').value = '';
         renderSchedules();
     }
 
@@ -423,21 +549,65 @@
         }
         let html = '';
         schedulesData.forEach(s => {
-            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
-                <div>
-                    <strong>${s.title}</strong><br>
-                    <small style="color:var(--text-muted);">🗓 Start: ${s.date} | 🔁 ${s.freq}</small>
+            html += `<div style="padding:10px 0; border-bottom:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>[${s.actionType}] ${s.title}</strong>
+                    <div style="font-weight:bold; color:${s.actionType === 'Income' ? 'var(--success)' : 'var(--text-main)'};">${s.amount.toLocaleString()}</div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-weight:bold;">${s.amount.toLocaleString()}</span>
-                    <button onclick="deleteSchedule(${s.id})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
+                    📌 Acc: ${s.accountInfo} | Cat: ${s.category}<br>
+                    🗓 Start: ${s.date} | 🔁 ${s.freq} ${s.memo ? '| 📝 ' + s.memo : ''}
                 </div>
+                <button onclick="deleteSchedule(${s.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px; margin-top:4px;">Remove</button>
             </div>`;
         });
         list.innerHTML = html;
     }
 
-    /* Settings Render */
+    /* Report Generation */
+    function renderReport() {
+        let totalInc = 0;
+        let totalExp = 0;
+        let catMap = {};
+
+        transactions.forEach(t => {
+            let amt = t.amt || 0;
+            if (amt > 0) totalInc += amt;
+            else if (amt < 0) {
+                let absAmt = Math.abs(amt);
+                totalExp += absAmt;
+                let cat = t.cat || 'Uncategorized';
+                catMap[cat] = (catMap[cat] || 0) + absAmt;
+            }
+        });
+
+        document.getElementById('rep-total-income').textContent = totalInc.toLocaleString() + ' THB';
+        document.getElementById('rep-total-expense').textContent = totalExp.toLocaleString() + ' THB';
+
+        let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
+        let catListHtml = '';
+        
+        if (sortedCats.length === 0) {
+            catListHtml = `<p style="color:var(--text-muted); font-size:13px;">No expense data</p>`;
+        } else {
+            sortedCats.slice(0, 8).forEach(cat => {
+                let amt = catMap[cat];
+                let percent = totalExp > 0 ? ((amt / totalExp) * 100).toFixed(1) : 0;
+                catListHtml += `<div style="margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; font-size:13px;">
+                        <span>${cat}</span>
+                        <strong>${amt.toLocaleString()} (${percent}%)</strong>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" style="width: ${percent}%;"></div>
+                    </div>
+                </div>`;
+            });
+        }
+        document.getElementById('report-category-list').innerHTML = catListHtml;
+    }
+
+    /* Settings Render & Move Logic */
     function renderSettings() {
         let catHtml = '';
         for (let main in categoriesData) {
@@ -454,7 +624,7 @@
                 catHtml += `<div class="sub-cat-item">
                     <span>└─ ${sub}</span>
                     <div>
-                        <button onclick="openEditSubModal('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit</button>
+                        <button onclick="openEditSubModal('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit/Move</button>
                         <button onclick="deleteSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
                     </div>
                 </div>`;
@@ -533,8 +703,10 @@
 
         if (!newSub) return alert('Sub-category name cannot be empty');
 
+        // Remove from old main
         categoriesData[oldMain] = categoriesData[oldMain].filter(s => s !== oldSub);
 
+        // Add to new main
         if (!categoriesData[newMain]) categoriesData[newMain] = [];
         if (!categoriesData[newMain].includes(newSub)) {
             categoriesData[newMain].push(newSub);
