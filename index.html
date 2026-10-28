@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Full Featured</title>
+    <title>Wallet PWA - Flexible Settings</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -43,18 +43,12 @@
         .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
-        .btn-group { display: flex; gap: 8px; margin-bottom: 12px; }
-        .btn-type { flex: 1; padding: 8px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; font-weight: 500; text-align: center; }
-        .btn-type.active.income { background: var(--success); color: white; border-color: var(--success); }
-        .btn-type.active.expense { background: var(--danger); color: white; border-color: var(--danger); }
-        .btn-type.active.transfer { background: var(--primary); color: white; border-color: var(--primary); }
 
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); cursor: pointer; }
         .acc-item:hover { background: #f9fafb; }
-        .sub-acc { padding-left: 20px; font-size: 13px; color: var(--text-muted); border-left: 2px solid var(--border); margin: 4px 0 4px 10px; display: flex; justify-content: space-between; }
         
-        .cat-group { margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 4px 0; display: flex; justify-content: space-between; align-items: center; }
+        .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -73,12 +67,11 @@
                 </div>
             </div>
             
-            <!-- Action Buttons: Income / Expense / Transfer -->
             <div class="card">
                 <div style="display: flex; gap: 8px;">
-                    <button class="btn" style="background: var(--success);" onclick="openTransactionModal('Income')">+ Income</button>
-                    <button class="btn" style="background: var(--danger);" onclick="openTransactionModal('Expense')">- Expense</button>
-                    <button class="btn" style="background: var(--primary);" onclick="openTransactionModal('Transfer')">⇄ Transfer</button>
+                    <button class="btn" style="background: var(--success);" onclick="alert('Income Form')">+ Income</button>
+                    <button class="btn" style="background: var(--danger);" onclick="alert('Expense Form')">- Expense</button>
+                    <button class="btn" style="background: var(--primary);" onclick="alert('Transfer Form')">⇄ Transfer</button>
                 </div>
             </div>
 
@@ -90,13 +83,12 @@
             </div>
         </div>
 
-        <!-- Account Detail View (Transactions for selected account) -->
         <div id="account-detail-view" style="display: none;">
             <button class="btn" style="width: auto; margin-bottom: 12px; background: var(--text-muted);" onclick="backToAccountsList()">← Back to Accounts</button>
             <h2 id="detail-account-title">Account Transactions</h2>
             <div class="card">
                 <div class="form-group">
-                    <label>Preferred Currency Display for this Account</label>
+                    <label>Preferred Currency Display</label>
                     <select id="acc-currency-pref" onchange="updateAccountCurrencyPref()">
                         <option value="THB">THB</option>
                         <option value="CAD">CAD</option>
@@ -124,9 +116,7 @@
     <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
         <h2>Monthly Budget</h2>
-        <div class="card">
-            <p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p>
-        </div>
+        <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
     </div>
 
     <!-- TAB 3: SCHEDULE -->
@@ -134,44 +124,25 @@
         <h2>Scheduled Transactions</h2>
         <div class="card">
             <h3>Add Scheduled / Recurring Transaction</h3>
-            <div class="form-group">
-                <label>Title / Description</label>
-                <input type="text" id="sch-title" placeholder="e.g., Rent, Netflix Subscription">
-            </div>
-            <div class="form-group">
-                <label>Amount</label>
-                <input type="number" id="sch-amount" placeholder="0.00">
-            </div>
-            <div class="form-group">
-                <label>Type</label>
-                <select id="sch-type">
-                    <option value="One-time">Normal (One-time)</option>
-                    <option value="Recurring">Recurring (Repeat)</option>
-                </select>
-            </div>
+            <div class="form-group"><label>Title</label><input type="text" id="sch-title" placeholder="e.g., Rent"></div>
+            <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
+            <div class="form-group"><label>Type</label><select id="sch-type"><option value="One-time">Normal (One-time)</option><option value="Recurring">Recurring (Repeat)</option></select></div>
             <button class="btn" onclick="addSchedule()">Save Schedule</button>
         </div>
-        <div class="card">
-            <h3>Scheduled List</h3>
-            <div id="schedule-list">
-                <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
-            </div>
-        </div>
+        <div class="card"><h3>Scheduled List</h3><div id="schedule-list"><p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p></div></div>
     </div>
 
     <!-- TAB 4: REPORT -->
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
-        <div class="card">
-            <p style="color: var(--text-muted); font-size: 14px;">กราฟสรุปและสถิติรายรับ-รายจ่าย</p>
-        </div>
+        <div class="card"><p style="color: var(--text-muted); font-size: 14px;">กราฟสรุปและสถิติรายรับ-รายจ่าย</p></div>
     </div>
 
     <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         
-        <!-- Manage Categories & Sub-categories (Edit / Delete / Add) -->
+        <!-- Manage Categories & Sub-categories -->
         <div class="card">
             <h3>Manage Categories & Sub-categories</h3>
             <div class="form-group">
@@ -189,14 +160,8 @@
         <!-- Manage Currencies & Exchange Rates -->
         <div class="card">
             <h3>Manage Currencies & Exchange Rates</h3>
-            <div class="form-group">
-                <label>Currency Code</label>
-                <input type="text" id="cur-code-input" placeholder="e.g., CAD, USD">
-            </div>
-            <div class="form-group">
-                <label>Exchange Rate (vs THB)</label>
-                <input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50">
-            </div>
+            <div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
+            <div class="form-group"><label>Exchange Rate (vs THB)</label><input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50"></div>
             <button class="btn" onclick="addCurrencySetting()">Add / Update Currency</button>
             <div id="currencies-manage-list" style="margin-top: 16px;"></div>
         </div>
@@ -205,21 +170,11 @@
 
 <!-- Bottom Navigation Bar -->
 <div class="nav-bar">
-    <div class="nav-item active" onclick="switchTab('accounts', this)">
-        <div>💳</div>Accounts
-    </div>
-    <div class="nav-item" onclick="switchTab('budget', this)">
-        <div>📊</div>Budget
-    </div>
-    <div class="nav-item" onclick="switchTab('schedule', this)">
-        <div>📅</div>Schedule
-    </div>
-    <div class="nav-item" onclick="switchTab('report', this)">
-        <div>📈</div>Report
-    </div>
-    <div class="nav-item" onclick="switchTab('settings', this)">
-        <div>⚙️</div>Settings
-    </div>
+    <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
+    <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
+    <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
+    <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
+    <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
 
 <script>
@@ -247,10 +202,8 @@
     function switchTab(tabId, element) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
-        
         if(tabId === 'settings') renderSettings();
         if(tabId === 'schedule') renderSchedules();
     }
@@ -271,49 +224,35 @@
     function renderAccountsList() {
         const accountsList = document.getElementById('accounts-list');
         const balanceContainer = document.getElementById('total-balance-container');
-        
         if(!transactions || transactions.length === 0) {
             accountsList.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No accounts found</p>`;
             balanceContainer.innerHTML = `<div class="balance-summary">0.00</div>`;
             return;
         }
 
-        let accountsMap = {};
-        let totalsByCur = {};
-
+        let accountsMap = {}, totalsByCur = {};
         transactions.forEach(t => {
             let amtVal = t.amt || 0;
             let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB';
             let acc = (t.a && t.a.trim() !== "") ? t.a.trim() : 'General';
-
             if (!totalsByCur[cur]) totalsByCur[cur] = 0;
             totalsByCur[cur] += amtVal;
-
             if (!accountsMap[acc]) accountsMap[acc] = { total: 0, currency: cur };
             accountsMap[acc].total += amtVal;
         });
 
-        // Total Balance
         let balanceHtml = '';
         for (let cur in totalsByCur) {
-            balanceHtml += `<div class="balance-summary" style="color: ${totalsByCur[cur] < 0 ? 'var(--danger)' : 'var(--primary)'};">
-                ${totalsByCur[cur].toLocaleString()} ${cur}
-            </div>`;
+            balanceHtml += `<div class="balance-summary" style="color: ${totalsByCur[cur] < 0 ? 'var(--danger)' : 'var(--primary)'};">${totalsByCur[cur].toLocaleString()} ${cur}</div>`;
         }
         balanceContainer.innerHTML = balanceHtml;
 
-        // Accounts List
         let accHtml = '';
         for (let acc in accountsMap) {
             let prefCur = accountPreferences[acc] || accountsMap[acc].currency;
             accHtml += `<div class="acc-item" onclick="openAccountDetail('${acc}')">
-                <div>
-                    <strong>${acc}</strong><br>
-                    <small style="color:var(--text-muted);">Currency: ${prefCur}</small>
-                </div>
-                <div style="font-weight:bold; color:${accountsMap[acc].total < 0 ? 'var(--danger)' : 'var(--success)'};">
-                    ${accountsMap[acc].total.toLocaleString()} ${accountsMap[acc].currency}
-                </div>
+                <div><strong>${acc}</strong><br><small style="color:var(--text-muted);">Currency: ${prefCur}</small></div>
+                <div style="font-weight:bold; color:${accountsMap[acc].total < 0 ? 'var(--danger)' : 'var(--success)'};">${accountsMap[acc].total.toLocaleString()} ${accountsMap[acc].currency}</div>
             </div>`;
         }
         accountsList.innerHTML = accHtml;
@@ -324,30 +263,18 @@
         document.getElementById('accounts-main-view').style.display = 'none';
         document.getElementById('account-detail-view').style.display = 'block';
         document.getElementById('detail-account-title').textContent = `Account: ${accName}`;
-        
-        let prefCur = accountPreferences[accName] || 'THB';
-        document.getElementById('acc-currency-pref').value = prefCur;
+        document.getElementById('acc-currency-pref').value = accountPreferences[accName] || 'THB';
 
         const txList = document.getElementById('account-tx-list');
         let filtered = transactions.filter(t => t.a === accName);
-        
         if (filtered.length === 0) {
-            txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions in this account</td></tr>`;
+            txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>`;
             return;
         }
-
         let html = '';
         filtered.forEach(t => {
-            let dateStr = t.d ? t.d.split('T')[0] : '';
             let amtVal = t.amt || 0;
-            let cur = t.cur || 'THB';
-            html += `<tr>
-                <td>${dateStr}</td>
-                <td>${t.cat || ''}</td>
-                <td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">
-                    ${amtVal.toLocaleString()} ${cur}
-                </td>
-            </tr>`;
+            html += `<tr><td>${t.d ? t.d.split('T')[0] : ''}</td><td>${t.cat || ''}</td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.cur || 'THB'}</td></tr>`;
         });
         txList.innerHTML = html;
     }
@@ -361,34 +288,38 @@
 
     function updateAccountCurrencyPref() {
         if (!selectedAccount) return;
-        const pref = document.getElementById('acc-currency-pref').value;
-        accountPreferences[selectedAccount] = pref;
+        accountPreferences[selectedAccount] = document.getElementById('acc-currency-pref').value;
         localStorage.setItem('wallet_acc_prefs', JSON.stringify(accountPreferences));
-        alert(`Saved preferred currency for ${selectedAccount} as ${pref}`);
+        alert('Saved preferred currency');
     }
 
-    function openTransactionModal(type) {
-        alert(`Opened form to add new: ${type}`);
-    }
-
-    // Settings Render & Edit
+    // Settings & Category Management (Full Edit & Move Support)
     function renderSettings() {
         let catHtml = '';
+        let mainCategories = Object.keys(categoriesData);
+
         for (let main in categoriesData) {
             catHtml += `<div class="cat-group">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <strong>📁 ${main}</strong>
                     <div>
-                        <button onclick="editMainCategory('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
+                        <button onclick="editMainCategory('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit Name</button>
                         <button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
                     </div>
                 </div>`;
             
             categoriesData[main].forEach(sub => {
+                // สร้าง dropdown สำหรับเลือกย้ายไป Main อื่น
+                let moveOptions = mainCategories.map(m => `<option value="${m}" ${m === main ? 'selected' : ''}>${m}</option>`).join('');
+                
                 catHtml += `<div class="sub-cat-item">
                     <span>└─ ${sub}</span>
-                    <div>
-                        <button onclick="editSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-right:6px;">Edit</button>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <select onchange="moveSubCategory('${main}', '${sub}', this.value)" style="font-size:11px; padding:2px;">
+                            <option value="" disabled selected>Move to...</option>
+                            ${moveOptions}
+                        </select>
+                        <button onclick="editSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">Edit</button>
                         <button onclick="deleteSubCategory('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
                     </div>
                 </div>`;
@@ -399,11 +330,7 @@
 
         let curHtml = `<table><thead><tr><th>Currency</th><th>Rate vs THB</th><th>Action</th></tr></thead><tbody>`;
         for (let cur in currenciesData) {
-            curHtml += `<tr>
-                <td><strong>${cur}</strong></td>
-                <td>${currenciesData[cur]}</td>
-                <td><button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
-            </tr>`;
+            curHtml += `<tr><td><strong>${cur}</strong></td><td>${currenciesData[cur]}</td><td><button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
         }
         curHtml += `</tbody></table>`;
         document.getElementById('currencies-manage-list').innerHTML = curHtml;
@@ -442,7 +369,7 @@
     }
 
     function editSubCategory(main, oldSub) {
-        const newSub = prompt(`Edit sub-category for "${main}":`, oldSub);
+        const newSub = prompt(`Edit sub-category name for "${main}":`, oldSub);
         if (newSub && newSub.trim() !== "" && newSub !== oldSub) {
             let idx = categoriesData[main].indexOf(oldSub);
             if (idx !== -1) {
@@ -451,6 +378,22 @@
                 renderSettings();
             }
         }
+    }
+
+    function moveSubCategory(currentMain, sub, targetMain) {
+        if (!targetMain || currentMain === targetMain) return;
+        
+        // ลบออกจากอันเก่า
+        categoriesData[currentMain] = categoriesData[currentMain].filter(s => s !== sub);
+        
+        // เพิ่มเข้าไปยังอันใหม่
+        if (!categoriesData[targetMain]) categoriesData[targetMain] = [];
+        if (!categoriesData[targetMain].includes(sub)) {
+            categoriesData[targetMain].push(sub);
+        }
+
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        renderSettings();
     }
 
     function deleteSubCategory(main, sub) {
@@ -463,7 +406,6 @@
         const code = document.getElementById('cur-code-input').value.trim().toUpperCase();
         const rate = parseFloat(document.getElementById('cur-rate-input').value);
         if (!code || isNaN(rate)) return alert('Enter valid currency code and rate');
-
         currenciesData[code] = rate;
         localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
         renderSettings();
@@ -476,18 +418,13 @@
         renderSettings();
     }
 
-    // Schedule / Recurring
     function addSchedule() {
         const title = document.getElementById('sch-title').value.trim();
         const amount = parseFloat(document.getElementById('sch-amount').value);
         const type = document.getElementById('sch-type').value;
-
         if (!title || isNaN(amount)) return alert('Enter valid title and amount');
-
         schedulesData.push({ title, amount, type });
         localStorage.setItem('wallet_schedules', JSON.stringify(schedulesData));
-        document.getElementById('sch-title').value = '';
-        document.getElementById('sch-amount').value = '';
         renderSchedules();
     }
 
@@ -498,7 +435,7 @@
             return;
         }
         let html = '';
-        schedulesData.forEach((s, idx) => {
+        schedulesData.forEach(s => {
             html += `<div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border);">
                 <div><strong>${s.title}</strong><br><small style="color:var(--text-muted);">Type: ${s.type}</small></div>
                 <div style="font-weight:bold;">${s.amount.toLocaleString()}</div>
@@ -507,7 +444,6 @@
         list.innerHTML = html;
     }
 
-    // โหลดข้อมูลเริ่มต้น
     fetchTransactionsFromSheet();
 </script>
 </body>
