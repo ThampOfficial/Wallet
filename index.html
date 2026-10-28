@@ -19,8 +19,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 70px; }
         .container { max-width: 600px; margin: 0 auto; padding: 16px; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .tab-content { display: block; }
         .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border); }
         h2 { font-size: 20px; margin-bottom: 12px; color: var(--text-main); }
         h3 { font-size: 16px; margin-bottom: 8px; color: var(--text-muted); }
@@ -34,13 +33,12 @@
 <body>
 
 <div class="container">
-    <div id="connection-status" class="status-banner">Connected to Google Sheet</div>
+    <div id="connection-status" class="status-banner">Connected to Google Sheet (Live)</div>
 
-    <div id="tab-dashboard" class="tab-content active">
+    <div id="tab-dashboard" class="tab-content">
         <h2>Dashboard (ข้อมูลจาก Google Sheet)</h2>
         <div class="card" style="text-align: center;">
             <h3>Total Balance by Currency</h3>
-            <!-- ยอดรวมจะแสดงแยกตามสกุลเงิน (เช่น THB, CAD) อัตโนมัติ -->
             <div id="total-balance-container" style="margin-top: 8px;">
                 <div class="balance-summary">Loading balances...</div>
             </div>
@@ -63,23 +61,27 @@
 
 <script>
     // ** ใส่ Web App URL ล่าสุดของคุณที่นี่ **
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyJAwXQY6Rn7Vwn-AirrquIWFW6JQG239oqtUU2ZVeeGY8U-DfTv62lvU1t2S_oCNY/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby9TCscIYYWmpa_12wi1YjyG3lgz9DxHzmgjnecIfkDaCEgEb_qR8GJsLHWoc4hxf6S/exec";
 
     let transactions = [];
 
+    // ฟังก์ชันรับข้อมูลที่ส่งผ่าน JSONP เพื่อเลี่ยง CORS
+    function handleResponse(data) {
+        if (data && data.transactions) {
+            transactions = data.transactions;
+            renderTransactions();
+        } else {
+            document.getElementById('dashboard-tx-list').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">No data found</td></tr>`;
+        }
+    }
+
     function fetchTransactionsFromSheet() {
-        fetch(WEBHOOK_URL)
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.transactions) {
-                    transactions = data.transactions;
-                    renderTransactions();
-                }
-            })
-            .catch(err => {
-                console.log('Error fetching:', err);
-                document.getElementById('dashboard-tx-list').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Failed to load data</td></tr>`;
-            });
+        const script = document.createElement('script');
+        script.src = `${WEBHOOK_URL}?callback=handleResponse`;
+        script.onerror = function() {
+            document.getElementById('dashboard-tx-list').innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger);">Failed to load data</td></tr>`;
+        };
+        document.body.appendChild(script);
     }
 
     function renderTransactions() {
@@ -97,9 +99,8 @@
 
         transactions.forEach(t => {
             let amtVal = t.amt || 0;
-            let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB'; // ถ้าไม่ได้ระบุสกุลเงิน ให้มองเป็น THB
+            let cur = (t.cur && t.cur.trim() !== "") ? t.cur.trim() : 'THB';
 
-            // รวมยอดแยกตามสกุลเงิน
             if (!totalsByCur[cur]) {
                 totalsByCur[cur] = 0;
             }
@@ -117,7 +118,6 @@
             </tr>`;
         });
 
-        // สร้าง HTML แสดงยอดรวมแยกตามสกุลเงิน
         let balanceHtml = '';
         for (let cur in totalsByCur) {
             let val = totalsByCur[cur];
