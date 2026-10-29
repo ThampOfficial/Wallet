@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fixed</title>
+    <title>Wallet PWA - Complete Fix</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -323,13 +323,13 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Schedule -->
+<!-- Modal เพิ่ม Schedule ที่สมบูรณ์ -->
 <div id="schedule-modal" class="modal-overlay">
     <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Add Schedule</h3>
+        <h3 style="margin-bottom: 12px;">Add Schedule / Recurring</h3>
         <div class="form-group">
-            <label for="sched-title">Title</label>
-            <input type="text" id="sched-title" placeholder="e.g., Netflix">
+            <label for="sched-title">Title / Name</label>
+            <input type="text" id="sched-title" placeholder="e.g., Netflix, Salary, Rent">
         </div>
         <div class="form-group">
             <label for="sched-account">Account</label>
@@ -338,13 +338,13 @@
         <div class="form-group">
             <label for="sched-freq">Frequency</label>
             <select id="sched-freq" onchange="toggleScheduleDate(this.value)">
-                <option value="Monthly">Monthly</option>
-                <option value="Yearly">Yearly</option>
-                <option value="One-time">One-time</option>
+                <option value="Monthly">รายเดือน (Monthly)</option>
+                <option value="Yearly">รายปี (Yearly)</option>
+                <option value="One-time">ครั้งเดียว (One-time)</option>
             </select>
         </div>
         <div class="form-group" id="group-sched-date" style="display:none;">
-            <label for="sched-datetime">Date</label>
+            <label for="sched-datetime">Date & Time</label>
             <input type="datetime-local" id="sched-datetime">
         </div>
         <div class="form-group">
@@ -352,7 +352,7 @@
             <input type="number" id="sched-amount" step="0.01" placeholder="0.00">
         </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveSchedule()">Save</button>
+            <button class="btn" onclick="saveSchedule()">Save Schedule</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeScheduleModal()">Cancel</button>
         </div>
     </div>
@@ -412,7 +412,6 @@
 </div>
 
 <script>
-    // ฝัง Webhook URL ของคุณแบบถาวรที่นี่
     let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
@@ -421,7 +420,8 @@
 
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
-        "Wealth Simple": ["Cash", "TFSA"]
+        "Credit Cards (TH)": ["SCB M", "Citi Rewards", "Homepro", "Oce Siam"],
+        "Wealth Simple": ["FHSA Home", "RRSP"]
     };
 
     let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
@@ -880,6 +880,7 @@
         });
         tbody.innerHTML = html;
     }
+
     function openScheduleModal() {
         let accSelect = document.getElementById('sched-account');
         let optHtml = '';
@@ -891,23 +892,36 @@
         document.getElementById('sched-title').value = '';
         document.getElementById('sched-amount').value = '';
         document.getElementById('sched-freq').value = 'Monthly';
+        document.getElementById('sched-datetime').value = new Date().toISOString().slice(0,16);
         document.getElementById('group-sched-date').style.display = 'none';
         document.getElementById('schedule-modal').classList.add('active');
     }
+
     function closeScheduleModal() { document.getElementById('schedule-modal').classList.remove('active'); }
-    function toggleScheduleDate(val) { document.getElementById('group-sched-date').style.display = (val === 'One-time') ? 'block' : 'none'; }
+
+    function toggleScheduleDate(val) { 
+        document.getElementById('group-sched-date').style.display = (val === 'One-time') ? 'block' : 'none'; 
+    }
+
     function saveSchedule() {
         let title = document.getElementById('sched-title').value.trim();
         let acc = document.getElementById('sched-account').value;
         let freq = document.getElementById('sched-freq').value;
         let datetime = document.getElementById('sched-datetime').value;
         let amt = parseFloat(document.getElementById('sched-amount').value);
-        if (!title || isNaN(amt)) return;
+        if (!title || isNaN(amt)) return alert('Please enter valid title and amount');
+
         scheduleData.push({ title, account: acc, frequency: freq, datetime: freq === 'One-time' ? datetime : '', amount: amt });
         localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
-        renderSchedules(); closeScheduleModal();
+        renderSchedules(); 
+        closeScheduleModal();
     }
-    function deleteSchedule(idx) { scheduleData.splice(idx, 1); localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData)); renderSchedules(); }
+
+    function deleteSchedule(idx) { 
+        scheduleData.splice(idx, 1); 
+        localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData)); 
+        renderSchedules(); 
+    }
 
     /* ---- Report Pie Chart ---- */
     function renderReportChart() {
