@@ -348,7 +348,7 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzpwSRK7ZU8aMGVzqd5Jnw5SCTh8Nm0Be0U-PiCc51ISM-FC98zm1eLlRgVVGXpJk7e/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz5B4Bx2ouIRc2PZ9B5e1EXDtE66A0qva-4QExN44CabORmtXCCUVkpm2trbLWfN8Tf/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -837,7 +837,6 @@
         let amountVal = (s.actionType === 'Expense') ? -Math.abs(finalAmt) : Math.abs(finalAmt);
         let newTx = { d: paidDate, amt: amountVal, cur: 'THB', a: s.accountInfo, cat: s.category, memo: `Paid: ${s.title}` };
 
-        // ส่งข้อมูลบันทึกเข้า Google Sheets จริงทันที
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
@@ -1063,7 +1062,6 @@
 
         let newTx = { d: date, amt: amount, cur: currency, a: account, cat: category, memo: memo };
 
-        // ส่งข้อมูลไปบันทึกที่ Google Sheet จริงๆ ผ่าน Webhook
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
