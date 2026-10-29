@@ -599,12 +599,12 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่และเวลา รองรับ Column B (datetime/date)
+    // ฟังก์ชันแปลงวันที่และเวลา รองรับ Column B ให้แม่นยำ
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
 
-        // กรณีรูปแบบ DD/MM/YY หรือ DD/MM/YYYY พร้อมเวลา
+        // กรณีรูปแบบ DD/MM/YY หรือ DD/MM/YYYY
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let day = parts[0].padStart(2, '0');
@@ -625,26 +625,30 @@
         return new Date(str.replace(' ', 'T'));
     }
 
-    // ดึงค่าวันที่และเวลาจาก Column B ตรงๆ ให้ตรงกับข้อมูลจริง
+    // ดึงค่าวันที่และเวลาจาก Column B ตัดส่วน 00:00:00 ที่ไม่จำเป็นออกให้อัตโนมัติ
     function getDisplayDateTime(t) {
         let raw = t.datetime || t.date || '';
         if (!raw) return '-';
-        let parsed = parseUniversalDate(raw);
-        if (isNaN(parsed.getTime())) return raw;
-        
-        let y = parsed.getFullYear();
-        let m = String(parsed.getMonth() + 1).padStart(2, '0');
-        let d = String(parsed.getDate()).padStart(2, '0');
-        let h = String(parsed.getHours()).padStart(2, '0');
-        let min = String(parsed.getMinutes()).padStart(2, '0');
-        let s = String(parsed.getSeconds()).padStart(2, '0');
+        let strRaw = String(raw).trim();
 
-        // ถ้าเวลาเป็น 00:00:00 แต่ใน raw มีบอกวันที่เฉยๆ ให้แสดงแค่วันที่ หรือถ้ามีเวลาจริงให้แสดงเวลาด้วย
-        if (h === '00' && min === '00' && s === '00' && !String(raw).includes(':')) {
-            return `${y}-${m}-${d}`;
+        // ถ้าค่าดิบมียาวๆ เช่น Fri Apr 11 2025 00:00:00 GMT... ให้แปลงเป็น Date แล้วดึง YYYY-MM-DD
+        let parsed = parseUniversalDate(strRaw);
+        if (!isNaN(parsed.getTime())) {
+            let y = parsed.getFullYear();
+            let m = String(parsed.getMonth() + 1).padStart(2, '0');
+            let d = String(parsed.getDate()).padStart(2, '0');
+            let h = String(parsed.getHours()).padStart(2, '0');
+            let min = String(parsed.getMinutes()).padStart(2, '0');
+            let s = String(parsed.getSeconds()).padStart(2, '0');
+
+            // หากเวลาเป็น 00:00:00 ให้แสดงเฉพาะวันที่ YYYY-MM-DD เพื่อความสะอาดตา
+            if (h === '00' && min === '00' && s === '00') {
+                return `${y}-${m}-${d}`;
+            }
+            return `${y}-${m}-${d} ${h}:${min}:${s}`;
         }
 
-        return `${y}-${m}-${d} ${h}:${min}:${s}`;
+        return strRaw;
     }
 
     function fetchTransactionsFromSheet() {
