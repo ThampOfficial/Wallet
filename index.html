@@ -81,13 +81,16 @@
     <!-- TAB 1: ACCOUNTS -->
     <div id="tab-accounts" class="tab-content active">
         <div id="accounts-main-view">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h2 style="margin-bottom: 0;">Accounts & Sub-accounts</h2>
-                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
+            <!-- Search & Actions Bar -->
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <input type="text" id="global-search-input" placeholder="🔍 ค้นหา Transaction (ชื่อ, ร้าน, หมวดหมู่...)" oninput="handleGlobalSearch(this.value)" style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--card-bg); color: var(--text-main);">
+                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px; background: var(--text-muted);" onclick="openAllTransactionsModal()">📋 All Tx</button>
+                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit</button>
             </div>
 
+            <!-- Total Balance & Net Worth -->
             <div class="card" style="text-align: center;">
-                <h3>Total Balance (By Currency)</h3>
+                <h3>Total Balance & Net Worth</h3>
                 <div id="total-balance-grid" class="balance-grid">
                     <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
                 </div>
@@ -142,7 +145,7 @@
             </div>
         </div>
         <div class="card" style="text-align: center;">
-            <h3>Budget vs Expense (4 เดือนล่าสุด)</h3>
+            <h3>Budget vs Expense (4 เดือนล่าสุด - คลิกแท่งกราฟเพื่อดูรายการ)</h3>
             <div style="max-width: 100%; margin: 0 auto;">
                 <canvas id="budgetStackedBarChart"></canvas>
             </div>
@@ -255,7 +258,25 @@
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
 
-<!-- Modal แสดง Transactions ใน Budget รอบนั้น -->
+<!-- Modal แสดง All Transactions / Search Results -->
+<div id="all-tx-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 600px;">
+        <h3 id="all-tx-modal-title" style="margin-bottom: 12px;">All Transactions</h3>
+        <div style="overflow-x: auto; max-height: 60vh;">
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Account</th><th>Category / Desc</th><th>Amount</th></tr>
+                </thead>
+                <tbody id="all-tx-modal-body">
+                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 16px;"><button class="btn" onclick="closeAllTransactionsModal()">Close</button></div>
+    </div>
+</div>
+
+<!-- Modal แสดง Transactions ใน Budget รอบนั้น / กราฟ 4 เดือน -->
 <div id="budget-tx-modal" class="modal-overlay">
     <div class="modal-box" style="max-width: 550px;">
         <h3 id="budget-tx-modal-title" style="margin-bottom: 12px;">Budget Transactions</h3>
@@ -389,7 +410,7 @@
             <input type="text" id="sched-title" placeholder="e.g., Netflix, Salary, Rent">
         </div>
         <div class="form-group">
-            <label for="sched-account">Account (จากบัญชีไหน)</label>
+            <label for="sched-account">Account (จาก Sub-account ไหน)</label>
             <select id="sched-account"></select>
         </div>
         <div class="form-group">
@@ -399,6 +420,10 @@
                 <option value="Income">รายรับ (Income)</option>
                 <option value="Transfer">โอนเงิน (Transfer)</option>
             </select>
+        </div>
+        <div class="form-group" id="group-sched-category">
+            <label for="sched-category">Category (หมวดหมู่รายจ่าย/รายรับ)</label>
+            <select id="sched-category"></select>
         </div>
         <div class="form-group" id="group-sched-transfer" style="display:none;">
             <label for="sched-transfer-to">Transfer To Account (โอนไปบัญชีไหน)</label>
@@ -490,7 +515,6 @@
 <script>
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
-    // โหลดข้อมูลจาก LocalStorage ทันที (Offline First) เปิดมาปุ๊บขึ้นปั๊บไม่ต้องรอเน็ต
     let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
     let selectedAccount = null;
     let pieChartInstance = null;
@@ -518,6 +542,8 @@
     let scheduleData = JSON.parse(localStorage.getItem('wallet_schedule_data')) || [];
     let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
 
+    let chartMonthLabels = []; // เก็บ label เดือนล่าสุดไว้ใช้อ้างอิงตอนคลิกกราฟ
+
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
         
@@ -525,14 +551,12 @@
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
 
-        // เรนเดอร์ข้อมูลจากเครื่องทันทีตอนเปิดเว็บ
         renderAccountsList();
         renderBudgets();
         renderSchedules();
         renderCurrencySettings();
         renderCategoryPreview();
 
-        // จากนั้นค่อยดึงข้อมูลใหม่จาก Sheet เงียบๆ เบื้องหลัง (ถ้ามีเน็ต)
         fetchTransactionsFromSheet();
     });
 
@@ -635,6 +659,7 @@
 
         let rawAccs = {};
         let currencyTotals = {};
+        let netWorthTHB = 0;
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
@@ -649,15 +674,24 @@
             currencyTotals[cur] += amtVal;
         });
 
-        let balanceHtml = '';
+        // คำนวณ Net Worth แปลงเป็น THB ทั้งหมด
+        for (let cur in currencyTotals) {
+            netWorthTHB += convertCurrency(currencyTotals[cur], cur, 'THB');
+        }
+
+        let balanceHtml = `<div class="balance-box" style="background: rgba(79, 70, 229, 0.05); border-color: var(--primary);">
+            <div class="balance-box-cur" style="color: var(--primary);">Net Worth (THB)</div>
+            <div class="balance-box-amt" style="color: ${netWorthTHB < 0 ? 'var(--danger)' : 'var(--primary)'};">${netWorthTHB.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+        </div>`;
+
         for (let cur in currencyTotals) {
             let val = currencyTotals[cur];
             balanceHtml += `<div class="balance-box">
                 <div class="balance-box-cur">${cur}</div>
-                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString()}</div>
+                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--text-main)'};">${val.toLocaleString()}</div>
             </div>`;
         }
-        balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">${defaultCurrency}</div><div class="balance-box-amt">0</div></div>`;
+        balanceGrid.innerHTML = balanceHtml;
 
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
@@ -776,6 +810,48 @@
         document.getElementById('account-detail-view').style.display = 'none';
         document.getElementById('accounts-main-view').style.display = 'block';
         renderAccountsList();
+    }
+
+    // Modal All Transactions / Search
+    function openAllTransactionsModal(filteredList = null, title = "All Transactions") {
+        document.getElementById('all-tx-modal-title').textContent = title;
+        let targetList = filteredList || transactions;
+        const tbody = document.getElementById('all-tx-modal-body');
+
+        if (targetList.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
+        } else {
+            let html = '';
+            targetList.forEach(t => {
+                let amtVal = parseFloat(t.amount) || 0;
+                let displayDate = (t.date || t.datetime || '').replace('T', ' ');
+                html += `<tr>
+                    <td>${displayDate}</td>
+                    <td>${t.account || ''}</td>
+                    <td>${t.category || ''} <br><small style="color:var(--text-muted);">${t.description || t.memo || ''}</small></td>
+                    <td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+        document.getElementById('all-tx-modal').classList.add('active');
+    }
+
+    function closeAllTransactionsModal() {
+        document.getElementById('all-tx-modal').classList.remove('active');
+    }
+
+    function handleGlobalSearch(keyword) {
+        let q = keyword.trim().toLowerCase();
+        if (!q) return;
+        let matched = transactions.filter(t => {
+            return (t.account && t.account.toLowerCase().includes(q)) ||
+                   (t.category && t.category.toLowerCase().includes(q)) ||
+                   (t.description && t.description.toLowerCase().includes(q)) ||
+                   (t.payee && t.payee.toLowerCase().includes(q)) ||
+                   (t.memo && t.memo.toLowerCase().includes(q));
+        });
+        openAllTransactionsModal(matched, `Search Results for "${keyword}"`);
     }
 
     /* ---- Currency Settings ---- */
@@ -991,16 +1067,16 @@
     }
 
     function renderBudgetStackedBarChart() {
-        let labels = [];
+        chartMonthLabels = [];
         let now = new Date();
         for (let i = 3; i >= 0; i--) {
             let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             let y = d.getFullYear();
             let m = String(d.getMonth() + 1).padStart(2, '0');
-            labels.push(`${y}-${m}`);
+            chartMonthLabels.push(`${y}-${m}`);
         }
 
-        let expenseData = labels.map(ym => {
+        let expenseData = chartMonthLabels.map(ym => {
             let sum = 0;
             transactions.forEach(t => {
                 let parsed = parseUniversalDate(t.date || t.datetime || '');
@@ -1017,7 +1093,7 @@
             return sum;
         });
 
-        let budgetLimitData = labels.map(ym => {
+        let budgetLimitData = chartMonthLabels.map(ym => {
             let totalLimit = 0;
             budgetData.forEach(b => {
                 if (b.period === 'Monthly') {
@@ -1034,7 +1110,7 @@
         stackedChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels: chartMonthLabels,
                 datasets: [
                     {
                         label: 'Expense (รายจ่ายจริง)',
@@ -1056,9 +1132,48 @@
                 scales: {
                     x: { stacked: false },
                     y: { stacked: false, beginAtZero: true }
+                },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        let index = elements[0].index;
+                        let clickedMonth = chartMonthLabels[index];
+                        openChartMonthTransactionsModal(clickedMonth);
+                    }
                 }
             }
         });
+    }
+
+    function openChartMonthTransactionsModal(ym) {
+        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Month: ${ym}`;
+        let matchedTxs = transactions.filter(t => {
+            let parsed = parseUniversalDate(t.date || t.datetime || '');
+            let amt = parseFloat(t.amount) || 0;
+            if (amt < 0 && !isNaN(parsed.getTime())) {
+                let ty = parsed.getFullYear();
+                let tm = String(parsed.getMonth() + 1).padStart(2, '0');
+                return `${ty}-${tm}` === ym;
+            }
+            return false;
+        });
+
+        const listBody = document.getElementById('budget-tx-list-body');
+        if (matchedTxs.length === 0) {
+            listBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No expense transactions found for ${ym}</td></tr>`;
+        } else {
+            let html = '';
+            matchedTxs.forEach(t => {
+                let amtVal = parseFloat(t.amount) || 0;
+                let tCur = t.currency || defaultCurrency;
+                html += `<tr>
+                    <td>${(t.date || t.datetime || '').replace('T', ' ')}</td>
+                    <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                    <td style="color:var(--danger); font-weight:bold;">${amtVal.toLocaleString()} ${tCur}</td>
+                </tr>`;
+            });
+            listBody.innerHTML = html;
+        }
+        document.getElementById('budget-tx-modal').classList.add('active');
     }
 
     function openBudgetTxModal(budgetIdx) {
@@ -1189,7 +1304,7 @@
         let html = '';
         scheduleData.forEach((s, idx) => {
             let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
-            let detail = `${typeBadge} | รอบถัดไป: ${s.startDate} | 🔄 ${s.frequency}`;
+            let detail = `${typeBadge} | ${s.category || ''} | รอบถัดไป: ${s.startDate} | 🔄 ${s.frequency}`;
             if (s.type === 'Transfer') detail += ` ➔ ${s.transferTo}`;
             let sCur = s.currency || defaultCurrency;
             
@@ -1214,27 +1329,32 @@
         let accSelect = document.getElementById('sched-account');
         let transferSelect = document.getElementById('sched-transfer-to');
         let curSelect = document.getElementById('sched-currency');
-        let optHtml = '';
-        let allSubs = [];
+        let catSelect = document.getElementById('sched-category');
         
+        let subAccsOnly = [];
         Object.keys(subAccountsData).forEach(main => {
-            optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
-            (subAccountsData[main] || []).forEach(sub => { 
-                allSubs.push(sub);
-                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; 
-            });
+            (subAccountsData[main] || []).forEach(sub => { subAccsOnly.push(sub); });
         });
-        accSelect.innerHTML = optHtml;
-        transferSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
+        accSelect.innerHTML = subAccsOnly.map(s => `<option value="${s}">└─ ${s}</option>`).join('');
+        transferSelect.innerHTML = subAccsOnly.map(s => `<option value="${s}">${s}</option>`).join('');
         curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+
+        let catHtml = '';
+        for (let mainCat in categoriesData) {
+            catHtml += `<optgroup label="${mainCat}">`;
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            catHtml += `</optgroup>`;
+        }
+        catSelect.innerHTML = catHtml;
 
         let sTarget = editIdx >= 0 ? scheduleData[editIdx] : null;
 
         document.getElementById('schedule-modal-title').textContent = sTarget ? 'Edit Schedule' : 'Add Schedule / Recurring';
         document.getElementById('sched-title').value = sTarget ? sTarget.title : '';
-        accSelect.value = sTarget ? sTarget.account : (Object.keys(subAccountsData)[0] || '');
+        accSelect.value = sTarget ? sTarget.account : (subAccsOnly[0] || '');
         document.getElementById('sched-type').value = sTarget ? sTarget.type : 'Expense';
         toggleSchedType(document.getElementById('sched-type').value);
+        if (sTarget && sTarget.category) catSelect.value = sTarget.category;
         if (sTarget && sTarget.type === 'Transfer') transferSelect.value = sTarget.transferTo;
         document.getElementById('sched-freq').value = sTarget ? sTarget.frequency : 'Monthly';
         document.getElementById('sched-startdate').value = sTarget ? sTarget.startDate : new Date().toISOString().slice(0,10);
@@ -1248,6 +1368,7 @@
 
     function toggleSchedType(type) {
         document.getElementById('group-sched-transfer').style.display = (type === 'Transfer') ? 'block' : 'none';
+        document.getElementById('group-sched-category').style.display = (type === 'Transfer') ? 'none' : 'block';
     }
 
     function saveSchedule() {
@@ -1255,6 +1376,7 @@
         let title = document.getElementById('sched-title').value.trim();
         let account = document.getElementById('sched-account').value;
         let type = document.getElementById('sched-type').value;
+        let category = type === 'Transfer' ? 'Transfer' : document.getElementById('sched-category').value;
         let transferTo = type === 'Transfer' ? document.getElementById('sched-transfer-to').value : '';
         let frequency = document.getElementById('sched-freq').value;
         let startDate = document.getElementById('sched-startdate').value;
@@ -1263,7 +1385,7 @@
 
         if (!title || isNaN(amt) || !startDate) return alert('Please enter valid title, amount and start date');
 
-        let schedObj = { title, account, type, transferTo, frequency, startDate, amount: amt, currency };
+        let schedObj = { title, account, type, category, transferTo, frequency, startDate, amount: amt, currency };
 
         if (editIdx >= 0) {
             scheduleData[editIdx] = schedObj;
@@ -1286,7 +1408,7 @@
         let newTx = {
             datetime: s.startDate + 'T00:00',
             account: s.account,
-            category: s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title,
+            category: s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title),
             description: s.title + ' (Scheduled)',
             payee: '',
             transfers: s.transferTo || '',
@@ -1474,7 +1596,6 @@
         let optHtml = '';
         let allSubs = [];
         Object.keys(subAccountsData).forEach(main => {
-            optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => { allSubs.push(sub); optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
         });
         accSelect.innerHTML = optHtml;
