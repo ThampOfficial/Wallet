@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Smart Budget & Multi-Currency</title>
+    <title>Wallet PWA - Smart Budget & Analytics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -139,6 +139,12 @@
                         <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+        <div class="card" style="text-align: center;">
+            <h3>Monthly Expense Trend (กราฟแนวโน้มรายเดือน)</h3>
+            <div style="max-width: 100%; margin: 0 auto;">
+                <canvas id="monthlyTrendChart"></canvas>
             </div>
         </div>
     </div>
@@ -487,6 +493,7 @@
     let transactions = [];
     let selectedAccount = null;
     let pieChartInstance = null;
+    let trendChartInstance = null;
 
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
@@ -547,7 +554,10 @@
         element.classList.add('active');
 
         if (tabId === 'report') initReportView();
-        if (tabId === 'budget') renderBudgets();
+        if (tabId === 'budget') {
+            renderBudgets();
+            renderMonthlyTrendChart();
+        }
     }
 
     function convertCurrency(amount, fromCur, toCur) {
@@ -556,6 +566,19 @@
         let rateTo = currenciesData[toCur] || 1.0;
         let amountInBase = amount * rateFrom;
         return amountInBase / rateTo;
+    }
+
+    // ฟังก์ชันแปลงวันที่ทุกรูปแบบ (DD/MM/YYYY หรือ YYYY-MM-DD) ให้เป็นมาตรฐานสำหรับเทียบและเรียงลำดับ
+    function parseUniversalDate(dateStr) {
+        if (!dateStr) return new Date(0);
+        let str = String(dateStr).trim();
+        // ถ้าเป็นฟอร์แมต DD/MM/YYYY หรือ DD/MM/YYYY HH:mm
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
+            let parts = str.split(' ')[0].split('/');
+            let timePart = str.split(' ')[1] || '00:00';
+            return new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T${timePart}`);
+        }
+        return new Date(str.replace(' ', 'T'));
     }
 
     function fetchTransactionsFromSheet() {
@@ -577,10 +600,13 @@
                             amount: parseFloat(t.amount) || 0,
                             currency: t.currency || defaultCurrency,
                             memo: t.memo || ''
-                        })).sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
+                        })).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
                         renderAccountsList();
                         renderBudgets();
+                        if (document.getElementById('tab-budget').classList.contains('active')) {
+                            renderMonthlyTrendChart();
+                        }
                         if (document.getElementById('tab-report').classList.contains('active')) {
                             initReportView();
                         }
@@ -712,7 +738,7 @@
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             return a.toLowerCase() === accName.toLowerCase();
-        }).sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
+        }).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
@@ -896,7 +922,7 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions & View Transactions ---- */
+    /* ---- Budget Functions & Monthly Trend Chart ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
@@ -904,11 +930,11 @@
         
         budgetData.forEach((b, idx) => {
             let budgetCur = b.currency || defaultCurrency;
-            let startDate = new Date(b.startDate || '2026-01-01');
+            let startDate = parseUniversalDate(b.startDate || '2026-01-01');
             
             let spent = 0;
             transactions.forEach(t => {
-                let tDate = new Date(t.date || t.datetime || '2026-01-01');
+                let tDate = parseUniversalDate(t.date || t.datetime || '2026-01-01');
                 let amt = parseFloat(t.amount) || 0;
                 
                 if (amt < 0 && tDate >= startDate) {
@@ -956,16 +982,64 @@
             </tr>`;
         });
         tbody.innerHTML = html;
+        renderMonthlyTrendChart();
+    }
+
+    function renderMonthlyTrendChart() {
+        let monthlyTotals = {};
+
+        transactions.forEach(t => {
+            let dt = t.date || t.datetime || '';
+            let parsedDate = parseUniversalDate(dt);
+            let amt = parseFloat(t.amount) || 0;
+
+            if (amt < 0 && !isNaN(parsedDate.getTime())) {
+                let y = parsedDate.getFullYear();
+                let m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                let key = `${y}-${m}`;
+
+                let tCur = t.currency || defaultCurrency;
+                let converted = convertCurrency(Math.abs(amt), tCur, defaultCurrency);
+
+                if (!monthlyTotals[key]) monthlyTotals[key] = 0;
+                monthlyTotals[key] += converted;
+            }
+        });
+
+        let sortedKeys = Object.keys(monthlyTotals).sort();
+        let labels = sortedKeys;
+        let dataVals = sortedKeys.map(k => monthlyTotals[k]);
+
+        const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+        if (trendChartInstance) trendChartInstance.destroy();
+
+        trendChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.length > 0 ? labels : ['No Data'],
+                datasets: [{
+                    label: `Total Expense (${defaultCurrency})`,
+                    data: dataVals.length > 0 ? dataVals : [0],
+                    backgroundColor: '#4f46e5',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
     }
 
     function openBudgetTxModal(budgetIdx) {
         let b = budgetData[budgetIdx];
         document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${b.title}`;
-        let startDate = new Date(b.startDate || '2026-01-01');
+        let startDate = parseUniversalDate(b.startDate || '2026-01-01');
         let budgetCur = b.currency || defaultCurrency;
 
         let matchedTxs = transactions.filter(t => {
-            let tDate = new Date(t.date || t.datetime || '2026-01-01');
+            let tDate = parseUniversalDate(t.date || t.datetime || '2026-01-01');
             let amt = parseFloat(t.amount) || 0;
             if (amt < 0 && tDate >= startDate) {
                 let acc = t.account ? t.account.trim() : '';
@@ -1240,9 +1314,12 @@
         let periods = {};
         transactions.forEach(t => {
             let dt = t.date || t.datetime || '';
-            if (dt.length >= 7) {
-                let mKey = dt.slice(0, 7);
-                let yKey = dt.slice(0, 4);
+            let parsed = parseUniversalDate(dt);
+            if (!isNaN(parsed.getTime())) {
+                let y = parsed.getFullYear();
+                let m = String(parsed.getMonth() + 1).padStart(2, '0');
+                let mKey = `${y}-${m}`;
+                let yKey = `${y}`;
                 periods[mKey] = mKey;
                 periods[yKey] = yKey;
             }
@@ -1279,7 +1356,14 @@
 
         transactions.forEach(t => {
             let dt = t.date || t.datetime || '';
-            if (!dt.startsWith(selectedPeriod)) return;
+            let parsed = parseUniversalDate(dt);
+            if (isNaN(parsed.getTime())) return;
+
+            let y = parsed.getFullYear();
+            let m = String(parsed.getMonth() + 1).padStart(2, '0');
+            let checkKey = (mode === 'monthly') ? `${y}-${m}` : `${y}`;
+
+            if (checkKey !== selectedPeriod) return;
 
             let amt = parseFloat(t.amount) || 0;
             let tCur = t.currency || defaultCurrency;
@@ -1420,7 +1504,7 @@
             transactions.unshift(txObj);
         }
 
-        transactions.sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
+        transactions.sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
         renderAccountsList();
         renderBudgets();
