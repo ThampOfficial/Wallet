@@ -488,7 +488,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url'] || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     // โหลดข้อมูลจาก LocalStorage ทันที (Offline First) เปิดมาปุ๊บขึ้นปั๊บไม่ต้องรอเน็ต
     let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
@@ -521,7 +521,7 @@
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
         
-        let isDark = localStorage.getItem('wallet_dark_mode'] === 'true';
+        let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
 
@@ -605,7 +605,6 @@
                             memo: t.memo || ''
                         })).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
-                        // บันทึกลงเครื่องไว้ใช้เวลาออฟไลน์
                         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
                         renderAccountsList();
@@ -992,7 +991,6 @@
     }
 
     function renderBudgetStackedBarChart() {
-        // สร้างรายชื่อ 4 เดือนล่าสุด (อิงจากปัจจุบันย้อนหลังไป 3 เดือน รวมเดือนปัจจุบันเป็น 4 เดือน)
         let labels = [];
         let now = new Date();
         for (let i = 3; i >= 0; i--) {
@@ -1002,7 +1000,6 @@
             labels.push(`${y}-${m}`);
         }
 
-        // คำนวณ Expense รวมในแต่ละเดือน และหา Budget เฉลี่ยรายเดือนมาเทียบ
         let expenseData = labels.map(ym => {
             let sum = 0;
             transactions.forEach(t => {
@@ -1020,7 +1017,6 @@
             return sum;
         });
 
-        // ดึงงบ Budget (ถ้ามีแบบ Monthly จะนำมารวมกันเป็นลิมิตในแต่ละเดือน)
         let budgetLimitData = labels.map(ym => {
             let totalLimit = 0;
             budgetData.forEach(b => {
@@ -1321,7 +1317,6 @@
         renderSchedules();
         if (selectedAccount) openAccountDetail(selectedAccount);
 
-        // ซิงค์ไป Google Sheets เบื้องหลังถ้ามีเน็ต
         if (WEBHOOK_URL) {
             fetch(WEBHOOK_URL, {
                 method: 'POST',
@@ -1542,7 +1537,6 @@
 
         transactions.sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
-        // บันทึกลงเครื่องทันที (Offline First)
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
         renderAccountsList();
@@ -1550,7 +1544,6 @@
         if (selectedAccount) openAccountDetail(selectedAccount);
         closeTxModal();
 
-        // ส่งไป Google Sheets เบื้องหลัง (ถ้ามีเน็ต)
         if (WEBHOOK_URL) {
             fetch(WEBHOOK_URL, {
                 method: 'POST',
