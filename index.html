@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Newer Transactions First</title>
+    <title>Wallet PWA - Fixed Data Loading</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -178,11 +178,11 @@
         <div class="card">
             <h3>App Customization</h3>
             <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <label style="margin:0;">Dark Mode</label>
+                <label for="dark-mode-toggle" style="margin:0;">Dark Mode</label>
                 <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)" style="width:auto;">
             </div>
             <div class="form-group">
-                <label>Main Base Currency</label>
+                <label for="default-currency-select">Main Base Currency</label>
                 <select id="default-currency-select" onchange="saveDefaultCurrency(this.value)"></select>
             </div>
         </div>
@@ -213,7 +213,7 @@
         <div class="card">
             <h3>Webhook Configuration</h3>
             <div class="form-group">
-                <label>Google Apps Script Webhook URL</label>
+                <label for="webhook-url-input">Google Apps Script Webhook URL</label>
                 <input type="text" id="webhook-url-input">
             </div>
             <button class="btn" onclick="saveWebhookUrl()">Save URL</button>
@@ -234,8 +234,14 @@
 <div id="currency-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Currency & Exchange Rate</h3>
-        <div class="form-group"><label>Currency Code (e.g., EUR, JPY)</label><input type="text" id="new-cur-code" placeholder="e.g. EUR"></div>
-        <div class="form-group"><label>Exchange Rate</label><input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00"></div>
+        <div class="form-group">
+            <label for="new-cur-code">Currency Code (e.g., EUR, JPY)</label>
+            <input type="text" id="new-cur-code" placeholder="e.g. EUR">
+        </div>
+        <div class="form-group">
+            <label for="new-cur-rate">Exchange Rate</label>
+            <input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00">
+        </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveNewCurrency()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeCurrencyModal()">Cancel</button>
@@ -248,7 +254,7 @@
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Manage Accounts</h3>
         <div class="form-group">
-            <label>Add Main Account</label>
+            <label for="new-main-acc-input">Add Main Account</label>
             <div style="display:flex; gap:8px;">
                 <input type="text" id="new-main-acc-input" placeholder="e.g., SCOTIA">
                 <button class="btn" style="width: auto;" onclick="addMainAccount()">Add</button>
@@ -265,7 +271,7 @@
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Manage Categories</h3>
         <div class="form-group">
-            <label>Add Main Category</label>
+            <label for="new-main-cat-input">Add Main Category</label>
             <div style="display:flex; gap:8px;">
                 <input type="text" id="new-main-cat-input" placeholder="e.g., Shopping">
                 <button class="btn" style="width: auto;" onclick="addMainCategory()">Add</button>
@@ -281,9 +287,18 @@
 <div id="budget-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Budget</h3>
-        <div class="form-group"><label>Category</label><select id="budget-category-select"></select></div>
-        <div class="form-group"><label>Period</label><select id="budget-period"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option></select></div>
-        <div class="form-group"><label>Limit Amount</label><input type="number" id="budget-amount" step="0.01" placeholder="0.00"></div>
+        <div class="form-group">
+            <label for="budget-category-select">Category</label>
+            <select id="budget-category-select"></select>
+        </div>
+        <div class="form-group">
+            <label for="budget-period">Period</label>
+            <select id="budget-period"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option></select>
+        </div>
+        <div class="form-group">
+            <label for="budget-amount">Limit Amount</label>
+            <input type="number" id="budget-amount" step="0.01" placeholder="0.00">
+        </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveBudget()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeBudgetModal()">Cancel</button>
@@ -295,11 +310,30 @@
 <div id="schedule-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Schedule</h3>
-        <div class="form-group"><label>Title</label><input type="text" id="sched-title" placeholder="e.g., Netflix"></div>
-        <div class="form-group"><label>Account</label><select id="sched-account"></select></div>
-        <div class="form-group"><label>Frequency</label><select id="sched-freq" onchange="toggleScheduleDate(this.value)"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option><option value="One-time">One-time</option></select></div>
-        <div class="form-group" id="group-sched-date" style="display:none;"><label>Date</label><input type="datetime-local" id="sched-datetime"></div>
-        <div class="form-group"><label>Amount</label><input type="number" id="sched-amount" step="0.01" placeholder="0.00"></div>
+        <div class="form-group">
+            <label for="sched-title">Title</label>
+            <input type="text" id="sched-title" placeholder="e.g., Netflix">
+        </div>
+        <div class="form-group">
+            <label for="sched-account">Account</label>
+            <select id="sched-account"></select>
+        </div>
+        <div class="form-group">
+            <label for="sched-freq">Frequency</label>
+            <select id="sched-freq" onchange="toggleScheduleDate(this.value)">
+                <option value="Monthly">Monthly</option>
+                <option value="Yearly">Yearly</option>
+                <option value="One-time">One-time</option>
+            </select>
+        </div>
+        <div class="form-group" id="group-sched-date" style="display:none;">
+            <label for="sched-datetime">Date</label>
+            <input type="datetime-local" id="sched-datetime">
+        </div>
+        <div class="form-group">
+            <label for="sched-amount">Amount</label>
+            <input type="number" id="sched-amount" step="0.01" placeholder="0.00">
+        </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveSchedule()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeScheduleModal()">Cancel</button>
@@ -312,25 +346,46 @@
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
-        <div class="form-group"><label>DateTime</label><input type="datetime-local" id="tx-datetime"></div>
-        <div class="form-group"><label>Account</label><select id="tx-account"></select></div>
+        <div class="form-group">
+            <label for="tx-datetime">DateTime</label>
+            <input type="datetime-local" id="tx-datetime">
+        </div>
+        <div class="form-group">
+            <label for="tx-account">Account</label>
+            <select id="tx-account"></select>
+        </div>
         
         <div class="form-group" id="group-category">
-            <label>Category</label>
+            <label for="tx-category">Category</label>
             <select id="tx-category"></select>
         </div>
 
-        <div class="form-group"><label>Description</label><input type="text" id="tx-description" placeholder="Description..."></div>
-        <div class="form-group"><label>Payee</label><input type="text" id="tx-payee" placeholder="Payee..."></div>
+        <div class="form-group">
+            <label for="tx-description">Description</label>
+            <input type="text" id="tx-description" placeholder="Description...">
+        </div>
+        <div class="form-group">
+            <label for="tx-payee">Payee</label>
+            <input type="text" id="tx-payee" placeholder="Payee...">
+        </div>
         
         <div class="form-group" id="group-transfers" style="display:none;">
-            <label>Transfer To Account</label>
+            <label for="tx-transfers-select">Transfer To Account</label>
             <select id="tx-transfers-select"></select>
         </div>
 
-        <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
-        <div class="form-group"><label>Currency</label><select id="tx-currency"></select></div>
-        <div class="form-group"><label>Memo</label><input type="text" id="tx-memo" placeholder="Optional memo..."></div>
+        <div class="form-group">
+            <label for="tx-amount">Amount</label>
+            <input type="number" id="tx-amount" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label for="tx-currency">Currency</label>
+            <select id="tx-currency"></select>
+        </div>
+        <div class="form-group">
+            <label for="tx-memo">Memo</label>
+            <input type="text" id="tx-memo" placeholder="Optional memo...">
+        </div>
         
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveTransaction()">Save</button>
@@ -407,29 +462,31 @@
         if (tabId === 'report') renderReportChart();
     }
 
-    function handleResponse(data) {
-        if (data && data.transactions) {
-            transactions = data.transactions.map(t => ({
-                date: t.date || t.datetime || '',
-                account: t.account || '',
-                category: t.category || '',
-                description: t.description || '',
-                payee: t.payee || '',
-                transfers: t.transfers || '',
-                amount: parseFloat(t.amount) || 0,
-                currency: t.currency || defaultCurrency,
-                memo: t.memo || ''
-            })).sort((a, b) => new Date(b.date) - new Date(a.date)); // เรียงลำดับ Newer First เสมอ
-
-            renderAccountsList();
-            renderReportChart();
-        }
-    }
-
+    // แก้ไขระบบโหลดข้อมูลให้รองรับทั้ง Text Response และ JSON ปกติจาก Google Apps Script
     function fetchTransactionsFromSheet() {
-        const script = document.createElement('script');
-        script.src = `${WEBHOOK_URL}?callback=handleResponse`;
-        document.body.appendChild(script);
+        fetch(WEBHOOK_URL)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.transactions) {
+                    transactions = data.transactions.map(t => ({
+                        date: t.date || t.datetime || '',
+                        account: t.account || '',
+                        category: t.category || '',
+                        description: t.description || '',
+                        payee: t.payee || '',
+                        transfers: t.transfers || '',
+                        amount: parseFloat(t.amount) || 0,
+                        currency: t.currency || defaultCurrency,
+                        memo: t.memo || ''
+                    })).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
+
+                    renderAccountsList();
+                    renderReportChart();
+                }
+            })
+            .catch(err => {
+                console.error("Error fetching transactions:", err);
+            });
     }
 
     function toggleMainAccount(mainName) {
@@ -444,7 +501,6 @@
 
         let rawAccs = {};
         let currencyTotals = {};
-        let accCurrencies = {};
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
@@ -458,14 +514,6 @@
             if (!currencyTotals[cur]) currencyTotals[cur] = 0;
             currencyTotals[cur] += amtVal;
         });
-
-        let allSheetAccounts = Object.keys(rawAccs);
-        let knownAccounts = [];
-        Object.keys(subAccountsData).forEach(main => {
-            knownAccounts.push(main);
-            subAccountsData[main].forEach(sub => knownAccounts.push(sub));
-        });
-        let unassignedAccounts = allSheetAccounts.filter(acc => !knownAccounts.includes(acc));
 
         let balanceHtml = '';
         for (let cur in currencyTotals) {
@@ -520,12 +568,10 @@
             }
 
             let mainTextArr = [];
-            let mainPrimaryCur = defaultCurrency;
             let mainPrimaryAmt = 0;
             for (let cur in mainCurTotals) {
                 let amt = mainCurTotals[cur];
                 mainTextArr.push(`${amt.toLocaleString()} ${cur}`);
-                mainPrimaryCur = cur;
                 mainPrimaryAmt = amt;
             }
             let mainDisplay = mainTextArr.length > 0 ? mainTextArr.join(', ') : `0 ${defaultCurrency}`;
@@ -559,7 +605,6 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // กรองข้อมูลและเรียงจากใหม่ไปเก่า (Newer First) เสมอ
         let filtered = transactions.filter(t => {
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
