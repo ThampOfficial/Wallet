@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - 10 Columns Fixed</title>
+    <title>Wallet PWA - Currency Balance & Fixed Edit</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -34,10 +34,11 @@
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
         
-        .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 8px; }
-        .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
-        .balance-box-cur { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; word-break: break-word; }
-        .balance-box-amt { font-size: 15px; font-weight: bold; margin-top: 2px; color: var(--primary); }
+        /* Total Balance แสดงเฉพาะตาม Currency */
+        .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 8px; }
+        .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+        .balance-box-cur { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .balance-box-amt { font-size: 16px; font-weight: bold; margin-top: 4px; color: var(--primary); }
         
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
@@ -48,6 +49,9 @@
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; cursor: pointer; }
         .sub-acc-row { padding-left: 16px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-top: 4px; padding-bottom: 4px; border-top: 1px dashed var(--border); }
         
+        .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
+
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
@@ -63,8 +67,9 @@
                 <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
             </div>
 
+            <!-- Total Balance แสดงเฉพาะตามสกุลเงิน (Currency) -->
             <div class="card" style="text-align: center;">
-                <h3>Total Balance</h3>
+                <h3>Total Balance (By Currency)</h3>
                 <div id="total-balance-grid" class="balance-grid">
                     <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
                 </div>
@@ -108,6 +113,23 @@
     </div>
 </div>
 
+<!-- Modal สำหรับจัดการ Main Account / Sub Account (ปุ่ม Edit Accounts) -->
+<div id="account-manager-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Manage Accounts</h3>
+        <div class="form-group">
+            <label>Add Main Account</label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="new-main-acc-input" placeholder="e.g., SCOTIA">
+                <button class="btn" style="width: auto;" onclick="addMainAccount()">Add</button>
+            </div>
+        </div>
+        <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
+        <div id="accounts-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
+        <div style="margin-top: 16px;"><button class="btn" onclick="closeAccountManagerModal()">Close</button></div>
+    </div>
+</div>
+
 <!-- Transaction Modal -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
@@ -131,7 +153,7 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzpwSRK7ZU8aMGVzqd5Jnw5SCTh8Nm0Be0U-PiCc51ISM-FC98zm1eLlRgVVGXpJk7e/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -159,23 +181,32 @@
         const balanceGrid = document.getElementById('total-balance-grid');
 
         let rawAccs = {};
+        let currencyTotals = {}; // รวมยอดตาม Currency สำหรับแสดงด้านบน
+
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
             let acc = (t.account && t.account.trim() !== "") ? t.account.trim() : 'General';
+            let cur = (t.currency && t.currency.trim() !== "") ? t.currency.trim() : 'THB';
+            
             if (!rawAccs[acc]) rawAccs[acc] = 0;
             rawAccs[acc] += amtVal;
+
+            if (!currencyTotals[cur]) currencyTotals[cur] = 0;
+            currencyTotals[cur] += amtVal;
         });
 
+        // 1. Render Total Balance เฉพาะตาม Currency
         let balanceHtml = '';
-        for (let accName in rawAccs) {
-            let val = rawAccs[accName];
+        for (let cur in currencyTotals) {
+            let val = currencyTotals[cur];
             balanceHtml += `<div class="balance-box">
-                <div class="balance-box-cur">${accName}</div>
+                <div class="balance-box-cur">${cur}</div>
                 <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString()}</div>
             </div>`;
         }
-        balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">No Data</div></div>`;
+        balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0</div></div>`;
 
+        // 2. Render Main Accounts & Sub Accounts ด้านล่าง
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
         mainAccKeys.forEach(main => {
@@ -239,6 +270,106 @@
         document.getElementById('account-detail-view').style.display = 'none';
         document.getElementById('accounts-main-view').style.display = 'block';
         renderAccountsList();
+    }
+
+    // ฟังก์ชันเปิด-ปิดและจัดการ Account Manager Modal ที่เคยพัง
+    function openAccountManagerModal() {
+        renderAccountManagerList();
+        document.getElementById('account-manager-modal').classList.add('active');
+    }
+
+    function closeAccountManagerModal() {
+        document.getElementById('account-manager-modal').classList.remove('active');
+        renderAccountsList();
+    }
+
+    function renderAccountManagerList() {
+        const container = document.getElementById('accounts-manage-container');
+        let mainKeys = Object.keys(subAccountsData);
+        let html = '';
+
+        mainKeys.forEach((main, index) => {
+            let upBtn = index > 0 ? `<button onclick="moveMainAccount(${index}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:4px;">▲</button>` : '';
+            let downBtn = index < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${index}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">▼</button>` : '';
+
+            html += `<div class="cat-group">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        ${upBtn} ${downBtn}
+                        <strong>💳 ${main} (Main)</strong>
+                    </div>
+                    <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
+                </div>
+                <div style="margin-top:8px; padding-left:24px;">
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:6px;">
+                        <button class="btn" style="width:auto; padding:4px 10px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button>
+                    </div>`;
+            
+            let subs = subAccountsData[main] || [];
+            subs.forEach((sub, sIdx) => {
+                html += `<div class="sub-cat-item">
+                    <span>└─ ${sub}</span>
+                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x] Remove</button>
+                </div>`;
+            });
+            html += `</div></div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function moveMainAccount(index, direction) {
+        let keys = Object.keys(subAccountsData);
+        let targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= keys.length) return;
+
+        let temp = keys[index];
+        keys[index] = keys[targetIndex];
+        keys[targetIndex] = temp;
+
+        let reorderedObj = {};
+        keys.forEach(k => { reorderedObj[k] = subAccountsData[k]; });
+        subAccountsData = reorderedObj;
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
+    }
+
+    function addMainAccount() {
+        let name = document.getElementById('new-main-acc-input').value.trim();
+        if (!name) return alert('Enter account name');
+        if (!subAccountsData[name]) {
+            subAccountsData[name] = [];
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        }
+        document.getElementById('new-main-acc-input').value = '';
+        renderAccountManagerList();
+    }
+
+    function addSubAccountDirect(main) {
+        let input = document.getElementById(`sub-input-${main}`);
+        let val = input.value.trim();
+        if (!val) return alert('Enter sub-account name');
+        if (!subAccountsData[main]) subAccountsData[main] = [];
+        if (!subAccountsData[main].includes(val)) {
+            subAccountsData[main].push(val);
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+            input.value = '';
+            renderAccountManagerList();
+        }
+    }
+
+    function deleteMainAccount(acc) {
+        if (confirm(`Delete main account "${acc}"?`)) {
+            delete subAccountsData[acc];
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+            renderAccountManagerList();
+        }
+    }
+
+    function removeSubFromMain(main, idx) {
+        subAccountsData[main].splice(idx, 1);
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
     }
 
     function openTxModal(type) {
