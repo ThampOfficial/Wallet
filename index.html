@@ -600,56 +600,42 @@
         return amountInBase / rateTo;
     }
 
-    // ปรับปรุงการแกะ Date & Time (รองรับ DD/MM/YY, DD/MM/YYYY, AM/PM, ISO)
-    function parseUniversalDate(dateStr, timeStr = '') {
-        if (!dateStr) return new Date(0);
-        let fullStr = (String(dateStr) + ' ' + String(timeStr)).trim();
+    // ดึงวันที่จาก Col A และเวลาจาก Col B ตรงๆ แบบไม่ออกแบบซับซ้อน
+    function getDisplayDateTime(t) {
+        let datePart = String(t.date || t.datetime || '').trim();
+        let timePart = String(t.time || '').trim();
 
-        // รูปแบบ DD/MM/YY H:MM PM หรือ DD/MM/YYYY HH:MM:SS
-        let ddmmyyMatch = fullStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?)?/i);
-        if (ddmmyyMatch) {
-            let day = parseInt(ddmmyyMatch[1]);
-            let month = parseInt(ddmmyyMatch[2]) - 1;
-            let year = parseInt(ddmmyyMatch[3]);
-            if (year < 100) year += 2000;
-
-            let hours = ddmmyyMatch[4] ? parseInt(ddmmyyMatch[4]) : 0;
-            let minutes = ddmmyyMatch[5] ? parseInt(ddmmyyMatch[5]) : 0;
-            let seconds = ddmmyyMatch[6] ? parseInt(ddmmyyMatch[6]) : 0;
-            let ampm = ddmmyyMatch[7] ? ddmmyyMatch[7].toUpperCase() : null;
-
-            if (ampm === 'PM' && hours < 12) hours += 12;
-            if (ampm === 'AM' && hours === 12) hours = 0;
-
-            return new Date(year, month, day, hours, minutes, seconds);
+        // ตัดเอาเฉพาะส่วนวันที่ (ถ้าติดพ่วงเวลามาด้วย)
+        if (datePart.includes('T')) {
+            datePart = datePart.split('T')[0];
+        } else if (datePart.includes(' ')) {
+            datePart = datePart.split(' ')[0];
         }
 
-        let parsed = Date.parse(fullStr);
-        if (!isNaN(parsed)) return new Date(parsed);
-
-        return new Date(fullStr.replace(' ', 'T'));
+        if (datePart && timePart) {
+            return `${datePart} ${timePart}`;
+        }
+        return datePart || '-';
     }
 
-    function getDisplayDateTime(t) {
-        let rawDate = t.datetime || t.date || '';
-        let rawTime = t.time || '';
-        if (!rawDate) return '-';
+    function parseUniversalDate(t) {
+        let datePart = String(t.date || t.datetime || '').trim();
+        let timePart = String(t.time || '00:00:00').trim();
 
-        let parsed = parseUniversalDate(rawDate, rawTime);
-        if (!isNaN(parsed.getTime()) && parsed.getTime() > 0) {
-            let y = parsed.getFullYear();
-            let m = String(parsed.getMonth() + 1).padStart(2, '0');
-            let d = String(parsed.getDate()).padStart(2, '0');
-            let h = String(parsed.getHours()).padStart(2, '0');
-            let min = String(parsed.getMinutes()).padStart(2, '0');
-
-            if (h === '00' && min === '00' && !String(rawDate).includes(':') && !rawTime) {
-                return `${y}-${m}-${d}`;
-            }
-            return `${y}-${m}-${d} ${h}:${min}`;
+        if (datePart.includes('T')) {
+            datePart = datePart.split('T')[0];
+        } else if (datePart.includes(' ')) {
+            datePart = datePart.split(' ')[0];
         }
 
-        return String(rawDate);
+        let combined = `${datePart}T${timePart}`;
+        let parsed = Date.parse(combined);
+        if (!isNaN(parsed)) return new Date(parsed);
+
+        let fallback = Date.parse(datePart);
+        if (!isNaN(fallback)) return new Date(fallback);
+
+        return new Date(0);
     }
 
     function fetchTransactionsFromSheet() {
@@ -673,7 +659,7 @@
                             amount: parseFloat(t.amount) || 0,
                             currency: t.currency || defaultCurrency,
                             memo: t.memo || ''
-                        })).sort((a, b) => parseUniversalDate(b.datetime || b.date, b.time).getTime() - parseUniversalDate(a.datetime || a.date, a.time).getTime());
+                        })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
                         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
@@ -707,10 +693,9 @@
         let currencyTotals = {};
         let netWorthTHB = 0;
 
-        // คำนวณยอดตรงๆ ตามเครื่องหมายจริง
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
-            if (amtVal === 0) return; // ไม่นำยอด 0 มารวม
+            if (amtVal === 0) return;
 
             let acc = (t.account && String(t.account).trim() !== "") ? String(t.account).trim() : 'General';
             let cur = (t.currency && String(t.currency).trim() !== "") ? String(t.currency).trim() : defaultCurrency;
@@ -827,19 +812,18 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // กรองเฉพาะรายการของ บัญชีนี้ และ ยอดไม่ใช่ 0 CAD
         let filtered = transactions.filter(t => {
             let a = t.account ? String(t.account).trim() : '';
             let amtVal = parseFloat(t.amount) || 0;
 
-            if (amtVal === 0) return false; // ซ่อนรายการยอด 0 ออกทันที
+            if (amtVal === 0) return false;
 
             let isMatchAccount = subAccs.length > 0 
                 ? (a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase())) 
                 : (a.toLowerCase() === accName.toLowerCase());
 
             return isMatchAccount;
-        }).sort((a, b) => parseUniversalDate(b.datetime || b.date, b.time).getTime() - parseUniversalDate(a.datetime || a.date, a.time).getTime());
+        }).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
@@ -856,36 +840,31 @@
 
             let isTransfer = cat === 'transfer' || trfAcc !== '';
 
-            let badgeHtml = '';
+            let detailsHtml = '';
             let amountDisplay = '';
             let amountColor = '';
 
             if (isTransfer) {
                 if (amtVal > 0) {
-                    badgeHtml = `<span style="background:rgba(16,185,129,0.15); color:var(--success); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ รับโอน ${trfAcc ? '(From: ' + trfAcc + ')' : ''}</span>`;
+                    detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ รับโอน</span> <small style="color:var(--text-muted);">(From: ${trfAcc})</small><br>`;
+                    detailsHtml += `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
                     amountDisplay = `+${amtVal.toLocaleString()}`;
                     amountColor = 'var(--success)';
                 } else {
-                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ โอนออก ${trfAcc ? '(To: ' + trfAcc + ')' : ''}</span>`;
+                    detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ โอนออก</span> <small style="color:var(--text-muted);">(To: ${trfAcc})</small><br>`;
+                    detailsHtml += `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
                     amountDisplay = `${amtVal.toLocaleString()}`;
                     amountColor = 'var(--danger)';
                 }
-            } else if (amtVal > 0) {
-                badgeHtml = `<span style="background:rgba(16,185,129,0.15); color:var(--success); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">🟢 รายรับ (Income)</span>`;
-                amountDisplay = `+${amtVal.toLocaleString()}`;
-                amountColor = 'var(--success)';
             } else {
-                badgeHtml = `<span style="background:rgba(239,68,68,0.15); color:var(--danger); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">🔴 รายจ่าย (Expense)</span>`;
-                amountDisplay = `${amtVal.toLocaleString()}`;
-                amountColor = 'var(--danger)';
+                detailsHtml = `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
+                amountDisplay = (amtVal > 0 ? '+' : '') + amtVal.toLocaleString();
+                amountColor = amtVal > 0 ? 'var(--success)' : 'var(--danger)';
             }
 
             html += `<tr>
                 <td>${displayDate}</td>
-                <td>
-                    ${badgeHtml}<br>
-                    <span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>
-                </td>
+                <td>${detailsHtml}</td>
                 <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${t.currency || defaultCurrency}</td>
                 <td>
                     <div style="display:flex; gap:4px;">
@@ -907,7 +886,7 @@
 
     function openAllTransactionsModal(filteredList = null, title = "All Transactions") {
         document.getElementById('all-tx-modal-title').textContent = title;
-        let targetList = (filteredList || transactions).filter(t => (parseFloat(t.amount) || 0) !== 0).slice().sort((a, b) => parseUniversalDate(b.datetime || b.date, b.time).getTime() - parseUniversalDate(a.datetime || a.date, a.time).getTime());
+        let targetList = (filteredList || transactions).filter(t => (parseFloat(t.amount) || 0) !== 0).slice().sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
         const tbody = document.getElementById('all-tx-modal-body');
 
         if (targetList.length === 0) {
@@ -1130,11 +1109,11 @@
         
         budgetData.forEach((b, idx) => {
             let budgetCur = b.currency || defaultCurrency;
-            let startDate = parseUniversalDate(b.startDate || '2026-01-01');
+            let startDate = parseUniversalDate({date: b.startDate});
             
             let spent = 0;
             transactions.forEach(t => {
-                let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01', t.time);
+                let tDate = parseUniversalDate(t);
                 let amt = parseFloat(t.amount) || 0;
                 let cat = String(t.category || '').toLowerCase();
                 let trfAcc = String(t.transfers || '').trim();
@@ -1201,7 +1180,7 @@
         let expenseData = chartMonthLabels.map(ym => {
             let sum = 0;
             transactions.forEach(t => {
-                let parsed = parseUniversalDate(t.datetime || t.date || '', t.time);
+                let parsed = parseUniversalDate(t);
                 let amt = parseFloat(t.amount) || 0;
                 let cat = String(t.category || '').toLowerCase();
                 let trfAcc = String(t.transfers || '').trim();
@@ -1266,11 +1245,11 @@
     function openBudgetTxModal(budgetIdx) {
         let b = budgetData[budgetIdx];
         document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${b.title}`;
-        let startDate = parseUniversalDate(b.startDate || '2026-01-01');
+        let startDate = parseUniversalDate({date: b.startDate});
         let budgetCur = b.currency || defaultCurrency;
 
         let matchedTxs = transactions.filter(t => {
-            let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01', t.time);
+            let tDate = parseUniversalDate(t);
             let amt = parseFloat(t.amount) || 0;
             let cat = String(t.category || '').toLowerCase();
             let trfAcc = String(t.transfers || '').trim();
@@ -1503,8 +1482,8 @@
         let txAmount = (s.type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
         
         let newTx = {
-            datetime: s.startDate + 'T00:00:00',
             date: s.startDate,
+            time: '00:00:00',
             account: s.account,
             category: s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title),
             description: s.title + ' (Scheduled)',
@@ -1516,7 +1495,7 @@
         };
 
         transactions.unshift(newTx);
-        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date, b.time).getTime() - parseUniversalDate(a.datetime || a.date, a.time).getTime());
+        transactions.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
         renderAccountsList();
 
@@ -1565,8 +1544,7 @@
         
         let periods = {};
         transactions.forEach(t => {
-            let dt = t.datetime || t.date || '';
-            let parsed = parseUniversalDate(dt, t.time);
+            let parsed = parseUniversalDate(t);
             if (!isNaN(parsed.getTime())) {
                 let y = parsed.getFullYear();
                 let m = String(parsed.getMonth() + 1).padStart(2, '0');
@@ -1607,8 +1585,7 @@
         let totalInc = 0, totalExp = 0;
 
         transactions.forEach(t => {
-            let dt = t.datetime || t.date || '';
-            let parsed = parseUniversalDate(dt, t.time);
+            let parsed = parseUniversalDate(t);
             if (isNaN(parsed.getTime())) return;
 
             let y = parsed.getFullYear();
@@ -1683,7 +1660,7 @@
         document.getElementById('tx-edit-index').value = index;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
-        document.getElementById('tx-datetime').value = t.datetime || t.date || new Date().toISOString().slice(0,16);
+        document.getElementById('tx-datetime').value = (t.date || new Date().toISOString().slice(0,10)) + 'T' + (t.time || '00:00');
         document.getElementById('tx-amount').value = Math.abs(t.amount);
         document.getElementById('tx-description').value = t.description || '';
         document.getElementById('tx-payee').value = t.payee || '';
@@ -1740,7 +1717,8 @@
     function saveTransaction() {
         let editIdx = parseInt(document.getElementById('tx-edit-index').value);
         const type = document.getElementById('tx-type').value;
-        const datetime = document.getElementById('tx-datetime').value;
+        const datetimeVal = document.getElementById('tx-datetime').value;
+        const [datePart, timePart] = datetimeVal ? datetimeVal.split('T') : [new Date().toISOString().slice(0,10), '00:00'];
         const account = document.getElementById('tx-account').value;
         const category = type === 'Transfer' ? 'Transfer' : document.getElementById('tx-category').value;
         const description = document.getElementById('tx-description').value.trim();
@@ -1750,10 +1728,10 @@
         const currency = document.getElementById('tx-currency').value;
         const memo = document.getElementById('tx-memo').value.trim();
 
-        if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) return alert('Please enter valid amount and datetime');
+        if (isNaN(rawAmt) || rawAmt <= 0 || !datePart) return alert('Please enter valid amount and datetime');
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-        let txObj = { datetime, date: datetime, account, category, description, payee, transfers, amount, currency, memo };
+        let txObj = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, category, description, payee, transfers, amount, currency, memo };
 
         if (editIdx >= 0) {
             transactions[editIdx] = txObj;
@@ -1761,7 +1739,7 @@
             transactions.unshift(txObj);
         }
 
-        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date, b.time).getTime() - parseUniversalDate(a.datetime || a.date, a.time).getTime());
+        transactions.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
