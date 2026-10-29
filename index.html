@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - 9 Columns Strict</title>
+    <title>Wallet PWA - 10 Columns Fixed</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -96,7 +96,7 @@
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
-                            <tr><th>DateTime</th><th>Category</th><th>Amount</th></tr>
+                            <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
                         </thead>
                         <tbody id="account-tx-list">
                             <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
@@ -108,7 +108,7 @@
     </div>
 </div>
 
-<!-- Transaction Modal ครบชุด 9 ฟิลด์ -->
+<!-- Transaction Modal -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
@@ -131,7 +131,7 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyOgTrgbKTcdfsJnvZv_AQnoi9ItLccEdBVJkUMdR_Qj35bUq7fsG6aEdW3tg6vZ9bP/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -143,7 +143,7 @@
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            transactions = data.transactions.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+            transactions = data.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
             renderAccountsList();
         }
     }
@@ -229,7 +229,7 @@
         let html = '';
         filtered.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
-            html += `<tr><td>${t.datetime ? t.datetime.replace('T', ' ') : ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || 'THB'}</td></tr>`;
+            html += `<tr><td>${t.date || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || 'THB'}</td></tr>`;
         });
         txList.innerHTML = html;
     }
@@ -246,6 +246,7 @@
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
         document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
         document.getElementById('tx-amount').value = '';
+        document.getElementById('tx-category').value = '';
         document.getElementById('tx-description').value = '';
         document.getElementById('tx-payee').value = '';
         document.getElementById('tx-transfers').value = '';
@@ -283,7 +284,6 @@
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
 
-        // จัดเตรียม Object ให้ตรงกับลำดับ 9 คอลัมน์ที่ต้องการ
         let newTx = {
             datetime: datetime,
             account: account,
@@ -305,7 +305,7 @@
             transactions.unshift(newTx);
             renderAccountsList();
             closeTxModal();
-            alert('Transaction saved successfully with 9 columns!');
+            alert('Transaction saved successfully!');
         }).catch(err => {
             alert('Error saving transaction: ' + err);
         });
