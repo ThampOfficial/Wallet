@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Currency Balance & Fixed Edit</title>
+    <title>Wallet PWA - Fixed Amount Reading</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -34,7 +34,6 @@
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
         
-        /* Total Balance แสดงเฉพาะตาม Currency */
         .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 8px; }
         .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
         .balance-box-cur { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
@@ -67,7 +66,6 @@
                 <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
             </div>
 
-            <!-- Total Balance แสดงเฉพาะตามสกุลเงิน (Currency) -->
             <div class="card" style="text-align: center;">
                 <h3>Total Balance (By Currency)</h3>
                 <div id="total-balance-grid" class="balance-grid">
@@ -113,7 +111,7 @@
     </div>
 </div>
 
-<!-- Modal สำหรับจัดการ Main Account / Sub Account (ปุ่ม Edit Accounts) -->
+<!-- Modal สำหรับจัดการ Main Account / Sub Account -->
 <div id="account-manager-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Manage Accounts</h3>
@@ -153,6 +151,7 @@
 </div>
 
 <script>
+    // อัปเดต Webhook URL ใหม่ของคุณที่นี่
     const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
@@ -165,7 +164,19 @@
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            transactions = data.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+            // จับคู่ฟิลด์ให้ตรงกับ Apps Script ใหม่ที่ดึงจากคอลัมน์ A-J (Date, Time, Account, Category, Description, Payee, Transfers, Amount, Currency, Memo)
+            transactions = data.transactions.map(t => ({
+                date: t.date || t.datetime || '',
+                account: t.account || '',
+                category: t.category || '',
+                description: t.description || '',
+                payee: t.payee || '',
+                transfers: t.transfers || '',
+                amount: parseFloat(t.amount) || 0,
+                currency: t.currency || 'THB',
+                memo: t.memo || ''
+            })).sort((a, b) => new Date(b.date) - new Date(a.date));
+
             renderAccountsList();
         }
     }
@@ -181,7 +192,7 @@
         const balanceGrid = document.getElementById('total-balance-grid');
 
         let rawAccs = {};
-        let currencyTotals = {}; // รวมยอดตาม Currency สำหรับแสดงด้านบน
+        let currencyTotals = {};
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
@@ -272,7 +283,6 @@
         renderAccountsList();
     }
 
-    // ฟังก์ชันเปิด-ปิดและจัดการ Account Manager Modal ที่เคยพัง
     function openAccountManagerModal() {
         renderAccountManagerList();
         document.getElementById('account-manager-modal').classList.add('active');
