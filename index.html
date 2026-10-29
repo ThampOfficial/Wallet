@@ -595,12 +595,12 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่ทุกรูปแบบให้อยู่ในรูป Date object ที่แม่นยำสำหรับการเรียงลำดับ
+    // ฟังก์ชันแปลงวันที่และเวลา รองรับทุกลักษณะรูปแบบข้อมูลที่มาจาก Google Sheets / Excel
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
 
-        // รูปแบบ DD/MM/YY หรือ DD/MM/YYYY (เช่น 14/11/25 หรือ 14/11/2025)
+        // กรณีเป็นรูปแบบ DD/MM/YY หรือ DD/MM/YYYY (เช่น 14/11/25 หรือ 14/11/2025)
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let day = parts[0].padStart(2, '0');
@@ -609,17 +609,34 @@
             if (year.length === 2) {
                 year = (parseInt(year) > 50 ? '19' : '20') + year;
             }
-            let timePart = str.split(' ')[1] || '00:00';
+            let timePart = str.split(' ')[1] || '00:00:00';
             return new Date(`${year}-${month}-${day}T${timePart}`);
         }
 
-        // รูปแบบภาษาอังกฤษแบบ Fri Apr 11 2025 หรือ Mon Aug 11 2025
+        // กรณีเป็นรูปแบบมาตรฐานหรือภาษาอังกฤษ
         let parsed = Date.parse(str);
         if (!isNaN(parsed)) {
             return new Date(parsed);
         }
 
         return new Date(str.replace(' ', 'T'));
+    }
+
+    // ดึงค่าวันที่และเวลาที่ถูกต้องมาแสดงผล
+    function getDisplayDateTime(t) {
+        let raw = t.datetime || t.date || '';
+        if (!raw) return '-';
+        let parsed = parseUniversalDate(raw);
+        if (isNaN(parsed.getTime())) return raw; // ถ้าแปลงไม่ได้ ให้โชว์ค่าเดิมตรงๆ
+        
+        let y = parsed.getFullYear();
+        let m = String(parsed.getMonth() + 1).padStart(2, '0');
+        let d = String(parsed.getDate()).padStart(2, '0');
+        let h = String(parsed.getHours()).padStart(2, '0');
+        let min = String(parsed.getMinutes()).padStart(2, '0');
+        let s = String(parsed.getSeconds()).padStart(2, '0');
+
+        return `${y}-${m}-${d} ${h}:${min}:${s}`;
     }
 
     function fetchTransactionsFromSheet() {
@@ -632,6 +649,7 @@
                     let data = JSON.parse(text);
                     if (data && data.transactions) {
                         transactions = data.transactions.map(t => ({
+                            datetime: t.datetime || t.date || '',
                             date: t.date || t.datetime || '',
                             account: t.account || '',
                             category: t.category || '',
@@ -641,7 +659,7 @@
                             amount: parseFloat(t.amount) || 0,
                             currency: t.currency || defaultCurrency,
                             memo: t.memo || ''
-                        })).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
+                        })).sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
 
                         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
@@ -790,7 +808,7 @@
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             return a.toLowerCase() === accName.toLowerCase();
-        }).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
+        }).sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
 
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
@@ -801,10 +819,10 @@
         filtered.forEach(t => {
             let realIdx = transactions.indexOf(t);
             let amtVal = parseFloat(t.amount) || 0;
-            let displayDate = t.date || t.datetime || '';
+            let displayDate = getDisplayDateTime(t);
             
             html += `<tr>
-                <td>${displayDate.replace('T', ' ')}</td>
+                <td>${displayDate}</td>
                 <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
                 <td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td>
                 <td>
@@ -827,7 +845,7 @@
 
     function openAllTransactionsModal(filteredList = null, title = "All Transactions") {
         document.getElementById('all-tx-modal-title').textContent = title;
-        let targetList = (filteredList || transactions).slice().sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
+        let targetList = (filteredList || transactions).slice().sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
         const tbody = document.getElementById('all-tx-modal-body');
 
         if (targetList.length === 0) {
@@ -836,7 +854,7 @@
             let html = '';
             targetList.forEach(t => {
                 let amtVal = parseFloat(t.amount) || 0;
-                let displayDate = (t.date || t.datetime || '').replace('T', ' ');
+                let displayDate = getDisplayDateTime(t);
                 html += `<tr>
                     <td>${displayDate}</td>
                     <td>${t.account || ''}</td>
@@ -1027,7 +1045,7 @@
             
             let spent = 0;
             transactions.forEach(t => {
-                let tDate = parseUniversalDate(t.date || t.datetime || '2026-01-01');
+                let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01');
                 let amt = parseFloat(t.amount) || 0;
                 
                 if (amt < 0 && tDate >= startDate) {
@@ -1091,7 +1109,7 @@
         let expenseData = chartMonthLabels.map(ym => {
             let sum = 0;
             transactions.forEach(t => {
-                let parsed = parseUniversalDate(t.date || t.datetime || '');
+                let parsed = parseUniversalDate(t.datetime || t.date || '');
                 let amt = parseFloat(t.amount) || 0;
                 if (amt < 0 && !isNaN(parsed.getTime())) {
                     let ty = parsed.getFullYear();
@@ -1159,7 +1177,7 @@
     function openChartMonthTransactionsModal(ym) {
         document.getElementById('budget-tx-modal-title').textContent = `Transactions in Month: ${ym}`;
         let matchedTxs = transactions.filter(t => {
-            let parsed = parseUniversalDate(t.date || t.datetime || '');
+            let parsed = parseUniversalDate(t.datetime || t.date || '');
             let amt = parseFloat(t.amount) || 0;
             if (amt < 0 && !isNaN(parsed.getTime())) {
                 let ty = parsed.getFullYear();
@@ -1177,8 +1195,9 @@
             matchedTxs.forEach(t => {
                 let amtVal = parseFloat(t.amount) || 0;
                 let tCur = t.currency || defaultCurrency;
+                let displayDate = getDisplayDateTime(t);
                 html += `<tr>
-                    <td>${(t.date || t.datetime || '').replace('T', ' ')}</td>
+                    <td>${displayDate}</td>
                     <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
                     <td style="color:var(--danger); font-weight:bold;">${amtVal.toLocaleString()} ${tCur}</td>
                 </tr>`;
@@ -1195,7 +1214,7 @@
         let budgetCur = b.currency || defaultCurrency;
 
         let matchedTxs = transactions.filter(t => {
-            let tDate = parseUniversalDate(t.date || t.datetime || '2026-01-01');
+            let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01');
             let amt = parseFloat(t.amount) || 0;
             if (amt < 0 && tDate >= startDate) {
                 let acc = t.account ? t.account.trim() : '';
@@ -1216,8 +1235,9 @@
                 let amtVal = parseFloat(t.amount) || 0;
                 let tCur = t.currency || defaultCurrency;
                 let converted = convertCurrency(Math.abs(amtVal), tCur, budgetCur);
+                let displayDate = getDisplayDateTime(t);
                 html += `<tr>
-                    <td>${(t.date || t.datetime || '').replace('T', ' ')}</td>
+                    <td>${displayDate}</td>
                     <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
                     <td style="color:var(--danger); font-weight:bold;">-${converted.toLocaleString()} ${budgetCur} <small style="font-weight:normal;">(${Math.abs(amtVal)} ${tCur})</small></td>
                 </tr>`;
@@ -1423,7 +1443,8 @@
         let txAmount = (s.type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
         
         let newTx = {
-            datetime: s.startDate + 'T00:00',
+            datetime: s.startDate + 'T00:00:00',
+            date: s.startDate,
             account: s.account,
             category: s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title),
             description: s.title + ' (Scheduled)',
@@ -1435,7 +1456,7 @@
         };
 
         transactions.unshift(newTx);
-        transactions.sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
+        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
         renderAccountsList();
 
@@ -1484,7 +1505,7 @@
         
         let periods = {};
         transactions.forEach(t => {
-            let dt = t.date || t.datetime || '';
+            let dt = t.datetime || t.date || '';
             let parsed = parseUniversalDate(dt);
             if (!isNaN(parsed.getTime())) {
                 let y = parsed.getFullYear();
@@ -1526,7 +1547,7 @@
         let totalInc = 0, totalExp = 0;
 
         transactions.forEach(t => {
-            let dt = t.date || t.datetime || '';
+            let dt = t.datetime || t.date || '';
             let parsed = parseUniversalDate(dt);
             if (isNaN(parsed.getTime())) return;
 
@@ -1596,7 +1617,7 @@
         document.getElementById('tx-edit-index').value = index;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
-        document.getElementById('tx-datetime').value = t.date || t.datetime || new Date().toISOString().slice(0,16);
+        document.getElementById('tx-datetime').value = t.datetime || t.date || new Date().toISOString().slice(0,16);
         document.getElementById('tx-amount').value = Math.abs(t.amount);
         document.getElementById('tx-description').value = t.description || '';
         document.getElementById('tx-payee').value = t.payee || '';
@@ -1666,7 +1687,7 @@
         if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) return alert('Please enter valid amount and datetime');
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-        let txObj = { datetime, account, category, description, payee, transfers, amount, currency, memo };
+        let txObj = { datetime, date: datetime, account, category, description, payee, transfers, amount, currency, memo };
 
         if (editIdx >= 0) {
             transactions[editIdx] = txObj;
@@ -1674,7 +1695,7 @@
             transactions.unshift(txObj);
         }
 
-        transactions.sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
+        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
 
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
 
