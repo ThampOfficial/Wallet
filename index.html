@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Transaction & Accounts</title>
+    <title>Wallet PWA - Advanced Reports & Budget</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -51,6 +51,15 @@
         .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
 
+        /* Chart CSS */
+        .chart-container { display: flex; align-items: flex-end; gap: 8px; height: 160px; padding-top: 20px; border-bottom: 2px solid var(--border); overflow-x: auto; }
+        .chart-bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 45px; height: 100%; justify-content: flex-end; }
+        .bar-wrapper { display: flex; gap: 2px; align-items: flex-end; height: 120px; width: 100%; justify-content: center; }
+        .bar { width: 14px; border-radius: 4px 4px 0 0; transition: height 0.3s; }
+        .bar-income { background: var(--success); }
+        .bar-expense { background: var(--danger); }
+        .chart-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; text-align: center; }
+
         /* Modal Overlay */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
@@ -91,7 +100,7 @@
             </div>
         </div>
 
-        <!-- Account / Sub-account Detail View -->
+        <!-- Account Detail View -->
         <div id="account-detail-view" style="display: none;">
             <button class="btn" style="width: auto; margin-bottom: 12px; background: var(--text-muted);" onclick="backToAccountsList()">← Back to Accounts</button>
             <h2 id="detail-account-title">Account Details</h2>
@@ -126,8 +135,17 @@
 
     <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
-        <h2>Monthly Budget</h2>
-        <div class="card"><p style="color: var(--text-muted); font-size: 14px;">ระบบตั้งงบประมาณรายหมวดหมู่</p></div>
+        <h2>Monthly Budget & Exclusions</h2>
+        <div class="card">
+            <h3>Configure Excluded Categories</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">เลือกหมวดหมู่ที่ไม่ต้องการให้นับรวมยอดใช้จ่ายในงบประมาณ (Budget):</p>
+            <div id="budget-exclude-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 12px;"></div>
+            <button class="btn" onclick="saveBudgetExclusions()">Save Budget Settings</button>
+        </div>
+        <div class="card">
+            <h3>Budget Overview</h3>
+            <div id="budget-summary-list"><p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p></div>
+        </div>
     </div>
 
     <!-- TAB 3: SCHEDULE -->
@@ -136,7 +154,7 @@
         <div class="card">
             <h3>Add Scheduled / Recurring Entry</h3>
             <div class="form-group">
-                <label>Action Type (ทำอะไร)</label>
+                <label>Action Type</label>
                 <select id="sch-action-type" onchange="toggleScheduleFormFields()">
                     <option value="Expense">Expense (เงินออก)</option>
                     <option value="Income">Income (เงินเข้า)</option>
@@ -155,7 +173,7 @@
             <div class="form-group"><label>Category</label><select id="sch-category"></select></div>
             <div class="form-group"><label>Start / Due Date</label><input type="date" id="sch-date"></div>
             <div class="form-group">
-                <label>Frequency (บ่อยแค่ไหน)</label>
+                <label>Frequency</label>
                 <select id="sch-freq">
                     <option value="One-time">One-time (ครั้งเดียว)</option>
                     <option value="Daily">Daily (ทุกวัน)</option>
@@ -173,12 +191,19 @@
     <!-- TAB 4: REPORT -->
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
-        <div class="card" style="text-align:center;">
-            <h3>Summary Overview</h3>
-            <div style="display:flex; justify-content:space-around; margin-top:12px;">
-                <div><small style="color:var(--text-muted);">Total Income</small><div id="rep-total-income" style="color:var(--success); font-weight:bold; font-size:16px;">0.00</div></div>
-                <div><small style="color:var(--text-muted);">Total Expense</small><div id="rep-total-expense" style="color:var(--danger); font-weight:bold; font-size:16px;">0.00</div></div>
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3>Income vs Expense Chart</h3>
+                <div style="display: flex; gap: 4px;">
+                    <button class="btn" id="btn-view-monthly" style="width: auto; padding: 4px 10px; font-size: 12px;" onclick="setReportView('monthly')">Monthly</button>
+                    <button class="btn" id="btn-view-yearly" style="width: auto; padding: 4px 10px; font-size: 12px; background: var(--text-muted);" onclick="setReportView('yearly')">Yearly</button>
+                </div>
             </div>
+            <div style="display: flex; gap: 12px; font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:var(--success); display:inline-block; border-radius:2px;"></span> Income</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width:10px; height:10px; background:var(--danger); display:inline-block; border-radius:2px;"></span> Expense</span>
+            </div>
+            <div id="chart-view-container" class="chart-container"></div>
         </div>
         <div class="card">
             <h3>Top Expense Categories</h3>
@@ -198,33 +223,21 @@
     </div>
 </div>
 
-<!-- Modal for Transaction Input (Income / Expense / Transfer) -->
+<!-- Modal for Transaction Input -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
-        
         <div class="form-group"><label>Date</label><input type="date" id="tx-date"></div>
         <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
         <div class="form-group"><label>Currency</label><select id="tx-currency"></select></div>
-
-        <div id="tx-single-acc-group" class="form-group">
-            <label>Account / Sub-account</label>
-            <select id="tx-account"></select>
-        </div>
-
+        <div id="tx-single-acc-group" class="form-group"><label>Account / Sub-account</label><select id="tx-account"></select></div>
         <div id="tx-transfer-acc-group" style="display:none;">
             <div class="form-group"><label>From Account</label><select id="tx-from-account"></select></div>
             <div class="form-group"><label>To Account</label><select id="tx-to-account"></select></div>
         </div>
-
-        <div class="form-group" id="tx-cat-group">
-            <label>Category</label>
-            <select id="tx-category"></select>
-        </div>
-
+        <div class="form-group" id="tx-cat-group"><label>Category</label><select id="tx-category"></select></div>
         <div class="form-group"><label>Memo / Note</label><input type="text" id="tx-memo" placeholder="Optional note..."></div>
-
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveTransaction()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeTxModal()">Cancel</button>
@@ -241,7 +254,7 @@
     </div>
 </div>
 
-<!-- Modal for Managing Accounts & Sub-accounts -->
+<!-- Modal for Managing Accounts -->
 <div id="account-manager-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Manage Accounts & Sub-accounts</h3>
@@ -254,9 +267,7 @@
         </div>
         <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
         <div id="accounts-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
-        <div style="margin-top: 16px;">
-            <button class="btn" onclick="closeAccountManagerModal()">Done / Close</button>
-        </div>
+        <div style="margin-top: 16px;"><button class="btn" onclick="closeAccountManagerModal()">Done / Close</button></div>
     </div>
 </div>
 
@@ -287,6 +298,7 @@
 
     let transactions = [];
     let selectedAccount = null;
+    let reportViewMode = 'monthly'; // 'monthly' หรือ 'yearly'
 
     let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
         "Shopping": ["Clothes", "Technology", "Accessories", "Gifts", "Pets", "Tools"],
@@ -305,6 +317,7 @@
         "SCOTIA": []
     };
 
+    let budgetExclusions = JSON.parse(localStorage.getItem('wallet_budget_exclusions')) || [];
     let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
     let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
 
@@ -317,6 +330,7 @@
         element.classList.add('active');
         if(tabId === 'schedule') renderScheduleForm();
         if(tabId === 'report') renderReport();
+        if(tabId === 'budget') renderBudgetSettings();
     }
 
     function handleResponse(data) {
@@ -463,7 +477,132 @@
         alert('Saved preferred currency');
     }
 
-    /* Transaction Modal Logic (+ Income, - Expense, ⇄ Transfer) */
+    /* Budget Exclusions Logic */
+    function renderBudgetSettings() {
+        const container = document.getElementById('budget-exclude-list');
+        let html = '';
+        for (let main in categoriesData) {
+            if (categoriesData[main].length === 0) {
+                let isChecked = budgetExclusions.includes(main) ? 'checked' : '';
+                html += `<label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;">
+                    <input type="checkbox" value="${main}" ${isChecked} class="budget-exc-chk"> ${main}
+                </label>`;
+            } else {
+                categoriesData[main].forEach(sub => {
+                    let catName = `${main} ► ${sub}`;
+                    let isChecked = budgetExclusions.includes(catName) ? 'checked' : '';
+                    html += `<label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;">
+                        <input type="checkbox" value="${catName}" ${isChecked} class="budget-exc-chk"> 📁 ${main} ➔ ${sub}
+                    </label>`;
+                });
+            }
+        }
+        container.innerHTML = html;
+    }
+
+    function saveBudgetExclusions() {
+        let checkboxes = document.querySelectorAll('.budget-exc-chk');
+        budgetExclusions = [];
+        checkboxes.forEach(chk => {
+            if (chk.checked) budgetExclusions.push(chk.value);
+        });
+        localStorage.setItem('wallet_budget_exclusions', JSON.stringify(budgetExclusions));
+        alert('Budget exclusions saved successfully!');
+    }
+
+    /* Reports & Charts Logic */
+    function setReportView(mode) {
+        reportViewMode = mode;
+        if (mode === 'monthly') {
+            document.getElementById('btn-view-monthly').style.background = 'var(--primary)';
+            document.getElementById('btn-view-yearly').style.background = 'var(--text-muted)';
+        } else {
+            document.getElementById('btn-view-monthly').style.background = 'var(--text-muted)';
+            document.getElementById('btn-view-yearly').style.background = 'var(--primary)';
+        }
+        renderReport();
+    }
+
+    function renderReport() {
+        let chartMap = {};
+        let catMap = {};
+        let totalExp = 0;
+
+        transactions.forEach(t => {
+            let amt = t.amt || 0;
+            let dateStr = t.d ? t.d.split('T')[0] : '';
+            if (!dateStr) return;
+
+            let key = reportViewMode === 'monthly' ? dateStr.substring(0, 7) : dateStr.substring(0, 4); // YYYY-MM หรือ YYYY
+            if (!chartMap[key]) chartMap[key] = { income: 0, expense: 0 };
+
+            if (amt > 0) {
+                chartMap[key].income += amt;
+            } else if (amt < 0) {
+                let absAmt = Math.abs(amt);
+                chartMap[key].expense += absAmt;
+                
+                // คำนวณเฉพาะหมวดที่ไม่ได้ถูก exclude สำหรับ Top expense
+                let cat = t.cat || 'Uncategorized';
+                if (!budgetExclusions.includes(cat)) {
+                    totalExp += absAmt;
+                    catMap[cat] = (catMap[cat] || 0) + absAmt;
+                }
+            }
+        });
+
+        // Render Chart
+        let sortedKeys = Object.keys(chartMap).sort();
+        let chartContainer = document.getElementById('chart-view-container');
+        
+        if (sortedKeys.length === 0) {
+            chartContainer.innerHTML = `<p style="color:var(--text-muted); font-size:13px; width:100%; text-align:center;">No data available</p>`;
+        } else {
+            let maxVal = 1;
+            sortedKeys.forEach(k => {
+                if (chartMap[k].income > maxVal) maxVal = chartMap[k].income;
+                if (chartMap[k].expense > maxVal) maxVal = chartMap[k].expense;
+            });
+
+            let chartHtml = '';
+            sortedKeys.forEach(k => {
+                let incH = (chartMap[k].income / maxVal) * 100;
+                let expH = (chartMap[k].expense / maxVal) * 100;
+                chartHtml += `<div class="chart-bar-group">
+                    <div class="bar-wrapper">
+                        <div class="bar bar-income" style="height: ${incH}%;" title="Income: ${chartMap[k].income.toLocaleString()}"></div>
+                        <div class="bar bar-expense" style="height: ${expH}%;" title="Expense: ${chartMap[k].expense.toLocaleString()}"></div>
+                    </div>
+                    <div class="chart-label">${k}</div>
+                </div>`;
+            });
+            chartContainer.innerHTML = chartHtml;
+        }
+
+        // Render Top Expense Categories
+        let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
+        let catListHtml = '';
+        if (sortedCats.length === 0) {
+            catListHtml = `<p style="color:var(--text-muted); font-size:13px;">No expense data</p>`;
+        } else {
+            sortedCats.slice(0, 8).forEach(cat => {
+                let amt = catMap[cat];
+                let percent = totalExp > 0 ? ((amt / totalExp) * 100).toFixed(1) : 0;
+                catListHtml += `<div style="margin-bottom:10px;">
+                    <div style="display:flex; justify-content:space-between; font-size:13px;">
+                        <span>${cat}</span>
+                        <strong>${amt.toLocaleString()} (${percent}%)</strong>
+                    </div>
+                    <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
+                        <div style="background:var(--primary); height:100%; width: ${percent}%;"></div>
+                    </div>
+                </div>`;
+            });
+        }
+        document.getElementById('report-category-list').innerHTML = catListHtml;
+    }
+
+    /* Transaction Modal Logic */
     function openTxModal(type) {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
@@ -471,11 +610,9 @@
         document.getElementById('tx-amount').value = '';
         document.getElementById('tx-memo').value = '';
 
-        // Populate Currencies
         let curSelect = document.getElementById('tx-currency');
         curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
 
-        // Populate Accounts (Including Sub-accounts)
         let allAccs = [];
         transactions.forEach(t => { if(t.a) allAccs.push(t.a.trim()); });
         Object.keys(subAccountsData).forEach(main => {
@@ -494,7 +631,6 @@
         fromAccSel.innerHTML = accHtml;
         toAccSel.innerHTML = accHtml;
 
-        // Populate Categories
         let catSelect = document.getElementById('tx-category');
         let catHtml = '';
         for (let main in categoriesData) {
@@ -882,42 +1018,6 @@
             </div>`;
         });
         list.innerHTML = html;
-    }
-
-    function renderReport() {
-        let totalInc = 0, totalExp = 0, catMap = {};
-        transactions.forEach(t => {
-            let amt = t.amt || 0;
-            if (amt > 0) totalInc += amt;
-            else if (amt < 0) {
-                let absAmt = Math.abs(amt);
-                totalExp += absAmt;
-                let cat = t.cat || 'Uncategorized';
-                catMap[cat] = (catMap[cat] || 0) + absAmt;
-            }
-        });
-        document.getElementById('rep-total-income').textContent = totalInc.toLocaleString() + ' THB';
-        document.getElementById('rep-total-expense').textContent = totalExp.toLocaleString() + ' THB';
-        let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
-        let catListHtml = '';
-        if (sortedCats.length === 0) {
-            catListHtml = `<p style="color:var(--text-muted); font-size:13px;">No expense data</p>`;
-        } else {
-            sortedCats.slice(0, 8).forEach(cat => {
-                let amt = catMap[cat];
-                let percent = totalExp > 0 ? ((amt / totalExp) * 100).toFixed(1) : 0;
-                catListHtml += `<div style="margin-bottom:10px;">
-                    <div style="display:flex; justify-content:space-between; font-size:13px;">
-                        <span>${cat}</span>
-                        <strong>${amt.toLocaleString()} (${percent}%)</strong>
-                    </div>
-                    <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
-                        <div style="background:var(--primary); height:100%; width: ${percent}%;"></div>
-                    </div>
-                </div>`;
-            });
-        }
-        document.getElementById('report-category-list').innerHTML = catListHtml;
     }
 
     fetchTransactionsFromSheet();
