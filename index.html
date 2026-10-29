@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Ultimate Control</title>
+    <title>Wallet PWA - Smart Budget & Multi-Currency</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -129,7 +129,7 @@
             <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openBudgetModal()">+ Add Budget</button>
         </div>
         <div class="card">
-            <h3>Budgets Overview</h3>
+            <h3>Budgets Overview (Click name to view transactions)</h3>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
@@ -168,7 +168,7 @@
     <div id="tab-report" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h2 style="margin-bottom:0;">Reports & Analytics</h2>
-            <select id="report-view-mode" onchange="renderReportChart()" style="width: auto; padding: 6px; font-size: 13px;">
+            <select id="report-view-mode" onchange="initReportView()" style="width: auto; padding: 6px; font-size: 13px;">
                 <option value="monthly">รายเดือน (Monthly)</option>
                 <option value="yearly">รายปี (Yearly)</option>
             </select>
@@ -247,6 +247,24 @@
     <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
     <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
+</div>
+
+<!-- Modal แสดง Transactions ใน Budget รอบนั้น -->
+<div id="budget-tx-modal" class="modal-overlay">
+    <div class="modal-box" style="max-width: 550px;">
+        <h3 id="budget-tx-modal-title" style="margin-bottom: 12px;">Budget Transactions</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
+                </thead>
+                <tbody id="budget-tx-list-body">
+                    <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 16px;"><button class="btn" onclick="closeBudgetTxModal()">Close</button></div>
+    </div>
 </div>
 
 <!-- Modal เพิ่ม Currency -->
@@ -409,7 +427,7 @@
     </div>
 </div>
 
-<!-- Transaction Modal (รองรับทั้ง Add และ Edit) -->
+<!-- Transaction Modal (Add & Edit) -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
@@ -464,7 +482,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -549,7 +567,6 @@
                 try {
                     let data = JSON.parse(text);
                     if (data && data.transactions) {
-                        // บังคับเรียงลำดับจากใหม่ไปเก่าเสมอ (Newer First) โดยใช้ getTime()
                         transactions = data.transactions.map(t => ({
                             date: t.date || t.datetime || '',
                             account: t.account || '',
@@ -691,7 +708,6 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // กรองและเรียงจากใหม่ไปเก่า (Newer First) พร้อมโชว์เวลา
         let filtered = transactions.filter(t => {
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
@@ -880,7 +896,7 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions ---- */
+    /* ---- Budget Functions & View Transactions ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
@@ -918,7 +934,7 @@
 
             html += `<tr>
                 <td>
-                    <strong>${b.title}</strong><br>
+                    <strong style="cursor:pointer; color:var(--primary);" onclick="openBudgetTxModal(${idx})">${b.title} 🔍</strong><br>
                     <small style="color:var(--text-muted);">เริ่ม: ${b.startDate} | รอบ: ${b.period}</small>
                 </td>
                 <td>
@@ -940,6 +956,50 @@
             </tr>`;
         });
         tbody.innerHTML = html;
+    }
+
+    function openBudgetTxModal(budgetIdx) {
+        let b = budgetData[budgetIdx];
+        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${b.title}`;
+        let startDate = new Date(b.startDate || '2026-01-01');
+        let budgetCur = b.currency || defaultCurrency;
+
+        let matchedTxs = transactions.filter(t => {
+            let tDate = new Date(t.date || t.datetime || '2026-01-01');
+            let amt = parseFloat(t.amount) || 0;
+            if (amt < 0 && tDate >= startDate) {
+                let acc = t.account ? t.account.trim() : '';
+                let cat = t.category ? t.category.trim() : '';
+                let isExcludedAcc = (b.excludeAccs || []).includes(acc);
+                let isExcludedCat = (b.excludeCats || []).includes(cat);
+                return !isExcludedAcc && !isExcludedCat;
+            }
+            return false;
+        });
+
+        const listBody = document.getElementById('budget-tx-list-body');
+        if (matchedTxs.length === 0) {
+            listBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions found for this budget period</td></tr>`;
+        } else {
+            let html = '';
+            matchedTxs.forEach(t => {
+                let amtVal = parseFloat(t.amount) || 0;
+                let tCur = t.currency || defaultCurrency;
+                let converted = convertCurrency(Math.abs(amtVal), tCur, budgetCur);
+                html += `<tr>
+                    <td>${(t.date || t.datetime || '').replace('T', ' ')}</td>
+                    <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                    <td style="color:var(--danger); font-weight:bold;">-${converted.toLocaleString()} ${budgetCur} <small style="font-weight:normal;">(${Math.abs(amtVal)} ${tCur})</small></td>
+                </tr>`;
+            });
+            listBody.innerHTML = html;
+        }
+
+        document.getElementById('budget-tx-modal').classList.add('active');
+    }
+
+    function closeBudgetTxModal() {
+        document.getElementById('budget-tx-modal').classList.remove('active');
     }
 
     function openBudgetModal(editIdx = -1) {
@@ -1026,7 +1086,7 @@
         let html = '';
         scheduleData.forEach((s, idx) => {
             let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
-            let detail = `${typeBadge} | เริ่ม: ${s.startDate} | 🔄 ${s.frequency}`;
+            let detail = `${typeBadge} | รอบถัดไป: ${s.startDate} | 🔄 ${s.frequency}`;
             if (s.type === 'Transfer') detail += ` ➔ ${s.transferTo}`;
             let sCur = s.currency || defaultCurrency;
             
@@ -1148,12 +1208,19 @@
                 d.setMonth(d.getMonth() + 1);
             } else if (s.frequency === 'Yearly') {
                 d.setFullYear(d.getFullYear() + 1);
+            } else {
+                scheduleData.splice(idx, 1);
+                localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+                renderSchedules();
+                if (selectedAccount) openAccountDetail(selectedAccount);
+                alert('Payment recorded successfully!');
+                return;
             }
             s.startDate = d.toISOString().slice(0,10);
             localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
             renderSchedules();
             if (selectedAccount) openAccountDetail(selectedAccount);
-            alert('Payment recorded and schedule updated successfully!');
+            alert('Payment recorded and schedule rolled over to next month successfully!');
         }).catch(err => { alert('Error recording payment: ' + err); });
     }
 
@@ -1165,7 +1232,7 @@
         }
     }
 
-    /* ---- Report Analytics ---- */
+    /* ---- Report Analytics (Monthly & Yearly only) ---- */
     function initReportView() {
         let mode = document.getElementById('report-view-mode').value;
         let periodSelect = document.getElementById('report-period-select');
@@ -1353,7 +1420,6 @@
             transactions.unshift(txObj);
         }
 
-        // จัดเรียงใหม่ให้ Newer First เสมอ
         transactions.sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
 
         renderAccountsList();
