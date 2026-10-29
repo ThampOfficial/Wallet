@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Smart Budget & Analytics</title>
+    <title>Wallet PWA - Offline First & Smart Budget</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -142,9 +142,9 @@
             </div>
         </div>
         <div class="card" style="text-align: center;">
-            <h3>Monthly Expense Trend (กราฟแนวโน้มรายเดือน)</h3>
+            <h3>Budget vs Expense (4 เดือนล่าสุด)</h3>
             <div style="max-width: 100%; margin: 0 auto;">
-                <canvas id="monthlyTrendChart"></canvas>
+                <canvas id="budgetStackedBarChart"></canvas>
             </div>
         </div>
     </div>
@@ -488,12 +488,13 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url'] || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
-    let transactions = [];
+    // โหลดข้อมูลจาก LocalStorage ทันที (Offline First) เปิดมาปุ๊บขึ้นปั๊บไม่ต้องรอเน็ต
+    let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
     let selectedAccount = null;
     let pieChartInstance = null;
-    let trendChartInstance = null;
+    let stackedChartInstance = null;
 
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
@@ -520,14 +521,18 @@
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
         
-        let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
+        let isDark = localStorage.getItem('wallet_dark_mode'] === 'true';
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
 
-        renderCurrencySettings();
-        renderCategoryPreview();
+        // เรนเดอร์ข้อมูลจากเครื่องทันทีตอนเปิดเว็บ
+        renderAccountsList();
         renderBudgets();
         renderSchedules();
+        renderCurrencySettings();
+        renderCategoryPreview();
+
+        // จากนั้นค่อยดึงข้อมูลใหม่จาก Sheet เงียบๆ เบื้องหลัง (ถ้ามีเน็ต)
         fetchTransactionsFromSheet();
     });
 
@@ -556,7 +561,7 @@
         if (tabId === 'report') initReportView();
         if (tabId === 'budget') {
             renderBudgets();
-            renderMonthlyTrendChart();
+            renderBudgetStackedBarChart();
         }
     }
 
@@ -568,11 +573,9 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่ทุกรูปแบบ (DD/MM/YYYY หรือ YYYY-MM-DD) ให้เป็นมาตรฐานสำหรับเทียบและเรียงลำดับ
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
-        // ถ้าเป็นฟอร์แมต DD/MM/YYYY หรือ DD/MM/YYYY HH:mm
         if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let timePart = str.split(' ')[1] || '00:00';
@@ -602,10 +605,13 @@
                             memo: t.memo || ''
                         })).sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
+                        // บันทึกลงเครื่องไว้ใช้เวลาออฟไลน์
+                        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+
                         renderAccountsList();
                         renderBudgets();
                         if (document.getElementById('tab-budget').classList.contains('active')) {
-                            renderMonthlyTrendChart();
+                            renderBudgetStackedBarChart();
                         }
                         if (document.getElementById('tab-report').classList.contains('active')) {
                             initReportView();
@@ -615,7 +621,7 @@
                     console.error("JSON parsing error:", e, text);
                 }
             })
-            .catch(err => console.error("Error fetching transactions:", err));
+            .catch(err => console.log("Offline mode: Using local cached transactions."));
     }
 
     function toggleMainAccount(mainName) {
@@ -922,7 +928,7 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions & Monthly Trend Chart ---- */
+    /* ---- Budget Functions & 4-Month Stacked Bar Chart ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
@@ -982,52 +988,79 @@
             </tr>`;
         });
         tbody.innerHTML = html;
-        renderMonthlyTrendChart();
+        renderBudgetStackedBarChart();
     }
 
-    function renderMonthlyTrendChart() {
-        let monthlyTotals = {};
+    function renderBudgetStackedBarChart() {
+        // สร้างรายชื่อ 4 เดือนล่าสุด (อิงจากปัจจุบันย้อนหลังไป 3 เดือน รวมเดือนปัจจุบันเป็น 4 เดือน)
+        let labels = [];
+        let now = new Date();
+        for (let i = 3; i >= 0; i--) {
+            let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            let y = d.getFullYear();
+            let m = String(d.getMonth() + 1).padStart(2, '0');
+            labels.push(`${y}-${m}`);
+        }
 
-        transactions.forEach(t => {
-            let dt = t.date || t.datetime || '';
-            let parsedDate = parseUniversalDate(dt);
-            let amt = parseFloat(t.amount) || 0;
-
-            if (amt < 0 && !isNaN(parsedDate.getTime())) {
-                let y = parsedDate.getFullYear();
-                let m = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                let key = `${y}-${m}`;
-
-                let tCur = t.currency || defaultCurrency;
-                let converted = convertCurrency(Math.abs(amt), tCur, defaultCurrency);
-
-                if (!monthlyTotals[key]) monthlyTotals[key] = 0;
-                monthlyTotals[key] += converted;
-            }
+        // คำนวณ Expense รวมในแต่ละเดือน และหา Budget เฉลี่ยรายเดือนมาเทียบ
+        let expenseData = labels.map(ym => {
+            let sum = 0;
+            transactions.forEach(t => {
+                let parsed = parseUniversalDate(t.date || t.datetime || '');
+                let amt = parseFloat(t.amount) || 0;
+                if (amt < 0 && !isNaN(parsed.getTime())) {
+                    let ty = parsed.getFullYear();
+                    let tm = String(parsed.getMonth() + 1).padStart(2, '0');
+                    if (`${ty}-${tm}` === ym) {
+                        let tCur = t.currency || defaultCurrency;
+                        sum += convertCurrency(Math.abs(amt), tCur, defaultCurrency);
+                    }
+                }
+            });
+            return sum;
         });
 
-        let sortedKeys = Object.keys(monthlyTotals).sort();
-        let labels = sortedKeys;
-        let dataVals = sortedKeys.map(k => monthlyTotals[k]);
+        // ดึงงบ Budget (ถ้ามีแบบ Monthly จะนำมารวมกันเป็นลิมิตในแต่ละเดือน)
+        let budgetLimitData = labels.map(ym => {
+            let totalLimit = 0;
+            budgetData.forEach(b => {
+                if (b.period === 'Monthly') {
+                    let bCur = b.currency || defaultCurrency;
+                    totalLimit += convertCurrency(parseFloat(b.amount) || 0, bCur, defaultCurrency);
+                }
+            });
+            return totalLimit > 0 ? totalLimit : 0;
+        });
 
-        const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
-        if (trendChartInstance) trendChartInstance.destroy();
+        const ctx = document.getElementById('budgetStackedBarChart').getContext('2d');
+        if (stackedChartInstance) stackedChartInstance.destroy();
 
-        trendChartInstance = new Chart(ctx, {
+        stackedChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels.length > 0 ? labels : ['No Data'],
-                datasets: [{
-                    label: `Total Expense (${defaultCurrency})`,
-                    data: dataVals.length > 0 ? dataVals : [0],
-                    backgroundColor: '#4f46e5',
-                    borderRadius: 6
-                }]
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Expense (รายจ่ายจริง)',
+                        data: expenseData,
+                        backgroundColor: '#ef4444',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Budget Limit (งบประมาณตั้งไว้)',
+                        data: budgetLimitData,
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 4
+                    }
+                ]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    x: { stacked: false },
+                    y: { stacked: false, beginAtZero: true }
+                }
             }
         });
     }
@@ -1266,36 +1299,39 @@
             memo: 'Paid via Schedule'
         };
 
-        if (!WEBHOOK_URL) return alert("Please set Webhook URL in Settings first.");
+        transactions.unshift(newTx);
+        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+        renderAccountsList();
 
-        fetch(WEBHOOK_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(newTx)
-        }).then(() => {
-            transactions.unshift(newTx);
-            renderAccountsList();
-
-            let d = new Date(s.startDate);
-            if (s.frequency === 'Monthly') {
-                d.setMonth(d.getMonth() + 1);
-            } else if (s.frequency === 'Yearly') {
-                d.setFullYear(d.getFullYear() + 1);
-            } else {
-                scheduleData.splice(idx, 1);
-                localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
-                renderSchedules();
-                if (selectedAccount) openAccountDetail(selectedAccount);
-                alert('Payment recorded successfully!');
-                return;
-            }
-            s.startDate = d.toISOString().slice(0,10);
+        let d = new Date(s.startDate);
+        if (s.frequency === 'Monthly') {
+            d.setMonth(d.getMonth() + 1);
+        } else if (s.frequency === 'Yearly') {
+            d.setFullYear(d.getFullYear() + 1);
+        } else {
+            scheduleData.splice(idx, 1);
             localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
             renderSchedules();
             if (selectedAccount) openAccountDetail(selectedAccount);
-            alert('Payment recorded and schedule rolled over to next month successfully!');
-        }).catch(err => { alert('Error recording payment: ' + err); });
+            alert('Payment recorded successfully!');
+            return;
+        }
+        s.startDate = d.toISOString().slice(0,10);
+        localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+        renderSchedules();
+        if (selectedAccount) openAccountDetail(selectedAccount);
+
+        // ซิงค์ไป Google Sheets เบื้องหลังถ้ามีเน็ต
+        if (WEBHOOK_URL) {
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(newTx)
+            }).catch(e => console.log("Offline: Saved locally, will sync later."));
+        }
+
+        alert('Payment recorded and schedule rolled over successfully!');
     }
 
     function deleteSchedule(idx) { 
@@ -1506,23 +1542,36 @@
 
         transactions.sort((a, b) => parseUniversalDate(b.date || b.datetime).getTime() - parseUniversalDate(a.date || a.datetime).getTime());
 
+        // บันทึกลงเครื่องทันที (Offline First)
+        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+
         renderAccountsList();
         renderBudgets();
         if (selectedAccount) openAccountDetail(selectedAccount);
         closeTxModal();
+
+        // ส่งไป Google Sheets เบื้องหลัง (ถ้ามีเน็ต)
+        if (WEBHOOK_URL) {
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(txObj)
+            }).catch(e => console.log("Offline: Transaction saved locally."));
+        }
+
         alert('Transaction saved successfully!');
     }
 
     function deleteTransaction(index) {
         if (confirm('Delete this transaction?')) {
             transactions.splice(index, 1);
+            localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
             renderAccountsList();
             renderBudgets();
             if (selectedAccount) openAccountDetail(selectedAccount);
         }
     }
-
-    fetchTransactionsFromSheet();
 </script>
 </body>
 </html>
