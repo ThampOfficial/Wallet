@@ -292,16 +292,16 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Currency -->
+<!-- Modal เพิ่ม/แก้ไข Currency -->
 <div id="currency-modal" class="modal-overlay">
     <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Add Currency & Exchange Rate</h3>
+        <h3 id="currency-modal-title" style="margin-bottom: 12px;">Add/Edit Currency</h3>
         <div class="form-group">
-            <label for="new-cur-code">Currency Code (e.g., EUR, JPY)</label>
+            <label for="new-cur-code">Currency Code (e.g., EUR, KRW, USD)</label>
             <input type="text" id="new-cur-code" placeholder="e.g. EUR">
         </div>
         <div class="form-group">
-            <label for="new-cur-rate">Exchange Rate</label>
+            <label for="new-cur-rate">Exchange Rate (เทียบกับ Base Currency)</label>
             <input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00">
         </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
@@ -532,7 +532,9 @@
     let currenciesData = JSON.parse(localStorage.getItem('wallet_currencies_map')) || {
         "THB": 1.0,
         "CAD": 26.50,
-        "USD": 36.00
+        "USD": 36.00,
+        "EUR": 39.00,
+        "KRW": 0.028
     };
 
     let defaultCurrency = localStorage.getItem('wallet_default_currency') || 'THB';
@@ -595,12 +597,12 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่และเวลา รองรับทุกลักษณะรูปแบบข้อมูลที่มาจาก Google Sheets / Excel
+    // ฟังก์ชันแปลงวันที่และเวลา รองรับทุกรูปแบบและแปลงให้เป็นมาตรฐานสำหรับการเรียงลำดับ
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
 
-        // กรณีเป็นรูปแบบ DD/MM/YY หรือ DD/MM/YYYY (เช่น 14/11/25 หรือ 14/11/2025)
+        // รูปแบบ DD/MM/YY หรือ DD/MM/YYYY
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let day = parts[0].padStart(2, '0');
@@ -613,7 +615,6 @@
             return new Date(`${year}-${month}-${day}T${timePart}`);
         }
 
-        // กรณีเป็นรูปแบบมาตรฐานหรือภาษาอังกฤษ
         let parsed = Date.parse(str);
         if (!isNaN(parsed)) {
             return new Date(parsed);
@@ -622,12 +623,12 @@
         return new Date(str.replace(' ', 'T'));
     }
 
-    // ดึงค่าวันที่และเวลาที่ถูกต้องมาแสดงผล
+    // จัดรูปวันที่และเวลาให้แสดงผลเป็นรูปแบบเดียวกันทุกแถว (YYYY-MM-DD HH:mm:ss)
     function getDisplayDateTime(t) {
         let raw = t.datetime || t.date || '';
         if (!raw) return '-';
         let parsed = parseUniversalDate(raw);
-        if (isNaN(parsed.getTime())) return raw; // ถ้าแปลงไม่ได้ ให้โชว์ค่าเดิมตรงๆ
+        if (isNaN(parsed.getTime())) return raw;
         
         let y = parsed.getFullYear();
         let m = String(parsed.getMonth() + 1).padStart(2, '0');
@@ -897,7 +898,12 @@
             tableHtml += `<tr>
                 <td><strong>${cur}</strong></td>
                 <td>${currenciesData[cur]}</td>
-                <td>${cur !== defaultCurrency ? `<button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}</td>
+                <td>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="openCurrencyModal('${cur}')" style="background:var(--primary); color:white; border:none; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">Edit</button>
+                        ${cur !== defaultCurrency ? `<button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}
+                    </div>
+                </td>
             </tr>`;
         }
         curSelect.innerHTML = curOptions;
@@ -911,9 +917,21 @@
         renderAccountsList();
     }
 
-    function openCurrencyModal() {
-        document.getElementById('new-cur-code').value = '';
-        document.getElementById('new-cur-rate').value = '';
+    function openCurrencyModal(editCur = '') {
+        let codeInput = document.getElementById('new-cur-code');
+        let rateInput = document.getElementById('new-cur-rate');
+        
+        if (editCur) {
+            codeInput.value = editCur;
+            codeInput.disabled = true; // ล็อคไม่ให้แก้ชื่อยศ แต่แก้เรทได้
+            rateInput.value = currenciesData[editCur] || 1.0;
+            document.getElementById('currency-modal-title').textContent = `Edit Currency: ${editCur}`;
+        } else {
+            codeInput.value = '';
+            codeInput.disabled = false;
+            rateInput.value = '';
+            document.getElementById('currency-modal-title').textContent = `Add Currency`;
+        }
         document.getElementById('currency-modal').classList.add('active');
     }
     function closeCurrencyModal() { document.getElementById('currency-modal').classList.remove('active'); }
@@ -922,6 +940,7 @@
         let code = document.getElementById('new-cur-code').value.trim().toUpperCase();
         let rate = parseFloat(document.getElementById('new-cur-rate').value);
         if (!code || isNaN(rate)) return alert('Please enter valid currency code and rate');
+        
         currenciesData[code] = rate;
         localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
         renderCurrencySettings();
