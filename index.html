@@ -600,42 +600,61 @@
         return amountInBase / rateTo;
     }
 
-    // ดึงวันที่จาก Col A และเวลาจาก Col B ตรงๆ แบบไม่ออกแบบซับซ้อน
+    // ฟังก์ชั่นดึงเฉพาะ HH:mm จากสตริงเวลาขยะ
+    function cleanTimeString(timeStr) {
+        if (!timeStr) return '';
+        let str = String(timeStr).trim();
+        let match = str.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+            let h = match[1].padStart(2, '0');
+            let m = match[2];
+            return `${h}:${m}`;
+        }
+        return '';
+    }
+
+    // ฟังก์ชั่นแสดงผล Date & Time ให้เหลือสั้นๆ เช่น 29/11/25 20:20
     function getDisplayDateTime(t) {
         let datePart = String(t.date || t.datetime || '').trim();
-        let timePart = String(t.time || '').trim();
+        if (datePart.includes('T')) datePart = datePart.split('T')[0];
+        else if (datePart.includes(' ')) datePart = datePart.split(' ')[0];
 
-        // ตัดเอาเฉพาะส่วนวันที่ (ถ้าติดพ่วงเวลามาด้วย)
-        if (datePart.includes('T')) {
-            datePart = datePart.split('T')[0];
-        } else if (datePart.includes(' ')) {
-            datePart = datePart.split(' ')[0];
-        }
+        let timeClean = cleanTimeString(t.time || t.datetime || '');
 
-        if (datePart && timePart) {
-            return `${datePart} ${timePart}`;
+        if (datePart && timeClean) {
+            return `${datePart} ${timeClean}`;
         }
         return datePart || '-';
     }
 
+    // ฟังก์ชั่นแปลงเป็น Date Object เพื่อนำไป Sort (Newest First + Time)
     function parseUniversalDate(t) {
-        let datePart = String(t.date || t.datetime || '').trim();
-        let timePart = String(t.time || '00:00:00').trim();
+        let dateStr = String(t.date || t.datetime || '').trim();
+        if (dateStr.includes('T')) dateStr = dateStr.split('T')[0];
+        else if (dateStr.includes(' ')) dateStr = dateStr.split(' ')[0];
 
-        if (datePart.includes('T')) {
-            datePart = datePart.split('T')[0];
-        } else if (datePart.includes(' ')) {
-            datePart = datePart.split(' ')[0];
+        let timeClean = cleanTimeString(t.time || t.datetime || '') || '00:00';
+
+        // รองรับ DD/MM/YY หรือ DD/MM/YYYY
+        let dParts = dateStr.split('/');
+        let year = 1970, month = 0, day = 1;
+        if (dParts.length === 3) {
+            day = parseInt(dParts[0]);
+            month = parseInt(dParts[1]) - 1;
+            year = parseInt(dParts[2]);
+            if (year < 100) year += 2000;
+        } else {
+            let parsedFallback = Date.parse(dateStr);
+            if (!isNaN(parsedFallback)) {
+                let d = new Date(parsedFallback);
+                year = d.getFullYear();
+                month = d.getMonth();
+                day = d.getDate();
+            }
         }
 
-        let combined = `${datePart}T${timePart}`;
-        let parsed = Date.parse(combined);
-        if (!isNaN(parsed)) return new Date(parsed);
-
-        let fallback = Date.parse(datePart);
-        if (!isNaN(fallback)) return new Date(fallback);
-
-        return new Date(0);
+        let [hours, mins] = timeClean.split(':').map(n => parseInt(n) || 0);
+        return new Date(year, month, day, hours, mins, 0);
     }
 
     function fetchTransactionsFromSheet() {
@@ -1660,7 +1679,7 @@
         document.getElementById('tx-edit-index').value = index;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
-        document.getElementById('tx-datetime').value = (t.date || new Date().toISOString().slice(0,10)) + 'T' + (t.time || '00:00');
+        document.getElementById('tx-datetime').value = (t.date || new Date().toISOString().slice(0,10)) + 'T' + cleanTimeString(t.time || '00:00');
         document.getElementById('tx-amount').value = Math.abs(t.amount);
         document.getElementById('tx-description').value = t.description || '';
         document.getElementById('tx-payee').value = t.payee || '';
