@@ -70,6 +70,8 @@
         .progress-bar-fill { height: 100%; background-color: var(--success); transition: width 0.3s; }
         .progress-bar-fill.over { background-color: var(--danger); }
 
+        .sticky-header { position: sticky; top: 0; background: var(--bg-color); z-index: 100; padding: 8px 0; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: var(--card-bg); width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; color: var(--text-main); }
@@ -103,10 +105,10 @@
         </div>
 
         <div id="account-detail-view" style="display: none;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div class="sticky-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <button class="btn" style="width: auto; background: var(--text-muted);" onclick="backToAccountsList()">← Back</button>
+                <h2 id="detail-account-title" style="margin: 0; font-size: 16px;">Account Details</h2>
             </div>
-            <h2 id="detail-account-title">Account Details</h2>
             <div class="card">
                 <h3>Transactions (Newer First)</h3>
                 <div style="overflow-x: auto;">
@@ -597,10 +599,12 @@
         return amountInBase / rateTo;
     }
 
+    // ฟังก์ชันแปลงวันที่และเวลา รองรับ Column B (datetime/date)
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
 
+        // กรณีรูปแบบ DD/MM/YY หรือ DD/MM/YYYY พร้อมเวลา
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let day = parts[0].padStart(2, '0');
@@ -621,6 +625,7 @@
         return new Date(str.replace(' ', 'T'));
     }
 
+    // ดึงค่าวันที่และเวลาจาก Column B ตรงๆ ให้ตรงกับข้อมูลจริง
     function getDisplayDateTime(t) {
         let raw = t.datetime || t.date || '';
         if (!raw) return '-';
@@ -633,6 +638,11 @@
         let h = String(parsed.getHours()).padStart(2, '0');
         let min = String(parsed.getMinutes()).padStart(2, '0');
         let s = String(parsed.getSeconds()).padStart(2, '0');
+
+        // ถ้าเวลาเป็น 00:00:00 แต่ใน raw มีบอกวันที่เฉยๆ ให้แสดงแค่วันที่ หรือถ้ามีเวลาจริงให้แสดงเวลาด้วย
+        if (h === '00' && min === '00' && s === '00' && !String(raw).includes(':')) {
+            return `${y}-${m}-${d}`;
+        }
 
         return `${y}-${m}-${d} ${h}:${min}:${s}`;
     }
