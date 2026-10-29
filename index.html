@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fixed Accounts & Reports</title>
+    <title>Wallet PWA - Reorder Accounts</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -390,6 +390,7 @@
         "EUR": 38.00
     };
 
+    // ใช้ Array เก็บกุญแจ Main Accounts เพื่อรักษาลำดับ (Order)
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": []
     };
@@ -463,16 +464,33 @@
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0.00</div></div>`;
 
+        let mainAccKeys = Object.keys(subAccountsData);
+        // ตรวจสอบ Account จาก Transaction ที่ยังไม่มีใน subAccountsData ให้ดึงมาแสดงด้วย
+        transactions.forEach(t => {
+            let a = t.a ? t.a.trim() : '';
+            if (a && !mainAccKeys.includes(a)) {
+                let isSub = false;
+                for (let m in subAccountsData) {
+                    if (subAccountsData[m].some(s => s.toLowerCase() === a.toLowerCase())) { isSub = true; break; }
+                }
+                if (!isSub) {
+                    subAccountsData[a] = [];
+                    mainAccKeys.push(a);
+                }
+            }
+        });
+
         let mainAccMap = {};
-        for (let main in subAccountsData) {
+        mainAccKeys.forEach(main => {
             mainAccMap[main] = { total: 0, currency: 'THB', subs: subAccountsData[main] };
-        }
+        });
 
         for (let rawAcc in rawAccs) {
             let foundMain = null;
-            for (let main in subAccountsData) {
-                if (subAccountsData[main].some(s => s.toLowerCase() === rawAcc.toLowerCase())) {
-                    foundMain = main;
+            for (let main in mainAccKeys) {
+                let mName = mainAccKeys[main];
+                if (subAccountsData[mName].some(s => s.toLowerCase() === rawAcc.toLowerCase())) {
+                    foundMain = mName;
                     break;
                 }
             }
@@ -480,17 +498,15 @@
             if (foundMain) {
                 if (!accountHiddenMap[rawAcc]) mainAccMap[foundMain].total += rawAccs[rawAcc].total;
                 mainAccMap[foundMain].currency = rawAccs[rawAcc].currency;
-            } else {
-                if (!mainAccMap[rawAcc]) {
-                    mainAccMap[rawAcc] = { total: 0, currency: rawAccs[rawAcc].currency, subs: [] };
-                }
+            } else if (mainAccMap[rawAcc]) {
                 if (!accountHiddenMap[rawAcc]) mainAccMap[rawAcc].total += rawAccs[rawAcc].total;
+                mainAccMap[rawAcc].currency = rawAccs[rawAcc].currency;
             }
         }
 
         let accHtml = '';
-        for (let main in mainAccMap) {
-            let data = mainAccMap[main];
+        mainAccKeys.forEach(main => {
+            let data = mainAccMap[main] || { total: 0, currency: 'THB', subs: subAccountsData[main] };
             let subs = data.subs || [];
             
             let subHtml = '';
@@ -517,7 +533,7 @@
                 </div>
                 ${subHtml}
             </div>`;
-        }
+        });
         accountsList.innerHTML = accHtml;
     }
 
@@ -565,7 +581,7 @@
         alert('Saved preferred currency');
     }
 
-    /* Account Manager Modal & Visibility Checkbox */
+    /* Account Manager Modal & Reorder Main Accounts */
     function openAccountManagerModal() {
         renderAccountManagerList();
         document.getElementById('account-manager-modal').classList.add('active');
@@ -578,16 +594,22 @@
 
     function renderAccountManagerList() {
         const container = document.getElementById('accounts-manage-container');
-        let allRawAccs = new Set(transactions.map(t => t.a ? t.a.trim() : 'General'));
+        let mainKeys = Object.keys(subAccountsData);
         let html = '';
 
-        for (let main in subAccountsData) {
+        mainKeys.forEach((main, index) => {
             let isMainChecked = !accountHiddenMap[main] ? 'checked' : '';
+            let upBtn = index > 0 ? `<button onclick="moveMainAccount(${index}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:4px;" title="Move Up">▲</button>` : '';
+            let downBtn = index < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${index}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;" title="Move Down">▼</button>` : '';
+
             html += `<div class="cat-group">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
-                        <strong>💳 ${main} (Main)</strong>
-                        <label style="font-size:11px; color:var(--text-muted); display:block; margin-top:2px;">
+                        <div style="display:flex; align-items:center; gap:4px;">
+                            ${upBtn} ${downBtn}
+                            <strong>💳 ${main} (Main)</strong>
+                        </div>
+                        <label style="font-size:11px; color:var(--text-muted); display:block; margin-top:2px; padding-left:24px;">
                             <input type="checkbox" ${isMainChecked} onchange="toggleAccountVisibility('${main}', this.checked)"> นับรวม Total Balance
                         </label>
                     </div>
@@ -596,7 +618,7 @@
                         <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
                     </div>
                 </div>
-                <div style="margin-top:8px; padding-left:12px;">
+                <div style="margin-top:8px; padding-left:24px;">
                     <div style="display:flex; gap:6px; margin-bottom:6px;">
                         <input type="text" id="sub-input-${main}" placeholder="Add sub-account name..." style="font-size:12px; padding:6px;">
                         <button class="btn" style="width:auto; padding:4px 10px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Add Sub</button>
@@ -616,24 +638,28 @@
                 </div>`;
             });
             html += `</div></div>`;
-        }
-
-        // แสดง Unassigned accounts เผื่อดึงมา Assign
-        let assignedList = [];
-        Object.values(subAccountsData).forEach(arr => assignedList.push(...arr.map(s => s.toLowerCase())));
-        let unassigned = [...allRawAccs].filter(a => !subAccountsData[a] && !assignedList.includes(a.toLowerCase()));
-
-        if (unassigned.length > 0) {
-            html += `<h4 style="margin-top:16px; color:var(--text-muted);">Unassigned Accounts:</h4>`;
-            unassigned.forEach(acc => {
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
-                    <span>${acc}</span>
-                    <button class="btn" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openAssignModal('${acc}')">Assign to Main ➔</button>
-                </div>`;
-            });
-        }
+        });
 
         container.innerHTML = html;
+    }
+
+    function moveMainAccount(index, direction) {
+        let keys = Object.keys(subAccountsData);
+        let targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= keys.length) return;
+
+        let temp = keys[index];
+        keys[index] = keys[targetIndex];
+        keys[targetIndex] = temp;
+
+        let reorderedObj = {};
+        keys.forEach(k => {
+            reorderedObj[k] = subAccountsData[k];
+        });
+
+        subAccountsData = reorderedObj;
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
     }
 
     function toggleAccountVisibility(accName, isVisible) {
@@ -649,8 +675,10 @@
     function addMainAccount() {
         let name = document.getElementById('new-main-acc-input').value.trim();
         if (!name) return alert('Enter account name');
-        if (!subAccountsData[name]) subAccountsData[name] = [];
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        if (!subAccountsData[name]) {
+            subAccountsData[name] = [];
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        }
         document.getElementById('new-main-acc-input').value = '';
         renderAccountManagerList();
     }
@@ -671,8 +699,16 @@
     function editMainAccount(oldName) {
         let newName = prompt("Edit Main Account name:", oldName);
         if (newName && newName.trim() !== "" && newName !== oldName) {
-            subAccountsData[newName.trim()] = subAccountsData[oldName] || [];
-            if (oldName !== newName.trim()) delete subAccountsData[oldName];
+            let keys = Object.keys(subAccountsData);
+            let newObj = {};
+            keys.forEach(k => {
+                if (k === oldName) {
+                    newObj[newName.trim()] = subAccountsData[oldName];
+                } else {
+                    newObj[k] = subAccountsData[k];
+                }
+            });
+            subAccountsData = newObj;
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
             renderAccountManagerList();
         }
@@ -684,35 +720,6 @@
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
             renderAccountManagerList();
         }
-    }
-
-    function openAssignModal(accName) {
-        document.getElementById('assign-sub-target').value = accName;
-        let select = document.getElementById('assign-main-select');
-        select.innerHTML = '';
-        for (let main in subAccountsData) {
-            let opt = document.createElement('option');
-            opt.value = main;
-            opt.textContent = main;
-            select.appendChild(opt);
-        }
-        document.getElementById('assign-sub-modal').classList.add('active');
-    }
-
-    function closeAssignModal() {
-        document.getElementById('assign-sub-modal').classList.remove('active');
-    }
-
-    function saveAssignedSubAccount() {
-        let subAcc = document.getElementById('assign-sub-target').value;
-        let mainAcc = document.getElementById('assign-main-select').value;
-        if (!subAccountsData[mainAcc]) subAccountsData[mainAcc] = [];
-        if (!subAccountsData[mainAcc].includes(subAcc)) {
-            subAccountsData[mainAcc].push(subAcc);
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        }
-        closeAssignModal();
-        renderAccountManagerList();
     }
 
     function removeSubFromMain(main, idx) {
@@ -947,7 +954,6 @@
                 let absAmt = Math.abs(amt);
                 chartMap[key].expense += absAmt;
                 
-                // ดึงเฉพาะ Main Category (ตัด Sub ออก เช่น "Shopping ► Clothes" เหลือ "Shopping")
                 let rawCat = t.cat || 'Uncategorized';
                 let mainCat = rawCat.split(' ► ')[0].trim();
 
@@ -956,7 +962,6 @@
             }
         });
 
-        // Render Bar Chart
         let sortedKeys = Object.keys(chartMap).sort();
         let chartContainer = document.getElementById('chart-view-container');
         if (sortedKeys.length === 0) {
@@ -983,7 +988,6 @@
             chartContainer.innerHTML = chartHtml;
         }
 
-        // Render Pie Chart & Main Category Breakdown
         let sortedCats = Object.keys(mainCatMap).sort((a,b) => mainCatMap[b] - mainCatMap[a]);
         let pieWrapper = document.getElementById('pie-chart-wrapper');
         let catListHtml = '';
