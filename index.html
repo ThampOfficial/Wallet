@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Currency & Exchange Rates Settings</title>
+    <title>Wallet PWA - Newer Transactions First</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -172,7 +172,7 @@
         </div>
     </div>
 
-    <!-- TAB 5: SETTINGS (จัดการ Currency & Exchange Rates) -->
+    <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
@@ -182,7 +182,7 @@
                 <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)" style="width:auto;">
             </div>
             <div class="form-group">
-                <label>Main Base Currency (สกุลเงินหลักของกระเป๋า)</label>
+                <label>Main Base Currency</label>
                 <select id="default-currency-select" onchange="saveDefaultCurrency(this.value)"></select>
             </div>
         </div>
@@ -230,12 +230,12 @@
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
 
-<!-- Modal เพิ่ม Currency ใหม่ -->
+<!-- Modal เพิ่ม Currency -->
 <div id="currency-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Currency & Exchange Rate</h3>
         <div class="form-group"><label>Currency Code (e.g., EUR, JPY)</label><input type="text" id="new-cur-code" placeholder="e.g. EUR"></div>
-        <div class="form-group"><label>Exchange Rate (อัตราแลกเปลี่ยนเทียบกับ Base Currency)</label><input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00"></div>
+        <div class="form-group"><label>Exchange Rate</label><input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00"></div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveNewCurrency()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeCurrencyModal()">Cancel</button>
@@ -357,7 +357,6 @@
         "Bills & Utilities": ["Electricity", "Internet", "Phone"]
     };
 
-    // ระบบ Currency และ Exchange Rates
     let currenciesData = JSON.parse(localStorage.getItem('wallet_currencies_map')) || {
         "THB": 1.0,
         "CAD": 26.50,
@@ -420,7 +419,7 @@
                 amount: parseFloat(t.amount) || 0,
                 currency: t.currency || defaultCurrency,
                 memo: t.memo || ''
-            })).sort((a, b) => new Date(b.date) - new Date(a.date));
+            })).sort((a, b) => new Date(b.date) - new Date(a.date)); // เรียงลำดับ Newer First เสมอ
 
             renderAccountsList();
             renderReportChart();
@@ -439,13 +438,13 @@
         renderAccountsList();
     }
 
-    // ฟังก์ชันคำนวณยอดเงินของแต่ละ Sub-account และ Main Account แยกตามสกุลเงินถูกต้อง
     function renderAccountsList() {
         const accountsList = document.getElementById('accounts-list');
         const balanceGrid = document.getElementById('total-balance-grid');
 
-        let rawAccs = {}; // เก็บยอดเงินแยกตามชื่อ Sub-account และ Currency { 'TFSA': { CAD: 16500 } }
+        let rawAccs = {};
         let currencyTotals = {};
+        let accCurrencies = {};
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
@@ -483,7 +482,7 @@
 
         mainAccKeys.forEach(main => {
             let subs = subAccountsData[main] || [];
-            let mainCurTotals = {}; // รวมยอดของ Main account แยกตามสกุลเงิน
+            let mainCurTotals = {};
             let subHtml = '';
 
             subs.forEach(sub => {
@@ -514,7 +513,6 @@
                 </div>`;
             });
 
-            // รวมยอดของ Main Account เองถ้ามี Transaction ตรงกับ Main
             let mainDirectMap = rawAccs[main] || {};
             for (let cur in mainDirectMap) {
                 if (!mainCurTotals[cur]) mainCurTotals[cur] = 0;
@@ -560,11 +558,13 @@
 
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
+        
+        // กรองข้อมูลและเรียงจากใหม่ไปเก่า (Newer First) เสมอ
         let filtered = transactions.filter(t => {
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             return a.toLowerCase() === accName.toLowerCase();
-        });
+        }).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
 
         if (filtered.length === 0) {
             txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
@@ -573,7 +573,7 @@
         let html = '';
         filtered.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
-            html += `<tr><td>${t.date || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td></tr>`;
+            html += `<tr><td>${t.date || t.datetime || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td></tr>`;
         });
         txList.innerHTML = html;
     }
@@ -585,7 +585,7 @@
         renderAccountsList();
     }
 
-    /* ---- Currency & Exchange Rates Settings ---- */
+    /* ---- Currency Settings ---- */
     function renderCurrencySettings() {
         let curSelect = document.getElementById('default-currency-select');
         let curTable = document.getElementById('currency-table-body');
