@@ -411,7 +411,7 @@
             <input type="text" id="sched-title" placeholder="e.g., Netflix, Salary, Rent">
         </div>
         <div class="form-group">
-            <label for="sched-account">Account (เลือก Sub-account โดยแสดง Main กำกับ)</label>
+            <label for="sched-account">Account (บัญชีรับเงินเข้า / ปลายทาง)</label>
             <select id="sched-account"></select>
         </div>
         <div class="form-group">
@@ -427,7 +427,7 @@
             <select id="sched-category"></select>
         </div>
         <div class="form-group" id="group-sched-transfer" style="display:none;">
-            <label for="sched-transfer-to">Transfer To Account (โอนไปบัญชีไหน)</label>
+            <label for="sched-transfer-to">Transfer From Account (โอนมาจากบัญชีไหน)</label>
             <select id="sched-transfer-to"></select>
         </div>
         <div class="form-group">
@@ -470,7 +470,7 @@
             <input type="datetime-local" id="tx-datetime">
         </div>
         <div class="form-group">
-            <label for="tx-account">Account</label>
+            <label for="tx-account">Account (บัญชีรับเงินเข้า / ปลายทาง)</label>
             <select id="tx-account"></select>
         </div>
         
@@ -489,8 +489,9 @@
         </div>
         
         <div class="form-group" id="group-transfers" style="display:none;">
-            <label for="tx-transfers-select">Transfer To Account</label>
+            <label for="tx-transfers-select">Transfer From Account (โอนมาจากบัญชีไหน)</label>
             <select id="tx-transfers-select"></select>
+            <small style="color: var(--text-muted); font-size: 11px; display: block; margin-top: 4px;">* บัญชีนี้ (Account) จะได้เงินเข้า และบัญชีที่เลือกตรงนี้ (Transfer) จะถูกหักเงินออก</small>
         </div>
 
         <div class="form-group">
@@ -700,26 +701,26 @@
         let currencyTotals = {};
         let netWorthTHB = 0;
 
-        // คำนวณยอดเงิน: Column C (account) เป็นคนโอนออก (-), Column G (transfers) เป็นคนรับเข้า (+)
+        // คำนวณยอดเงิน: Column C (Account) = รับเงินเข้า, Column G (Transfers) = ตัดเงินออก
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
             let acc = (t.account && String(t.account).trim() !== "") ? String(t.account).trim() : 'General';
             let cur = (t.currency && String(t.currency).trim() !== "") ? String(t.currency).trim() : defaultCurrency;
             let cat = String(t.category || '').toLowerCase();
-            let trfTo = String(t.transfers || '').trim();
+            let trfFrom = String(t.transfers || '').trim();
 
             if (!rawAccs[acc]) rawAccs[acc] = {};
             if (!rawAccs[acc][cur]) rawAccs[acc][cur] = 0;
 
-            if (cat === 'transfer' || trfTo !== '') {
-                // บัญชีต้นทาง (Column C) ถูกหักเงินออก
-                rawAccs[acc][cur] -= Math.abs(amtVal);
+            if (cat === 'transfer' || trfFrom !== '') {
+                // บัญชีปลายทาง (Account / Col C) ได้รับเงินเข้า
+                rawAccs[acc][cur] += Math.abs(amtVal);
 
-                // บัญชีปลายทาง (Column G) ได้รับเงินเข้า
-                if (trfTo) {
-                    if (!rawAccs[trfTo]) rawAccs[trfTo] = {};
-                    if (!rawAccs[trfTo][cur]) rawAccs[trfTo][cur] = 0;
-                    rawAccs[trfTo][cur] += Math.abs(amtVal);
+                // บัญชีต้นทาง (Transfers / Col G) ถูกหักเงินออก
+                if (trfFrom) {
+                    if (!rawAccs[trfFrom]) rawAccs[trfFrom] = {};
+                    if (!rawAccs[trfFrom][cur]) rawAccs[trfFrom][cur] = 0;
+                    rawAccs[trfFrom][cur] -= Math.abs(amtVal);
                 }
             } else {
                 rawAccs[acc][cur] += amtVal;
@@ -832,15 +833,15 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // ดึงรายการที่บัญชีนี้เป็นผู้โอนออก (Column C) หรือเป็นผู้รับโอนเข้า (Column G)
+        // กรองรายการที่เกี่ยวข้องกับบัญชีนี้ (ไม่ว่าจะอยู่ช่อง Account หรือ Transfers)
         let filtered = transactions.filter(t => {
             let a = t.account ? String(t.account).trim() : '';
-            let trfTo = t.transfers ? String(t.transfers).trim() : '';
+            let trfFrom = t.transfers ? String(t.transfers).trim() : '';
             
-            let isMatchAccount = subAccs.length > 0 ? (a === accName || subAccs.some(s => s.toLowerCase() === accName.toLowerCase() && s.toLowerCase() === a.toLowerCase())) : (a.toLowerCase() === accName.toLowerCase());
-            let isMatchTransferTo = subAccs.length > 0 ? (trfTo === accName || subAccs.some(s => s.toLowerCase() === accName.toLowerCase() && s.toLowerCase() === trfTo.toLowerCase())) : (trfTo.toLowerCase() === accName.toLowerCase());
+            let isMatchAccount = subAccs.length > 0 ? (a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase())) : (a.toLowerCase() === accName.toLowerCase());
+            let isMatchTransfer = subAccs.length > 0 ? (trfFrom === accName || subAccs.some(s => s.toLowerCase() === trfFrom.toLowerCase())) : (trfFrom.toLowerCase() === accName.toLowerCase());
 
-            return isMatchAccount || isMatchTransferTo;
+            return isMatchAccount || isMatchTransfer;
         }).sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
 
         if (filtered.length === 0) {
@@ -854,25 +855,23 @@
             let amtVal = parseFloat(t.amount) || 0;
             let displayDate = getDisplayDateTime(t);
             let cat = String(t.category || '').toLowerCase();
-            let trfTo = String(t.transfers || '').trim();
+            let trfFrom = String(t.transfers || '').trim();
             let acc = String(t.account || '').trim();
 
-            let isTransfer = cat === 'transfer' || trfTo !== '';
-            let isIncoming = isTransfer && (subAccs.includes(trfTo) || trfTo.toLowerCase() === accName.toLowerCase()) && !subAccs.includes(acc) && acc.toLowerCase() !== accName.toLowerCase();
+            let isTransfer = cat === 'transfer' || trfFrom !== '';
+            let isAccountOwner = subAccs.length > 0 ? (acc === accName || subAccs.some(s => s.toLowerCase() === acc.toLowerCase())) : (acc.toLowerCase() === accName.toLowerCase());
 
             let badgeHtml = '';
             let amountDisplay = '';
             let amountColor = '';
 
             if (isTransfer) {
-                if (isIncoming) {
-                    // กรณีบัญชีนี้เป็นผู้รับโอน (Column G)
-                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ รับโอน (From: ${acc})</span>`;
+                if (isAccountOwner) {
+                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ รับโอน (From: ${trfFrom})</span>`;
                     amountDisplay = `+${Math.abs(amtVal).toLocaleString()}`;
-                    amountColor = 'var(--warning)';
+                    amountColor = 'var(--success)';
                 } else {
-                    // กรณีบัญชีนี้เป็นผู้โอนออก (Column C)
-                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ โอนเงิน (To: ${trfTo})</span>`;
+                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ โอนออก (To: ${acc})</span>`;
                     amountDisplay = `-${Math.abs(amtVal).toLocaleString()}`;
                     amountColor = 'var(--warning)';
                 }
@@ -924,14 +923,923 @@
                 let amtVal = parseFloat(t.amount) || 0;
                 let displayDate = getDisplayDateTime(t);
                 let cat = String(t.category || '').toLowerCase();
-                let trfTo = String(t.transfers || '').trim();
-                let isTransfer = cat === 'transfer' || trfTo !== '';
+                let trfFrom = String(t.transfers || '').trim();
+                let isTransfer = cat === 'transfer' || trfFrom !== '';
                 let amountColor = isTransfer ? 'var(--warning)' : (amtVal < 0 ? 'var(--danger)' : 'var(--success)');
 
                 html += `<tr>
                     <td>${displayDate}</td>
-                    <td>${t.account || ''} ${trfTo ? '➔ ' + trfTo : ''}</td>
+                    <td>${t.account || ''} ${trfFrom ? '← ' + trfFrom : ''}</td>
                     <td>${t.category || ''} <br><small style="color:var(--text-muted);">${t.description || t.memo || ''}</small></td>
                     <td style="color:${amountColor}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td>
                 </tr>`;
             });
+            tbody.innerHTML = html;
+        }
+        document.getElementById('all-tx-modal').classList.add('active');
+    }
+
+    function closeAllTransactionsModal() {
+        document.getElementById('all-tx-modal').classList.remove('active');
+    }
+
+    function handleGlobalSearch(keyword) {
+        let q = String(keyword || '').trim().toLowerCase();
+        if (!q) return;
+        let matched = transactions.filter(t => {
+            let acc = String(t.account || '').toLowerCase();
+            let cat = String(t.category || '').toLowerCase();
+            let desc = String(t.description || '').toLowerCase();
+            let payee = String(t.payee || '').toLowerCase();
+            let memo = String(t.memo || '').toLowerCase();
+            let amt = String(t.amount || '').toLowerCase();
+            let trf = String(t.transfers || '').toLowerCase();
+
+            return acc.includes(q) || cat.includes(q) || desc.includes(q) || payee.includes(q) || memo.includes(q) || amt.includes(q) || trf.includes(q);
+        });
+        openAllTransactionsModal(matched, `Search Results for "${keyword}"`);
+    }
+
+    /* ---- Currency Settings ---- */
+    function renderCurrencySettings() {
+        let curSelect = document.getElementById('default-currency-select');
+        let curTable = document.getElementById('currency-table-body');
+        
+        let curOptions = '';
+        let tableHtml = '';
+
+        for (let cur in currenciesData) {
+            curOptions += `<option value="${cur}" ${cur === defaultCurrency ? 'selected' : ''}>${cur}</option>`;
+            tableHtml += `<tr>
+                <td><strong>${cur}</strong></td>
+                <td>${currenciesData[cur]}</td>
+                <td>
+                    <div style="display:flex; gap:6px;">
+                        <button onclick="openCurrencyModal('${cur}')" style="background:var(--primary); color:white; border:none; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">Edit</button>
+                        ${cur !== defaultCurrency ? `<button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}
+                    </div>
+                </td>
+            </tr>`;
+        }
+        curSelect.innerHTML = curOptions;
+        curTable.innerHTML = tableHtml;
+    }
+
+    function saveDefaultCurrency(cur) {
+        defaultCurrency = cur;
+        localStorage.setItem('wallet_default_currency', cur);
+        renderCurrencySettings();
+        renderAccountsList();
+    }
+
+    function openCurrencyModal(editCur = '') {
+        let codeInput = document.getElementById('new-cur-code');
+        let rateInput = document.getElementById('new-cur-rate');
+        
+        if (editCur) {
+            codeInput.value = editCur;
+            codeInput.disabled = true;
+            rateInput.value = currenciesData[editCur] || 1.0;
+            document.getElementById('currency-modal-title').textContent = `Edit Currency: ${editCur}`;
+        } else {
+            codeInput.value = '';
+            codeInput.disabled = false;
+            rateInput.value = '';
+            document.getElementById('currency-modal-title').textContent = `Add Currency`;
+        }
+        document.getElementById('currency-modal').classList.add('active');
+    }
+    function closeCurrencyModal() { document.getElementById('currency-modal').classList.remove('active'); }
+
+    function saveNewCurrency() {
+        let code = document.getElementById('new-cur-code').value.trim().toUpperCase();
+        let rate = parseFloat(document.getElementById('new-cur-rate').value);
+        if (!code || isNaN(rate)) return alert('Please enter valid currency code and rate');
+        
+        currenciesData[code] = rate;
+        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+        renderCurrencySettings();
+        closeCurrencyModal();
+    }
+
+    function deleteCurrency(cur) {
+        if (confirm(`Delete currency ${cur}?`)) {
+            delete currenciesData[cur];
+            localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+            renderCurrencySettings();
+        }
+    }
+
+    /* ---- Category Manager ---- */
+    function renderCategoryPreview() {
+        const container = document.getElementById('settings-categories-preview');
+        let html = '';
+        for (let main in categoriesData) html += `<div><strong>• ${main}</strong>: ${categoriesData[main].join(', ')}</div>`;
+        container.innerHTML = html || 'No categories defined.';
+    }
+
+    function openCategoryManagerModal() { renderCategoryManagerList(); document.getElementById('category-manager-modal').classList.add('active'); }
+    function closeCategoryManagerModal() { document.getElementById('category-manager-modal').classList.remove('active'); renderCategoryPreview(); }
+    function renderCategoryManagerList() {
+        const container = document.getElementById('categories-manage-container');
+        let html = '';
+        for (let main in categoriesData) {
+            html += `<div style="margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><strong>📂 ${main}</strong><button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="padding-left:12px; margin-top:6px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button></div>`;
+            categoriesData[main].forEach((sub, idx) => {
+                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;"><span>└─ ${sub}</span><button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button></div>`;
+            });
+            html += `</div></div>`;
+        }
+        container.innerHTML = html;
+    }
+    function addMainCategory() {
+        let val = document.getElementById('new-main-cat-input').value.trim();
+        if (!val) return;
+        if (!categoriesData[val]) categoriesData[val] = [];
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        document.getElementById('new-main-cat-input').value = '';
+        renderCategoryManagerList();
+    }
+    function addSubCategoryDirect(main) {
+        let input = document.getElementById(`sub-cat-input-${main}`);
+        let val = input.value.trim();
+        if (!val) return;
+        if (!categoriesData[main].includes(val)) { categoriesData[main].push(val); localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); input.value = ''; renderCategoryManagerList(); }
+    }
+    function deleteMainCategory(main) { if (confirm(`Delete category "${main}"?`)) { delete categoriesData[main]; localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); } }
+    function removeSubCategory(main, idx) { categoriesData[main].splice(idx, 1); localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); }
+
+    /* ---- Account Manager ---- */
+    function openAccountManagerModal() { renderAccountManagerList(); document.getElementById('account-manager-modal').classList.add('active'); }
+    function closeAccountManagerModal() { document.getElementById('account-manager-modal').classList.remove('active'); renderAccountsList(); }
+    function renderAccountManagerList() {
+        const container = document.getElementById('accounts-manage-container');
+        let mainKeys = Object.keys(subAccountsData);
+        let html = '';
+        mainKeys.forEach((main, mIdx) => {
+            let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
+            let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
+            html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${main} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button></div>`;
+            let subs = subAccountsData[main] || [];
+            subs.forEach((sub, sIdx) => {
+                let subUp = sIdx > 0 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
+                let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
+                html += `<div class="sub-acc-row"><span>└─ ${sub}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div></div>`;
+            });
+            html += `</div></div>`;
+        });
+        container.innerHTML = html;
+    }
+    function moveMainAccount(index, direction) {
+        let keys = Object.keys(subAccountsData);
+        let targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= keys.length) return;
+        let temp = keys[index]; keys[index] = keys[targetIndex]; keys[targetIndex] = temp;
+        let reorderedObj = {}; keys.forEach(k => { reorderedObj[k] = subAccountsData[k]; });
+        subAccountsData = reorderedObj; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
+    }
+    function moveSubAccount(main, index, direction) {
+        let subs = subAccountsData[main];
+        let targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= subs.length) return;
+        let temp = subs[index]; subs[index] = subs[targetIndex]; subs[targetIndex] = temp;
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
+    }
+    function addMainAccount() {
+        let name = document.getElementById('new-main-acc-input').value.trim();
+        if (!name) return;
+        if (!subAccountsData[name]) { subAccountsData[name] = []; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); }
+        document.getElementById('new-main-acc-input').value = ''; renderAccountManagerList();
+    }
+    function addSubAccountDirect(main) {
+        let input = document.getElementById(`sub-input-${main}`);
+        let val = input.value.trim();
+        if (!val) return;
+        if (!subAccountsData[main]) subAccountsData[main] = [];
+        if (!subAccountsData[main].includes(val)) { subAccountsData[main].push(val); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); input.value = ''; renderAccountManagerList(); }
+    }
+    function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
+    function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
+
+    /* ---- Budget Functions & 4-Month Stacked Bar Chart ---- */
+    function renderBudgets() {
+        const tbody = document.getElementById('budget-table-body');
+        if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
+        let html = '';
+        
+        budgetData.forEach((b, idx) => {
+            let budgetCur = b.currency || defaultCurrency;
+            let startDate = parseUniversalDate(b.startDate || '2026-01-01');
+            
+            let spent = 0;
+            transactions.forEach(t => {
+                let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01');
+                let amt = parseFloat(t.amount) || 0;
+                let cat = String(t.category || '').toLowerCase();
+                let trfFrom = String(t.transfers || '').trim();
+                let isTransfer = cat === 'transfer' || trfFrom !== '';
+                
+                if (amt < 0 && !isTransfer && tDate >= startDate) {
+                    let acc = t.account ? String(t.account).trim() : '';
+                    let cStr = t.category ? String(t.category).trim() : '';
+                    let tCur = t.currency || defaultCurrency;
+
+                    let isExcludedAcc = (b.excludeAccs || []).includes(acc);
+                    let isExcludedCat = (b.excludeCats || []).includes(cStr);
+
+                    if (!isExcludedAcc && !isExcludedCat) {
+                        let convertedAmt = convertCurrency(Math.abs(amt), tCur, budgetCur);
+                        spent += convertedAmt;
+                    }
+                }
+            });
+
+            let limit = parseFloat(b.amount) || 0;
+            let percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+            let isOver = spent > limit;
+            let barClass = isOver ? 'progress-bar-fill over' : 'progress-bar-fill';
+            let statusColor = isOver ? 'var(--danger)' : 'var(--success)';
+
+            html += `<tr>
+                <td>
+                    <strong style="cursor:pointer; color:var(--primary);" onclick="openBudgetTxModal(${idx})">${b.title} 🔍</strong><br>
+                    <small style="color:var(--text-muted);">เริ่ม: ${b.startDate} | รอบ: ${b.period}</small>
+                </td>
+                <td>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                        <span style="color:${statusColor};">${spent.toLocaleString()} ${budgetCur}</span>
+                        <span style="color:var(--text-muted);">/ ${limit.toLocaleString()} ${budgetCur} (${percent}%)</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="${barClass}" style="width: ${percent}%;"></div>
+                    </div>
+                    ${isOver ? '<small style="color:var(--danger); font-weight:bold;">⚠️ เกินงบประมาณแล้ว!</small>' : ''}
+                </td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button class="mini-btn" style="background:var(--primary);" onclick="openBudgetModal(${idx})">Edit</button>
+                        <button class="mini-btn btn-exp" onclick="deleteBudget(${idx})">Del</button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+        renderBudgetStackedBarChart();
+    }
+
+    function renderBudgetStackedBarChart() {
+        chartMonthLabels = [];
+        let now = new Date();
+        for (let i = 3; i >= 0; i--) {
+            let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            let y = d.getFullYear();
+            let m = String(d.getMonth() + 1).padStart(2, '0');
+            chartMonthLabels.push(`${y}-${m}`);
+        }
+
+        let expenseData = chartMonthLabels.map(ym => {
+            let sum = 0;
+            transactions.forEach(t => {
+                let parsed = parseUniversalDate(t.datetime || t.date || '');
+                let amt = parseFloat(t.amount) || 0;
+                let cat = String(t.category || '').toLowerCase();
+                let trfFrom = String(t.transfers || '').trim();
+                let isTransfer = cat === 'transfer' || trfFrom !== '';
+
+                if (amt < 0 && !isTransfer && !isNaN(parsed.getTime())) {
+                    let ty = parsed.getFullYear();
+                    let tm = String(parsed.getMonth() + 1).padStart(2, '0');
+                    if (`${ty}-${tm}` === ym) {
+                        let tCur = t.currency || defaultCurrency;
+                        sum += convertCurrency(Math.abs(amt), tCur, defaultCurrency);
+                    }
+                }
+            });
+            return sum;
+        });
+
+        let budgetLimitData = chartMonthLabels.map(ym => {
+            let totalLimit = 0;
+            budgetData.forEach(b => {
+                if (b.period === 'Monthly') {
+                    let bCur = b.currency || defaultCurrency;
+                    totalLimit += convertCurrency(parseFloat(b.amount) || 0, bCur, defaultCurrency);
+                }
+            });
+            return totalLimit > 0 ? totalLimit : 0;
+        });
+
+        const ctx = document.getElementById('budgetStackedBarChart').getContext('2d');
+        if (stackedChartInstance) stackedChartInstance.destroy();
+
+        stackedChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartMonthLabels,
+                datasets: [
+                    {
+                        label: 'Expense (รายจ่ายจริง)',
+                        data: expenseData,
+                        backgroundColor: '#ef4444',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Budget Limit (งบประมาณตั้งไว้)',
+                        data: budgetLimitData,
+                        backgroundColor: '#4f46e5',
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: {
+                    x: { stacked: false },
+                    y: { stacked: false, beginAtZero: true }
+                },
+                onClick: (e, elements) => {
+                    if (elements.length > 0) {
+                        let index = elements[0].index;
+                        let clickedMonth = chartMonthLabels[index];
+                        openChartMonthTransactionsModal(clickedMonth);
+                    }
+                }
+            }
+        });
+    }
+
+    function openChartMonthTransactionsModal(ym) {
+        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Month: ${ym}`;
+        let matchedTxs = transactions.filter(t => {
+            let parsed = parseUniversalDate(t.datetime || t.date || '');
+            let amt = parseFloat(t.amount) || 0;
+            let cat = String(t.category || '').toLowerCase();
+            let trfFrom = String(t.transfers || '').trim();
+            let isTransfer = cat === 'transfer' || trfFrom !== '';
+
+            if (amt < 0 && !isTransfer && !isNaN(parsed.getTime())) {
+                let ty = parsed.getFullYear();
+                let tm = String(parsed.getMonth() + 1).padStart(2, '0');
+                return `${ty}-${tm}` === ym;
+            }
+            return false;
+        });
+
+        const listBody = document.getElementById('budget-tx-list-body');
+        if (matchedTxs.length === 0) {
+            listBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No expense transactions found for ${ym}</td></tr>`;
+        } else {
+            let html = '';
+            matchedTxs.forEach(t => {
+                let amtVal = parseFloat(t.amount) || 0;
+                let tCur = t.currency || defaultCurrency;
+                let displayDate = getDisplayDateTime(t);
+                html += `<tr>
+                    <td>${displayDate}</td>
+                    <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                    <td style="color:var(--danger); font-weight:bold;">${amtVal.toLocaleString()} ${tCur}</td>
+                </tr>`;
+            });
+            listBody.innerHTML = html;
+        }
+        document.getElementById('budget-tx-modal').classList.add('active');
+    }
+
+    function openBudgetTxModal(budgetIdx) {
+        let b = budgetData[budgetIdx];
+        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${b.title}`;
+        let startDate = parseUniversalDate(b.startDate || '2026-01-01');
+        let budgetCur = b.currency || defaultCurrency;
+
+        let matchedTxs = transactions.filter(t => {
+            let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01');
+            let amt = parseFloat(t.amount) || 0;
+            let cat = String(t.category || '').toLowerCase();
+            let trfFrom = String(t.transfers || '').trim();
+            let isTransfer = cat === 'transfer' || trfFrom !== '';
+
+            if (amt < 0 && !isTransfer && tDate >= startDate) {
+                let acc = t.account ? String(t.account).trim() : '';
+                let cStr = t.category ? String(t.category).trim() : '';
+                let isExcludedAcc = (b.excludeAccs || []).includes(acc);
+                let isExcludedCat = (b.excludeCats || []).includes(cStr);
+                return !isExcludedAcc && !isExcludedCat;
+            }
+            return false;
+        });
+
+        const listBody = document.getElementById('budget-tx-list-body');
+        if (matchedTxs.length === 0) {
+            listBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions found for this budget period</td></tr>`;
+        } else {
+            let html = '';
+            matchedTxs.forEach(t => {
+                let amtVal = parseFloat(t.amount) || 0;
+                let tCur = t.currency || defaultCurrency;
+                let converted = convertCurrency(Math.abs(amtVal), tCur, budgetCur);
+                let displayDate = getDisplayDateTime(t);
+                html += `<tr>
+                    <td>${displayDate}</td>
+                    <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                    <td style="color:var(--danger); font-weight:bold;">-${converted.toLocaleString()} ${budgetCur} <small style="font-weight:normal;">(${Math.abs(amtVal)} ${tCur})</small></td>
+                </tr>`;
+            });
+            listBody.innerHTML = html;
+        }
+
+        document.getElementById('budget-tx-modal').classList.add('active');
+    }
+
+    function closeBudgetTxModal() {
+        document.getElementById('budget-tx-modal').classList.remove('active');
+    }
+
+    function openBudgetModal(editIdx = -1) {
+        document.getElementById('budget-edit-index').value = editIdx;
+        let curSelect = document.getElementById('budget-currency');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+
+        let accBox = document.getElementById('budget-exclude-accs');
+        let catBox = document.getElementById('budget-exclude-cats');
+
+        let bTarget = editIdx >= 0 ? budgetData[editIdx] : null;
+
+        document.getElementById('budget-modal-title').textContent = bTarget ? 'Edit Budget' : 'Add Budget';
+        document.getElementById('budget-title').value = bTarget ? bTarget.title : '';
+        document.getElementById('budget-period').value = bTarget ? bTarget.period : 'Monthly';
+        document.getElementById('budget-startdate').value = bTarget ? bTarget.startDate : new Date().toISOString().slice(0,10);
+        document.getElementById('budget-amount').value = bTarget ? bTarget.amount : '';
+        curSelect.value = bTarget ? (bTarget.currency || defaultCurrency) : defaultCurrency;
+        document.getElementById('budget-rollover').checked = bTarget ? bTarget.rollover : false;
+
+        let accHtml = '';
+        Object.keys(subAccountsData).forEach(main => {
+            (subAccountsData[main] || []).forEach(sub => {
+                let isChecked = bTarget ? !(bTarget.excludeAccs || []).includes(sub) : true;
+                accHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-acc" value="${sub}" id="ex-acc-${sub}" ${isChecked ? 'checked' : ''}><label for="ex-acc-${sub}" style="margin:0; font-weight:normal;">รวมบัญชี: ${sub} (${main})</label></div>`;
+            });
+        });
+        accBox.innerHTML = accHtml || '<small style="color:var(--text-muted);">No accounts</small>';
+
+        let subCatHtml = '';
+        for (let mainCat in categoriesData) {
+            categoriesData[mainCat].forEach(subCat => {
+                let val = `${mainCat} ► ${subCat}`;
+                let isChecked = bTarget ? !(bTarget.excludeCats || []).includes(val) : true;
+                subCatHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-cat" value="${val}" id="ex-cat-${val}" ${isChecked ? 'checked' : ''}><label for="ex-cat-${val}" style="margin:0; font-weight:normal;">รวมหมวดหมู่: ${val}</label></div>`;
+            });
+        }
+        catBox.innerHTML = subCatHtml || '<small style="color:var(--text-muted);">No categories</small>';
+
+        document.getElementById('budget-modal').classList.add('active');
+    }
+
+    function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('active'); }
+
+    function saveBudget() {
+        let editIdx = parseInt(document.getElementById('budget-edit-index').value);
+        let title = document.getElementById('budget-title').value.trim();
+        let period = document.getElementById('budget-period').value;
+        let startDate = document.getElementById('budget-startdate').value;
+        let amt = parseFloat(document.getElementById('budget-amount').value);
+        let currency = document.getElementById('budget-currency').value;
+        let rollover = document.getElementById('budget-rollover').checked;
+
+        if (!title || isNaN(amt) || !startDate) return alert('Please fill in all required fields correctly.');
+
+        let excludeAccs = Array.from(document.querySelectorAll('input[name="ex-acc"]:not(:checked)')).map(cb => cb.value);
+        let excludeCats = Array.from(document.querySelectorAll('input[name="ex-cat"]:not(:checked)')).map(cb => cb.value);
+
+        let budgetObj = { title, period, startDate, amount: amt, currency, rollover, excludeAccs, excludeCats };
+
+        if (editIdx >= 0) {
+            budgetData[editIdx] = budgetObj;
+        } else {
+            budgetData.push(budgetObj);
+        }
+
+        localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
+        renderBudgets();
+        closeBudgetModal();
+    }
+
+    function deleteBudget(idx) { 
+        if (confirm('Delete this budget?')) {
+            budgetData.splice(idx, 1); 
+            localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); 
+            renderBudgets(); 
+        }
+    }
+
+    /* ---- Schedule Functions ---- */
+    function renderSchedules() {
+        const tbody = document.getElementById('schedule-table-body');
+        if (scheduleData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`; return; }
+        let html = '';
+        scheduleData.forEach((s, idx) => {
+            let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
+            let detail = `${typeBadge} | ${s.category || ''} | รอบถัดไป: ${s.startDate} | 🔄 ${s.frequency}`;
+            if (s.type === 'Transfer') detail += ` (รับจาก: ${s.transferTo})`;
+            let sCur = s.currency || defaultCurrency;
+            
+            html += `<tr>
+                <td><strong>${s.title}</strong><br><small style="color:var(--text-muted);">${detail}</small></td>
+                <td>${s.account}</td>
+                <td>${s.amount.toLocaleString()} ${sCur}</td>
+                <td>
+                    <div style="display:flex; gap:4px; align-items:center;">
+                        <button class="mini-btn btn-inc" onclick="paySchedule(${idx})" title="Pay Now">✅ Pay</button>
+                        <button class="mini-btn" style="background:var(--primary);" onclick="openScheduleModal(${idx})">Edit</button>
+                        <button class="mini-btn btn-exp" onclick="deleteSchedule(${idx})">Del</button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function openScheduleModal(editIdx = -1) {
+        document.getElementById('sched-edit-index').value = editIdx;
+        let accSelect = document.getElementById('sched-account');
+        let transferSelect = document.getElementById('sched-transfer-to');
+        let curSelect = document.getElementById('sched-currency');
+        let catSelect = document.getElementById('sched-category');
+        
+        let accOptHtml = '';
+        let allSubsOnly = [];
+        Object.keys(subAccountsData).forEach(main => {
+            accOptHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
+            (subAccountsData[main] || []).forEach(sub => {
+                allSubsOnly.push(sub);
+                accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+            });
+        });
+        accSelect.innerHTML = accOptHtml;
+        transferSelect.innerHTML = allSubsOnly.map(s => `<option value="${s}">${s}</option>`).join('');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+
+        let catHtml = '';
+        for (let mainCat in categoriesData) {
+            catHtml += `<optgroup label="${mainCat}">`;
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            catHtml += `</optgroup>`;
+        }
+        catSelect.innerHTML = catHtml;
+
+        let sTarget = editIdx >= 0 ? scheduleData[editIdx] : null;
+
+        document.getElementById('schedule-modal-title').textContent = sTarget ? 'Edit Schedule' : 'Add Schedule / Recurring';
+        document.getElementById('sched-title').value = sTarget ? sTarget.title : '';
+        accSelect.value = sTarget ? sTarget.account : (allSubsOnly[0] || '');
+        document.getElementById('sched-type').value = sTarget ? sTarget.type : 'Expense';
+        toggleSchedType(document.getElementById('sched-type').value);
+        if (sTarget && sTarget.category) catSelect.value = sTarget.category;
+        if (sTarget && sTarget.type === 'Transfer') transferSelect.value = sTarget.transferTo;
+        document.getElementById('sched-freq').value = sTarget ? sTarget.frequency : 'Monthly';
+        document.getElementById('sched-startdate').value = sTarget ? sTarget.startDate : new Date().toISOString().slice(0,10);
+        document.getElementById('sched-amount').value = sTarget ? sTarget.amount : '';
+        curSelect.value = sTarget ? (sTarget.currency || defaultCurrency) : defaultCurrency;
+
+        document.getElementById('schedule-modal').classList.add('active');
+    }
+
+    function closeScheduleModal() { document.getElementById('schedule-modal').classList.remove('active'); }
+
+    function toggleSchedType(type) {
+        document.getElementById('group-sched-transfer').style.display = (type === 'Transfer') ? 'block' : 'none';
+        document.getElementById('group-sched-category').style.display = (type === 'Transfer') ? 'none' : 'block';
+    }
+
+    function saveSchedule() {
+        let editIdx = parseInt(document.getElementById('sched-edit-index').value);
+        let title = document.getElementById('sched-title').value.trim();
+        let account = document.getElementById('sched-account').value;
+        let type = document.getElementById('sched-type').value;
+        let category = type === 'Transfer' ? 'Transfer' : document.getElementById('sched-category').value;
+        let transferTo = type === 'Transfer' ? document.getElementById('sched-transfer-to').value : '';
+        let frequency = document.getElementById('sched-freq').value;
+        let startDate = document.getElementById('sched-startdate').value;
+        let amt = parseFloat(document.getElementById('sched-amount').value);
+        let currency = document.getElementById('sched-currency').value;
+
+        if (!title || isNaN(amt) || !startDate || !account) return alert('Please enter valid title, account, amount and start date');
+
+        let schedObj = { title, account, type, category, transferTo, frequency, startDate, amount: amt, currency };
+
+        if (editIdx >= 0) {
+            scheduleData[editIdx] = schedObj;
+        } else {
+            scheduleData.push(schedObj);
+        }
+
+        localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+        renderSchedules(); 
+        closeScheduleModal();
+    }
+
+    function paySchedule(idx) {
+        let s = scheduleData[idx];
+        if (!confirm(`Confirm payment for "${s.title}" (${s.amount} ${s.currency || defaultCurrency})?`)) return;
+
+        let rawAmt = parseFloat(s.amount) || 0;
+        let txAmount = (s.type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+        
+        let newTx = {
+            datetime: s.startDate + 'T00:00:00',
+            date: s.startDate,
+            account: s.account,
+            category: s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title),
+            description: s.title + ' (Scheduled)',
+            payee: '',
+            transfers: s.transferTo || '',
+            amount: txAmount,
+            currency: s.currency || defaultCurrency,
+            memo: 'Paid via Schedule'
+        };
+
+        transactions.unshift(newTx);
+        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
+        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+        renderAccountsList();
+
+        let d = new Date(s.startDate);
+        if (s.frequency === 'Monthly') {
+            d.setMonth(d.getMonth() + 1);
+        } else if (s.frequency === 'Yearly') {
+            d.setFullYear(d.getFullYear() + 1);
+        } else {
+            scheduleData.splice(idx, 1);
+            localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+            renderSchedules();
+            if (selectedAccount) openAccountDetail(selectedAccount);
+            alert('Payment recorded successfully!');
+            return;
+        }
+        s.startDate = d.toISOString().slice(0,10);
+        localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+        renderSchedules();
+        if (selectedAccount) openAccountDetail(selectedAccount);
+
+        if (WEBHOOK_URL) {
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(newTx)
+            }).catch(e => console.log("Offline: Saved locally, will sync later."));
+        }
+
+        alert('Payment recorded and schedule rolled over successfully!');
+    }
+
+    function deleteSchedule(idx) { 
+        if (confirm('Delete this schedule?')) {
+            scheduleData.splice(idx, 1); 
+            localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData)); 
+            renderSchedules(); 
+        }
+    }
+
+    /* ---- Report Analytics ---- */
+    function initReportView() {
+        let mode = document.getElementById('report-view-mode').value;
+        let periodSelect = document.getElementById('report-period-select');
+        
+        let periods = {};
+        transactions.forEach(t => {
+            let dt = t.datetime || t.date || '';
+            let parsed = parseUniversalDate(dt);
+            if (!isNaN(parsed.getTime())) {
+                let y = parsed.getFullYear();
+                let m = String(parsed.getMonth() + 1).padStart(2, '0');
+                let mKey = `${y}-${m}`;
+                let yKey = `${y}`;
+                periods[mKey] = mKey;
+                periods[yKey] = yKey;
+            }
+        });
+
+        let keys = Object.keys(periods).sort().reverse();
+        if (keys.length === 0) {
+            let currentYM = new Date().toISOString().slice(0, 7);
+            keys = [currentYM];
+        }
+
+        let html = '';
+        keys.forEach(k => {
+            if (mode === 'monthly' && k.length === 7) {
+                html += `<option value="${k}">เดือน ${k}</option>`;
+            } else if (mode === 'yearly' && k.length === 4) {
+                html += `<option value="${k}">ปี ${k}</option>`;
+            }
+        });
+        if (!html) {
+            let nowY = new Date().toISOString().slice(0, 4);
+            html = `<option value="${nowY}">ปี ${nowY}</option>`;
+        }
+        periodSelect.innerHTML = html;
+        renderReportChart();
+    }
+
+    function renderReportChart() {
+        let mode = document.getElementById('report-view-mode').value;
+        let selectedPeriod = document.getElementById('report-period-select').value;
+
+        let catTotals = {};
+        let totalInc = 0, totalExp = 0;
+
+        transactions.forEach(t => {
+            let dt = t.datetime || t.date || '';
+            let parsed = parseUniversalDate(dt);
+            if (isNaN(parsed.getTime())) return;
+
+            let y = parsed.getFullYear();
+            let m = String(parsed.getMonth() + 1).padStart(2, '0');
+            let checkKey = (mode === 'monthly') ? `${y}-${m}` : `${y}`;
+
+            if (checkKey !== selectedPeriod) return;
+
+            let amt = parseFloat(t.amount) || 0;
+            let cat = String(t.category || '').toLowerCase();
+            let trfFrom = String(t.transfers || '').trim();
+            let isTransfer = cat === 'transfer' || trfFrom !== '';
+
+            if (isTransfer) return;
+
+            let tCur = t.currency || defaultCurrency;
+            let converted = convertCurrency(Math.abs(amt), tCur, defaultCurrency);
+
+            if (amt > 0) {
+                totalInc += converted;
+            } else {
+                totalExp += converted;
+                let cStr = t.category ? t.category.trim() : 'Uncategorized';
+                if (!catTotals[cStr]) catTotals[cStr] = 0;
+                catTotals[cStr] += converted;
+            }
+        });
+
+        let labels = Object.keys(catTotals);
+        let dataVals = Object.values(catTotals);
+
+        const ctx = document.getElementById('expensePieChart').getContext('2d');
+        if (pieChartInstance) pieChartInstance.destroy();
+
+        pieChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels.length > 0 ? labels : ['No Data'],
+                datasets: [{ data: dataVals.length > 0 ? dataVals : [1], backgroundColor: ['#4f46e5', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#64748b'] }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        document.getElementById('report-summary-container').innerHTML = `
+            <div style="display:flex; justify-content:space-around; text-align:center; margin-top:8px;">
+                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${totalInc.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Income (${selectedPeriod})</small></div>
+                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${totalExp.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Expense (${selectedPeriod})</small></div>
+            </div>
+        `;
+    }
+
+    /* ---- Transaction Form Logic ---- */
+    function openTxModal(type, preSelectAcc = '', preSelectCur = defaultCurrency) {
+        document.getElementById('tx-edit-index').value = -1;
+        document.getElementById('tx-type').value = type;
+        document.getElementById('tx-modal-title').textContent = `Add ${type}`;
+        document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
+        document.getElementById('tx-amount').value = '';
+        document.getElementById('tx-description').value = '';
+        document.getElementById('tx-payee').value = '';
+        document.getElementById('tx-memo').value = '';
+
+        setupTxModalDropdowns(preSelectAcc, preSelectCur, type);
+        document.getElementById('tx-modal').classList.add('active');
+    }
+
+    function openTxEditModal(index) {
+        let t = transactions[index];
+        let type = t.amount < 0 ? 'Expense' : 'Income';
+        if (t.category === 'Transfer' || (t.transfers && t.transfers.trim() !== '')) type = 'Transfer';
+
+        document.getElementById('tx-edit-index').value = index;
+        document.getElementById('tx-type').value = type;
+        document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
+        document.getElementById('tx-datetime').value = t.datetime || t.date || new Date().toISOString().slice(0,16);
+        document.getElementById('tx-amount').value = Math.abs(t.amount);
+        document.getElementById('tx-description').value = t.description || '';
+        document.getElementById('tx-payee').value = t.payee || '';
+        document.getElementById('tx-memo').value = t.memo || '';
+
+        setupTxModalDropdowns(t.account, t.currency || defaultCurrency, type);
+        if (type !== 'Transfer') document.getElementById('tx-category').value = t.category;
+        if (type === 'Transfer') document.getElementById('tx-transfers-select').value = t.transfers;
+
+        document.getElementById('tx-modal').classList.add('active');
+    }
+
+    function setupTxModalDropdowns(preSelectAcc, preSelectCur, type) {
+        let accSelect = document.getElementById('tx-account');
+        let optHtml = '';
+        let allSubs = [];
+        Object.keys(subAccountsData).forEach(main => {
+            (subAccountsData[main] || []).forEach(sub => { allSubs.push(sub); optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
+        });
+        accSelect.innerHTML = optHtml;
+        if (preSelectAcc) accSelect.value = preSelectAcc;
+
+        let catSelect = document.getElementById('tx-category');
+        let catHtml = '';
+        for (let mainCat in categoriesData) {
+            catHtml += `<optgroup label="${mainCat}">`;
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            catHtml += `</optgroup>`;
+        }
+        catSelect.innerHTML = catHtml;
+
+        let curSelect = document.getElementById('tx-currency');
+        let curHtml = '';
+        for (let cur in currenciesData) {
+            curHtml += `<option value="${cur}">${cur}</option>`;
+        }
+        curSelect.innerHTML = curHtml;
+        curSelect.value = preSelectCur || defaultCurrency;
+
+        let trfSelect = document.getElementById('tx-transfers-select');
+        trfSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
+
+        if (type === 'Transfer') {
+            document.getElementById('group-category').style.display = 'none';
+            document.getElementById('group-transfers').style.display = 'block';
+        } else {
+            document.getElementById('group-category').style.display = 'block';
+            document.getElementById('group-transfers').style.display = 'none';
+        }
+    }
+
+    function closeTxModal() { document.getElementById('tx-modal').classList.remove('active'); }
+
+    function saveTransaction() {
+        let editIdx = parseInt(document.getElementById('tx-edit-index').value);
+        const type = document.getElementById('tx-type').value;
+        const datetime = document.getElementById('tx-datetime').value;
+        const account = document.getElementById('tx-account').value;
+        const category = type === 'Transfer' ? 'Transfer' : document.getElementById('tx-category').value;
+        const description = document.getElementById('tx-description').value.trim();
+        const payee = document.getElementById('tx-payee').value.trim();
+        const transfers = type === 'Transfer' ? document.getElementById('tx-transfers-select').value : '';
+        const rawAmt = parseFloat(document.getElementById('tx-amount').value);
+        const currency = document.getElementById('tx-currency').value;
+        const memo = document.getElementById('tx-memo').value.trim();
+
+        if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) return alert('Please enter valid amount and datetime');
+
+        let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
+        let txObj = { datetime, date: datetime, account, category, description, payee, transfers, amount, currency, memo };
+
+        if (editIdx >= 0) {
+            transactions[editIdx] = txObj;
+        } else {
+            transactions.unshift(txObj);
+        }
+
+        transactions.sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
+
+        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+
+        renderAccountsList();
+        renderBudgets();
+        if (selectedAccount) openAccountDetail(selectedAccount);
+        closeTxModal();
+
+        if (WEBHOOK_URL) {
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(txObj)
+            }).catch(e => console.log("Offline: Transaction saved locally."));
+        }
+
+        alert('Transaction saved successfully!');
+    }
+
+    function deleteTransaction(index) {
+        if (confirm('Delete this transaction?')) {
+            transactions.splice(index, 1);
+            localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+            renderAccountsList();
+            renderBudgets();
+            if (selectedAccount) openAccountDetail(selectedAccount);
+        }
+    }
+</script>
+</body>
+</html>
