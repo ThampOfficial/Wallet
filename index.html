@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Advanced Budget Filter</title>
+    <title>Wallet PWA - Hardcoded Webhook & Budget Exclusions</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -286,7 +286,7 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Budget (พร้อมตัวเลือก Exclude Accounts & Categories) -->
+<!-- Modal เพิ่ม Budget -->
 <div id="budget-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Budget</h3>
@@ -412,7 +412,8 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";
+    // ฝัง Webhook URL ถาวรไว้ตรงนี้เรียบร้อย (สามารถเปลี่ยนได้ที่ Settings ในหน้าเว็บเช่นกัน)
+    let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -807,7 +808,7 @@
         let html = '';
         budgetData.forEach((b, idx) => {
             let excludeInfo = [];
-            if (b.excludeAccs && b.excludeAccs.length > 0) excludeInfo.append ? null : excludeInfo.push(`Ex-Acc: ${b.excludeAccs.join(', ')}`);
+            if (b.excludeAccs && b.excludeAccs.length > 0) excludeInfo.push(`Ex-Acc: ${b.excludeAccs.join(', ')}`);
             if (b.excludeCats && b.excludeCats.length > 0) excludeInfo.push(`Ex-Cat: ${b.excludeCats.join(', ')}`);
             let subText = excludeInfo.length > 0 ? `<br><small style="color:var(--text-muted);">${excludeInfo.join(' | ')}</small>` : '';
 
@@ -827,7 +828,6 @@
         catSelect.innerHTML = catHtml;
         document.getElementById('budget-amount').value = '';
 
-        // เรนเดอร์ Checkbox สำหรับเลือก Account ที่ต้องการ Exclude
         let accBox = document.getElementById('budget-exclude-accs');
         let accHtml = '';
         Object.keys(subAccountsData).forEach(main => {
@@ -837,7 +837,6 @@
         });
         accBox.innerHTML = accHtml || '<small style="color:var(--text-muted);">No accounts</small>';
 
-        // เรนเดอร์ Checkbox สำหรับเลือก Category ที่ต้องการ Exclude
         let catBox = document.getElementById('budget-exclude-cats');
         let subCatHtml = '';
         for (let mainCat in categoriesData) {
