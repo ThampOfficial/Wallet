@@ -597,12 +597,10 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่และเวลา รองรับทุกรูปแบบและแปลงให้เป็นมาตรฐานสำหรับการเรียงลำดับ
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
 
-        // รูปแบบ DD/MM/YY หรือ DD/MM/YYYY
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(str)) {
             let parts = str.split(' ')[0].split('/');
             let day = parts[0].padStart(2, '0');
@@ -623,7 +621,6 @@
         return new Date(str.replace(' ', 'T'));
     }
 
-    // จัดรูปวันที่และเวลาให้แสดงผลเป็นรูปแบบเดียวกันทุกแถว (YYYY-MM-DD HH:mm:ss)
     function getDisplayDateTime(t) {
         let raw = t.datetime || t.date || '';
         if (!raw) return '-';
@@ -696,8 +693,8 @@
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
-            let acc = (t.account && t.account.trim() !== "") ? t.account.trim() : 'General';
-            let cur = (t.currency && t.currency.trim() !== "") ? t.currency.trim() : defaultCurrency;
+            let acc = (t.account && String(t.account).trim() !== "") ? String(t.account).trim() : 'General';
+            let cur = (t.currency && String(t.currency).trim() !== "") ? String(t.currency).trim() : defaultCurrency;
             
             if (!rawAccs[acc]) rawAccs[acc] = {};
             if (!rawAccs[acc][cur]) rawAccs[acc][cur] = 0;
@@ -806,7 +803,7 @@
         let subAccs = subAccountsData[accName] || [];
         
         let filtered = transactions.filter(t => {
-            let a = t.account ? t.account.trim() : '';
+            let a = t.account ? String(t.account).trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             return a.toLowerCase() === accName.toLowerCase();
         }).sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
@@ -873,14 +870,17 @@
     }
 
     function handleGlobalSearch(keyword) {
-        let q = keyword.trim().toLowerCase();
+        let q = String(keyword || '').trim().toLowerCase();
         if (!q) return;
         let matched = transactions.filter(t => {
-            return (t.account && t.account.toLowerCase().includes(q)) ||
-                   (t.category && t.category.toLowerCase().includes(q)) ||
-                   (t.description && t.description.toLowerCase().includes(q)) ||
-                   (t.payee && t.payee.toLowerCase().includes(q)) ||
-                   (t.memo && t.memo.toLowerCase().includes(q));
+            let acc = String(t.account || '').toLowerCase();
+            let cat = String(t.category || '').toLowerCase();
+            let desc = String(t.description || '').toLowerCase();
+            let payee = String(t.payee || '').toLowerCase();
+            let memo = String(t.memo || '').toLowerCase();
+            let amt = String(t.amount || '').toLowerCase();
+
+            return acc.includes(q) || cat.includes(q) || desc.includes(q) || payee.includes(q) || memo.includes(q) || amt.includes(q);
         });
         openAllTransactionsModal(matched, `Search Results for "${keyword}"`);
     }
@@ -923,7 +923,7 @@
         
         if (editCur) {
             codeInput.value = editCur;
-            codeInput.disabled = true; // ล็อคไม่ให้แก้ชื่อยศ แต่แก้เรทได้
+            codeInput.disabled = true;
             rateInput.value = currenciesData[editCur] || 1.0;
             document.getElementById('currency-modal-title').textContent = `Edit Currency: ${editCur}`;
         } else {
@@ -1068,8 +1068,8 @@
                 let amt = parseFloat(t.amount) || 0;
                 
                 if (amt < 0 && tDate >= startDate) {
-                    let acc = t.account ? t.account.trim() : '';
-                    let cat = t.category ? t.category.trim() : '';
+                    let acc = t.account ? String(t.account).trim() : '';
+                    let cat = t.category ? String(t.category).trim() : '';
                     let tCur = t.currency || defaultCurrency;
 
                     let isExcludedAcc = (b.excludeAccs || []).includes(acc);
@@ -1236,8 +1236,8 @@
             let tDate = parseUniversalDate(t.datetime || t.date || '2026-01-01');
             let amt = parseFloat(t.amount) || 0;
             if (amt < 0 && tDate >= startDate) {
-                let acc = t.account ? t.account.trim() : '';
-                let cat = t.category ? t.category.trim() : '';
+                let acc = t.account ? String(t.account).trim() : '';
+                let cat = t.category ? String(t.category).trim() : '';
                 let isExcludedAcc = (b.excludeAccs || []).includes(acc);
                 let isExcludedCat = (b.excludeCats || []).includes(cat);
                 return !isExcludedAcc && !isExcludedCat;
