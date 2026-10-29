@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Advanced Reports & Budget</title>
+    <title>Wallet PWA - Adjust Balance</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -100,9 +100,12 @@
             </div>
         </div>
 
-        <!-- Account Detail View -->
+        <!-- Account / Sub-account Detail View -->
         <div id="account-detail-view" style="display: none;">
-            <button class="btn" style="width: auto; margin-bottom: 12px; background: var(--text-muted);" onclick="backToAccountsList()">← Back to Accounts</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <button class="btn" style="width: auto; background: var(--text-muted);" onclick="backToAccountsList()">← Back</button>
+                <button class="btn" style="width: auto; background: var(--primary);" onclick="openAdjustBalanceModal()">⚙️ Adjust Balance</button>
+            </div>
             <h2 id="detail-account-title">Account Details</h2>
             
             <div class="card">
@@ -223,6 +226,30 @@
     </div>
 </div>
 
+<!-- Modal for Adjust Balance -->
+<div id="adjust-balance-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 id="adjust-modal-title" style="margin-bottom: 12px;">Adjust Balance</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">ระบบจะสร้างรายการปรับยอด (Adjustment) เพื่อให้ยอดเงินคงเหลือตรงกับจำนวนที่คุณระบุ</p>
+        <div class="form-group">
+            <label>Current Calculated Balance</label>
+            <div id="adjust-current-bal" style="font-size: 16px; font-weight: bold; color: var(--primary); margin-bottom: 8px;">0.00</div>
+        </div>
+        <div class="form-group">
+            <label>Target Actual Balance (ยอดจริงที่ต้องการ)</label>
+            <input type="number" id="adjust-target-amount" step="0.01" placeholder="Enter target balance">
+        </div>
+        <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="adjust-date">
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveBalanceAdjustment()">Confirm Adjust</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeAdjustBalanceModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal for Transaction Input -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
@@ -298,7 +325,7 @@
 
     let transactions = [];
     let selectedAccount = null;
-    let reportViewMode = 'monthly'; // 'monthly' หรือ 'yearly'
+    let reportViewMode = 'monthly';
 
     let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
         "Shopping": ["Clothes", "Technology", "Accessories", "Gifts", "Pets", "Tools"],
@@ -477,6 +504,83 @@
         alert('Saved preferred currency');
     }
 
+    /* Adjust Balance Logic */
+    function openAdjustBalanceModal() {
+        if (!selectedAccount) return;
+        document.getElementById('adjust-modal-title').textContent = `Adjust Balance: ${selectedAccount}`;
+        document.getElementById('adjust-date').valueAsDate = new Date();
+
+        // คำนวณยอดปัจจุบันของ Account นี้
+        let currentBal = 0;
+        let curCode = 'THB';
+        let subAccs = subAccountsData[selectedAccount] || [];
+
+        transactions.forEach(t => {
+            let a = t.a ? t.a.trim() : '';
+            let isMatch = (subAccs.length > 0) 
+                ? (a === selectedAccount || subAccs.some(s => s.toLowerCase() === a.toLowerCase()))
+                : (a.toLowerCase() === selectedAccount.toLowerCase());
+            if (isMatch) {
+                currentBal += (t.amt || 0);
+                if (t.cur) curCode = t.cur;
+            }
+        });
+
+        document.getElementById('adjust-current-bal').textContent = `${currentBal.toLocaleString()} ${curCode}`;
+        document.getElementById('adjust-target-amount').value = '';
+        document.getElementById('adjust-balance-modal').classList.add('active');
+    }
+
+    function closeAdjustBalanceModal() {
+        document.getElementById('adjust-balance-modal').classList.remove('active');
+    }
+
+    function saveBalanceAdjustment() {
+        const targetAmt = parseFloat(document.getElementById('adjust-target-amount').value);
+        const date = document.getElementById('adjust-date').value;
+
+        if (isNaN(targetAmt) || !date) {
+            return alert('Please enter a valid target balance and date');
+        }
+
+        // คำนวณยอดปัจจุบันอีกครั้งเพื่อหาผลต่าง (Difference)
+        let currentBal = 0;
+        let curCode = 'THB';
+        let subAccs = subAccountsData[selectedAccount] || [];
+
+        transactions.forEach(t => {
+            let a = t.a ? t.a.trim() : '';
+            let isMatch = (subAccs.length > 0) 
+                ? (a === selectedAccount || subAccs.some(s => s.toLowerCase() === a.toLowerCase()))
+                : (a.toLowerCase() === selectedAccount.toLowerCase());
+            if (isMatch) {
+                currentBal += (t.amt || 0);
+                if (t.cur) curCode = t.cur;
+            }
+        });
+
+        let diff = targetAmt - currentBal;
+        if (diff === 0) {
+            closeAdjustBalanceModal();
+            return alert('Balance is already matching the target amount.');
+        }
+
+        // สร้าง Transaction ประเภท Adjustment
+        let newTx = {
+            d: date,
+            amt: diff,
+            cur: curCode,
+            a: selectedAccount,
+            cat: 'Adjustment',
+            memo: 'Balance Adjustment'
+        };
+
+        transactions.unshift(newTx);
+        closeAdjustBalanceModal();
+        openAccountDetail(selectedAccount); // รีเฟรชหน้า Detail
+        alert('Balance adjusted successfully!');
+    }
+
     /* Budget Exclusions Logic */
     function renderBudgetSettings() {
         const container = document.getElementById('budget-exclude-list');
@@ -533,7 +637,7 @@
             let dateStr = t.d ? t.d.split('T')[0] : '';
             if (!dateStr) return;
 
-            let key = reportViewMode === 'monthly' ? dateStr.substring(0, 7) : dateStr.substring(0, 4); // YYYY-MM หรือ YYYY
+            let key = reportViewMode === 'monthly' ? dateStr.substring(0, 7) : dateStr.substring(0, 4);
             if (!chartMap[key]) chartMap[key] = { income: 0, expense: 0 };
 
             if (amt > 0) {
@@ -541,8 +645,6 @@
             } else if (amt < 0) {
                 let absAmt = Math.abs(amt);
                 chartMap[key].expense += absAmt;
-                
-                // คำนวณเฉพาะหมวดที่ไม่ได้ถูก exclude สำหรับ Top expense
                 let cat = t.cat || 'Uncategorized';
                 if (!budgetExclusions.includes(cat)) {
                     totalExp += absAmt;
@@ -551,7 +653,6 @@
             }
         });
 
-        // Render Chart
         let sortedKeys = Object.keys(chartMap).sort();
         let chartContainer = document.getElementById('chart-view-container');
         
@@ -579,7 +680,6 @@
             chartContainer.innerHTML = chartHtml;
         }
 
-        // Render Top Expense Categories
         let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
         let catListHtml = '';
         if (sortedCats.length === 0) {
