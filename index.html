@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Advanced Schedule, Budget & Pie Chart Report</title>
-    <!-- โหลด Chart.js สำหรับทำ Pie Chart รายงาน -->
+    <title>Wallet PWA - Currency & Exchange Rates Settings</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -158,7 +157,7 @@
         </div>
     </div>
 
-    <!-- TAB 4: REPORT (Pie Chart ตาม Category) -->
+    <!-- TAB 4: REPORT -->
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
         <div class="card" style="text-align: center;">
@@ -173,7 +172,7 @@
         </div>
     </div>
 
-    <!-- TAB 5: SETTINGS -->
+    <!-- TAB 5: SETTINGS (จัดการ Currency & Exchange Rates) -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
@@ -183,19 +182,30 @@
                 <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)" style="width:auto;">
             </div>
             <div class="form-group">
-                <label>Default Currency</label>
-                <select id="default-currency-select" onchange="saveDefaultCurrency(this.value)">
-                    <option value="THB">THB</option>
-                    <option value="CAD">CAD</option>
-                    <option value="USD">USD</option>
-                </select>
+                <label>Main Base Currency (สกุลเงินหลักของกระเป๋า)</label>
+                <select id="default-currency-select" onchange="saveDefaultCurrency(this.value)"></select>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3>Currencies & Exchange Rates</h3>
+                <button class="btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="openCurrencyModal()">+ Add Currency</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Currency</th><th>Rate (vs Base)</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="currency-table-body"></tbody>
+                </table>
             </div>
         </div>
 
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <h3 style="margin:0;">Manage Categories</h3>
-                <button class="btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="openCategoryManagerModal()">⚙️ Edit Categories</button>
+                <button class="btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="openCategoryManagerModal()">⚙️ Edit</button>
             </div>
             <div id="settings-categories-preview" style="font-size:12px; color:var(--text-muted);">Loading...</div>
         </div>
@@ -216,8 +226,21 @@
     <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
     <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
     <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
-    <div class="nav-item" onclick="switchTab('report', this)" onclick="renderReportChart()"><div>📈</div>Report</div>
+    <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
+</div>
+
+<!-- Modal เพิ่ม Currency ใหม่ -->
+<div id="currency-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Add Currency & Exchange Rate</h3>
+        <div class="form-group"><label>Currency Code (e.g., EUR, JPY)</label><input type="text" id="new-cur-code" placeholder="e.g. EUR"></div>
+        <div class="form-group"><label>Exchange Rate (อัตราแลกเปลี่ยนเทียบกับ Base Currency)</label><input type="number" id="new-cur-rate" step="0.0001" placeholder="1.00"></div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveNewCurrency()">Save</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeCurrencyModal()">Cancel</button>
+        </div>
+    </div>
 </div>
 
 <!-- Modal จัดการ Account -->
@@ -259,17 +282,10 @@
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Budget</h3>
         <div class="form-group"><label>Category</label><select id="budget-category-select"></select></div>
-        <div class="form-group">
-            <label>Period (รอบงบประมาณ)</label>
-            <select id="budget-period">
-                <option value="Monthly">รายเดือน (Monthly)</option>
-                <option value="Yearly">รายปี (Yearly)</option>
-                <option value="Custom">กำหนดเอง (Custom)</option>
-            </select>
-        </div>
+        <div class="form-group"><label>Period</label><select id="budget-period"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option></select></div>
         <div class="form-group"><label>Limit Amount</label><input type="number" id="budget-amount" step="0.01" placeholder="0.00"></div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveBudget()">Save Budget</button>
+            <button class="btn" onclick="saveBudget()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeBudgetModal()">Cancel</button>
         </div>
     </div>
@@ -278,24 +294,14 @@
 <!-- Modal เพิ่ม Schedule -->
 <div id="schedule-modal" class="modal-overlay">
     <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Add Schedule / Recurring</h3>
-        <div class="form-group"><label>Title (ชื่อรายการ)</label><input type="text" id="sched-title" placeholder="e.g., Netflix, ค่าเช่าบ้าน"></div>
+        <h3 style="margin-bottom: 12px;">Add Schedule</h3>
+        <div class="form-group"><label>Title</label><input type="text" id="sched-title" placeholder="e.g., Netflix"></div>
         <div class="form-group"><label>Account</label><select id="sched-account"></select></div>
-        <div class="form-group">
-            <label>Type / Frequency (ประเภทการวนซ้ำ)</label>
-            <select id="sched-freq" onchange="toggleScheduleDate(this.value)">
-                <option value="Monthly">รายเดือน (Monthly Recurring)</option>
-                <option value="Yearly">รายปี (Yearly Recurring)</option>
-                <option value="One-time">ระบุวันเวลาเฉพาะครั้งเดียว (One-time Date)</option>
-            </select>
-        </div>
-        <div class="form-group" id="group-sched-date" style="display:none;">
-            <label>Specific DateTime (วันเวลาที่เกิดรายการ)</label>
-            <input type="datetime-local" id="sched-datetime">
-        </div>
+        <div class="form-group"><label>Frequency</label><select id="sched-freq" onchange="toggleScheduleDate(this.value)"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option><option value="One-time">One-time</option></select></div>
+        <div class="form-group" id="group-sched-date" style="display:none;"><label>Date</label><input type="datetime-local" id="sched-datetime"></div>
         <div class="form-group"><label>Amount</label><input type="number" id="sched-amount" step="0.01" placeholder="0.00"></div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveSchedule()">Save Schedule</button>
+            <button class="btn" onclick="saveSchedule()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeScheduleModal()">Cancel</button>
         </div>
     </div>
@@ -318,12 +324,12 @@
         <div class="form-group"><label>Payee</label><input type="text" id="tx-payee" placeholder="Payee..."></div>
         
         <div class="form-group" id="group-transfers" style="display:none;">
-            <label>Transfer To Account (ไปยังบัญชี)</label>
+            <label>Transfer To Account</label>
             <select id="tx-transfers-select"></select>
         </div>
 
         <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
-        <div class="form-group"><label>Currency</label><select id="tx-currency"><option value="THB">THB</option><option value="CAD">CAD</option><option value="USD">USD</option></select></div>
+        <div class="form-group"><label>Currency</label><select id="tx-currency"></select></div>
         <div class="form-group"><label>Memo</label><input type="text" id="tx-memo" placeholder="Optional memo..."></div>
         
         <div style="display: flex; gap: 8px; margin-top: 16px;">
@@ -334,7 +340,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -351,19 +357,26 @@
         "Bills & Utilities": ["Electricity", "Internet", "Phone"]
     };
 
+    // ระบบ Currency และ Exchange Rates
+    let currenciesData = JSON.parse(localStorage.getItem('wallet_currencies_map')) || {
+        "THB": 1.0,
+        "CAD": 26.50,
+        "USD": 36.00
+    };
+
+    let defaultCurrency = localStorage.getItem('wallet_default_currency') || 'THB';
     let budgetData = JSON.parse(localStorage.getItem('wallet_budgets_data')) || [];
     let scheduleData = JSON.parse(localStorage.getItem('wallet_schedule_data')) || [];
     let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
-    let defaultCurrency = localStorage.getItem('wallet_default_currency') || 'THB';
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
-        document.getElementById('default-currency-select').value = defaultCurrency;
         
         let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
 
+        renderCurrencySettings();
         renderCategoryPreview();
         renderBudgets();
         renderSchedules();
@@ -374,11 +387,6 @@
         if (enabled) document.body.classList.add('dark-mode');
         else document.body.classList.remove('dark-mode');
         localStorage.setItem('wallet_dark_mode', enabled);
-    }
-
-    function saveDefaultCurrency(cur) {
-        defaultCurrency = cur;
-        localStorage.setItem('wallet_default_currency', cur);
     }
 
     function saveWebhookUrl() {
@@ -397,9 +405,7 @@
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
 
-        if (tabId === 'report') {
-            renderReportChart();
-        }
+        if (tabId === 'report') renderReportChart();
     }
 
     function handleResponse(data) {
@@ -433,22 +439,22 @@
         renderAccountsList();
     }
 
+    // ฟังก์ชันคำนวณยอดเงินของแต่ละ Sub-account และ Main Account แยกตามสกุลเงินถูกต้อง
     function renderAccountsList() {
         const accountsList = document.getElementById('accounts-list');
         const balanceGrid = document.getElementById('total-balance-grid');
 
-        let rawAccs = {};
+        let rawAccs = {}; // เก็บยอดเงินแยกตามชื่อ Sub-account และ Currency { 'TFSA': { CAD: 16500 } }
         let currencyTotals = {};
-        let accCurrencies = {};
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
             let acc = (t.account && t.account.trim() !== "") ? t.account.trim() : 'General';
             let cur = (t.currency && t.currency.trim() !== "") ? t.currency.trim() : defaultCurrency;
             
-            if (!rawAccs[acc]) rawAccs[acc] = 0;
-            rawAccs[acc] += amtVal;
-            accCurrencies[acc] = cur;
+            if (!rawAccs[acc]) rawAccs[acc] = {};
+            if (!rawAccs[acc][cur]) rawAccs[acc][cur] = 0;
+            rawAccs[acc][cur] += amtVal;
 
             if (!currencyTotals[cur]) currencyTotals[cur] = 0;
             currencyTotals[cur] += amtVal;
@@ -477,27 +483,55 @@
 
         mainAccKeys.forEach(main => {
             let subs = subAccountsData[main] || [];
-            let mainTotal = 0;
+            let mainCurTotals = {}; // รวมยอดของ Main account แยกตามสกุลเงิน
             let subHtml = '';
 
             subs.forEach(sub => {
-                let subTotal = rawAccs[sub] || 0;
-                let subCur = accCurrencies[sub] || defaultCurrency;
-                mainTotal += subTotal;
+                let subCurMap = rawAccs[sub] || {};
+                let subTextArr = [];
+                let primaryCur = defaultCurrency;
+                let primaryAmt = 0;
+
+                for (let cur in subCurMap) {
+                    let amt = subCurMap[cur];
+                    subTextArr.push(`${amt.toLocaleString()} ${cur}`);
+                    primaryCur = cur;
+                    primaryAmt = amt;
+
+                    if (!mainCurTotals[cur]) mainCurTotals[cur] = 0;
+                    mainCurTotals[cur] += amt;
+                }
+                let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 subHtml += `<div class="sub-acc-row">
                     <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
                     <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-weight:500; color:${subTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${subTotal.toLocaleString()} ${subCur}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${subCur}')">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${subCur}')">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${subCur}')">⇄Trf</button>
+                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">${subDisplay}</span>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
+                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
                     </div>
                 </div>`;
             });
 
-            if (rawAccs[main]) mainTotal += rawAccs[main];
-            let mainCur = accCurrencies[main] || defaultCurrency;
+            // รวมยอดของ Main Account เองถ้ามี Transaction ตรงกับ Main
+            let mainDirectMap = rawAccs[main] || {};
+            for (let cur in mainDirectMap) {
+                if (!mainCurTotals[cur]) mainCurTotals[cur] = 0;
+                mainCurTotals[cur] += mainDirectMap[cur];
+            }
+
+            let mainTextArr = [];
+            let mainPrimaryCur = defaultCurrency;
+            let mainPrimaryAmt = 0;
+            for (let cur in mainCurTotals) {
+                let amt = mainCurTotals[cur];
+                mainTextArr.push(`${amt.toLocaleString()} ${cur}`);
+                mainPrimaryCur = cur;
+                mainPrimaryAmt = amt;
+            }
+            let mainDisplay = mainTextArr.length > 0 ? mainTextArr.join(', ') : `0 ${defaultCurrency}`;
+
             let isExpanded = accountExpandState[main] !== false;
             let arrowIcon = isExpanded ? '▼' : '▶';
             let expandClass = isExpanded ? 'expanded' : '';
@@ -507,31 +541,14 @@
                     <div style="flex:1;">
                         <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${main} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
                     </div>
-                    <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">
-                        ${mainTotal.toLocaleString()} ${mainCur}
+                    <div style="font-weight:bold; color:${mainPrimaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">
+                        ${mainDisplay}
                     </div>
                 </div>
                 <div class="sub-acc-container ${expandClass}">${subHtml}</div>
             </div>`;
         });
 
-        if (unassignedAccounts.length > 0) {
-            let unassignedHtml = '';
-            unassignedAccounts.forEach(acc => {
-                let accTotal = rawAccs[acc] || 0;
-                let accCur = accCurrencies[acc] || defaultCurrency;
-                unassignedHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail('${acc}')" style="cursor:pointer; flex:1;">• ${acc}</span>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-weight:500; color:${accTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${accTotal.toLocaleString()} ${accCur}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${acc}', '${accCur}')">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${acc}', '${accCur}')">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${acc}', '${accCur}')">⇄Trf</button>
-                    </div>
-                </div>`;
-            });
-            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px; border-style: dashed;"><div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts</div></div>${unassignedHtml}</div>`;
-        }
         accountsList.innerHTML = accHtml;
     }
 
@@ -568,6 +585,58 @@
         renderAccountsList();
     }
 
+    /* ---- Currency & Exchange Rates Settings ---- */
+    function renderCurrencySettings() {
+        let curSelect = document.getElementById('default-currency-select');
+        let curTable = document.getElementById('currency-table-body');
+        
+        let curOptions = '';
+        let tableHtml = '';
+
+        for (let cur in currenciesData) {
+            curOptions += `<option value="${cur}" ${cur === defaultCurrency ? 'selected' : ''}>${cur}</option>`;
+            tableHtml += `<tr>
+                <td><strong>${cur}</strong></td>
+                <td>${currenciesData[cur]}</td>
+                <td>${cur !== defaultCurrency ? `<button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}</td>
+            </tr>`;
+        }
+        curSelect.innerHTML = curOptions;
+        curTable.innerHTML = tableHtml;
+    }
+
+    function saveDefaultCurrency(cur) {
+        defaultCurrency = cur;
+        localStorage.setItem('wallet_default_currency', cur);
+        renderCurrencySettings();
+        renderAccountsList();
+    }
+
+    function openCurrencyModal() {
+        document.getElementById('new-cur-code').value = '';
+        document.getElementById('new-cur-rate').value = '';
+        document.getElementById('currency-modal').classList.add('active');
+    }
+    function closeCurrencyModal() { document.getElementById('currency-modal').classList.remove('active'); }
+
+    function saveNewCurrency() {
+        let code = document.getElementById('new-cur-code').value.trim().toUpperCase();
+        let rate = parseFloat(document.getElementById('new-cur-rate').value);
+        if (!code || isNaN(rate)) return alert('Please enter valid currency code and rate');
+        currenciesData[code] = rate;
+        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+        renderCurrencySettings();
+        closeCurrencyModal();
+    }
+
+    function deleteCurrency(cur) {
+        if (confirm(`Delete currency ${cur}?`)) {
+            delete currenciesData[cur];
+            localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+            renderCurrencySettings();
+        }
+    }
+
     /* ---- Category Manager ---- */
     function renderCategoryPreview() {
         const container = document.getElementById('settings-categories-preview');
@@ -584,8 +653,7 @@
         for (let main in categoriesData) {
             html += `<div style="margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;"><strong>📂 ${main}</strong><button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
-                <div style="padding-left:12px; margin-top:6px;">
-                    <div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button></div>`;
+                <div style="padding-left:12px; margin-top:6px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button></div>`;
             categoriesData[main].forEach((sub, idx) => {
                 html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;"><span>└─ ${sub}</span><button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button></div>`;
             });
@@ -605,12 +673,7 @@
         let input = document.getElementById(`sub-cat-input-${main}`);
         let val = input.value.trim();
         if (!val) return;
-        if (!categoriesData[main].includes(val)) {
-            categoriesData[main].push(val);
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            input.value = '';
-            renderCategoryManagerList();
-        }
+        if (!categoriesData[main].includes(val)) { categoriesData[main].push(val); localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); input.value = ''; renderCategoryManagerList(); }
     }
     function deleteMainCategory(main) { if (confirm(`Delete category "${main}"?`)) { delete categoriesData[main]; localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); } }
     function removeSubCategory(main, idx) { categoriesData[main].splice(idx, 1); localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); }
@@ -674,10 +737,7 @@
     /* ---- Budget Functions ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
-        if (budgetData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`;
-            return;
-        }
+        if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
         let html = '';
         budgetData.forEach((b, idx) => {
             html += `<tr><td>${b.category}</td><td>${b.period}</td><td>${b.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
@@ -701,21 +761,17 @@
         let cat = document.getElementById('budget-category-select').value;
         let period = document.getElementById('budget-period').value;
         let amt = parseFloat(document.getElementById('budget-amount').value);
-        if (!cat || isNaN(amt)) return alert('Please enter valid data');
-        budgetData.push({ category: cat, period: period, amount: amt });
+        if (!cat || isNaN(amt)) return;
+        budgetData.push({ category: cat, period, amount: amt });
         localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
-        renderBudgets();
-        closeBudgetModal();
+        renderBudgets(); closeBudgetModal();
     }
     function deleteBudget(idx) { budgetData.splice(idx, 1); localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); renderBudgets(); }
 
-    /* ---- Schedule Functions (มีทั้งวันที่ และ Recurring) ---- */
+    /* ---- Schedule Functions ---- */
     function renderSchedules() {
         const tbody = document.getElementById('schedule-table-body');
-        if (scheduleData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`;
-            return;
-        }
+        if (scheduleData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`; return; }
         let html = '';
         scheduleData.forEach((s, idx) => {
             let info = s.frequency === 'One-time' ? `${s.datetime}` : `🔄 ${s.frequency}`;
@@ -738,35 +794,29 @@
         document.getElementById('schedule-modal').classList.add('active');
     }
     function closeScheduleModal() { document.getElementById('schedule-modal').classList.remove('active'); }
-    function toggleScheduleDate(val) {
-        let dateGroup = document.getElementById('group-sched-date');
-        if (val === 'One-time') dateGroup.style.display = 'block';
-        else dateGroup.style.display = 'none';
-    }
+    function toggleScheduleDate(val) { document.getElementById('group-sched-date').style.display = (val === 'One-time') ? 'block' : 'none'; }
     function saveSchedule() {
         let title = document.getElementById('sched-title').value.trim();
         let acc = document.getElementById('sched-account').value;
         let freq = document.getElementById('sched-freq').value;
         let datetime = document.getElementById('sched-datetime').value;
         let amt = parseFloat(document.getElementById('sched-amount').value);
-        if (!title || isNaN(amt)) return alert('Please enter valid title and amount');
+        if (!title || isNaN(amt)) return;
         scheduleData.push({ title, account: acc, frequency: freq, datetime: freq === 'One-time' ? datetime : '', amount: amt });
         localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
-        renderSchedules();
-        closeScheduleModal();
+        renderSchedules(); closeScheduleModal();
     }
     function deleteSchedule(idx) { scheduleData.splice(idx, 1); localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData)); renderSchedules(); }
 
-    /* ---- Report Pie Chart ตาม Category ---- */
+    /* ---- Report Pie Chart ---- */
     function renderReportChart() {
         let catTotals = {};
         let totalInc = 0, totalExp = 0;
 
         transactions.forEach(t => {
             let amt = parseFloat(t.amount) || 0;
-            if (amt > 0) {
-                totalInc += amt;
-            } else {
+            if (amt > 0) totalInc += amt;
+            else {
                 totalExp += Math.abs(amt);
                 let cat = t.category ? t.category.trim() : 'Uncategorized';
                 if (!catTotals[cat]) catTotals[cat] = 0;
@@ -784,15 +834,9 @@
             type: 'pie',
             data: {
                 labels: labels.length > 0 ? labels : ['No Data'],
-                datasets: [{
-                    data: dataVals.length > 0 ? dataVals : [1],
-                    backgroundColor: ['#4f46e5', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#64748b']
-                }]
+                datasets: [{ data: dataVals.length > 0 ? dataVals : [1], backgroundColor: ['#4f46e5', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#64748b'] }]
             },
-            options: {
-                responsive: true,
-                plugins: { legend: { position: 'bottom' } }
-            }
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
         });
 
         document.getElementById('report-summary-container').innerHTML = `
@@ -832,6 +876,14 @@
         }
         catSelect.innerHTML = catHtml;
 
+        let curSelect = document.getElementById('tx-currency');
+        let curHtml = '';
+        for (let cur in currenciesData) {
+            curHtml += `<option value="${cur}">${cur}</option>`;
+        }
+        curSelect.innerHTML = curHtml;
+        curSelect.value = preSelectCur || defaultCurrency;
+
         let trfSelect = document.getElementById('tx-transfers-select');
         trfSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
 
@@ -843,7 +895,6 @@
             document.getElementById('group-transfers').style.display = 'none';
         }
 
-        document.getElementById('tx-currency').value = preSelectCur || defaultCurrency;
         document.getElementById('tx-modal').classList.add('active');
     }
 
