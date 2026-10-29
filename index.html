@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fully Restored Settings, Budget & Schedule</title>
+    <title>Wallet PWA - Advanced Schedule, Budget & Pie Chart Report</title>
+    <!-- โหลด Chart.js สำหรับทำ Pie Chart รายงาน -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -114,39 +116,39 @@
         </div>
     </div>
 
-    <!-- TAB 2: BUDGET (คืนค่าตาราง Budget เดิม) -->
+    <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h2 style="margin-bottom:0;">Budget Management</h2>
-            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddBudgetModal()">+ Add Budget</button>
+            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openBudgetModal()">+ Add Budget</button>
         </div>
         <div class="card">
             <h3>Budgets Overview</h3>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr><th>Category</th><th>Limit</th><th>Action</th></tr>
+                        <tr><th>Category</th><th>Period</th><th>Limit</th><th>Action</th></tr>
                     </thead>
                     <tbody id="budget-table-body">
-                        <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- TAB 3: SCHEDULE (คืนค่าตาราง Schedule เดิม) -->
+    <!-- TAB 3: SCHEDULE -->
     <div id="tab-schedule" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h2 style="margin-bottom:0;">Schedule & Recurring</h2>
-            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddScheduleModal()">+ Add Schedule</button>
+            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openScheduleModal()">+ Add Schedule</button>
         </div>
         <div class="card">
             <h3>Scheduled List</h3>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr><th>Title</th><th>Account</th><th>Amount</th><th>Action</th></tr>
+                        <tr><th>Title / Date</th><th>Account</th><th>Amount</th><th>Action</th></tr>
                     </thead>
                     <tbody id="schedule-table-body">
                         <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>
@@ -156,18 +158,22 @@
         </div>
     </div>
 
-    <!-- TAB 4: REPORT -->
+    <!-- TAB 4: REPORT (Pie Chart ตาม Category) -->
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
-        <div class="card">
-            <h3>Income vs Expense Summary</h3>
-            <div id="report-summary-container">
-                <p style="color: var(--text-muted); font-size: 13px;">Calculating report...</p>
+        <div class="card" style="text-align: center;">
+            <h3>Expense Breakdown by Category</h3>
+            <div style="max-width: 300px; margin: 0 auto;">
+                <canvas id="expensePieChart"></canvas>
             </div>
+        </div>
+        <div class="card">
+            <h3>Summary</h3>
+            <div id="report-summary-container"></div>
         </div>
     </div>
 
-    <!-- TAB 5: SETTINGS (คืนค่า Currency Setting เดิม) -->
+    <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
@@ -191,9 +197,7 @@
                 <h3 style="margin:0;">Manage Categories</h3>
                 <button class="btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="openCategoryManagerModal()">⚙️ Edit Categories</button>
             </div>
-            <div id="settings-categories-preview" style="font-size:12px; color:var(--text-muted);">
-                Loading categories...
-            </div>
+            <div id="settings-categories-preview" style="font-size:12px; color:var(--text-muted);">Loading...</div>
         </div>
 
         <div class="card">
@@ -212,7 +216,7 @@
     <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
     <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
     <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
-    <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
+    <div class="nav-item" onclick="switchTab('report', this)" onclick="renderReportChart()"><div>📈</div>Report</div>
     <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
 
@@ -247,6 +251,53 @@
         <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
         <div id="categories-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
         <div style="margin-top: 16px;"><button class="btn" onclick="closeCategoryManagerModal()">Close</button></div>
+    </div>
+</div>
+
+<!-- Modal เพิ่ม Budget -->
+<div id="budget-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Add Budget</h3>
+        <div class="form-group"><label>Category</label><select id="budget-category-select"></select></div>
+        <div class="form-group">
+            <label>Period (รอบงบประมาณ)</label>
+            <select id="budget-period">
+                <option value="Monthly">รายเดือน (Monthly)</option>
+                <option value="Yearly">รายปี (Yearly)</option>
+                <option value="Custom">กำหนดเอง (Custom)</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Limit Amount</label><input type="number" id="budget-amount" step="0.01" placeholder="0.00"></div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveBudget()">Save Budget</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeBudgetModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal เพิ่ม Schedule -->
+<div id="schedule-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Add Schedule / Recurring</h3>
+        <div class="form-group"><label>Title (ชื่อรายการ)</label><input type="text" id="sched-title" placeholder="e.g., Netflix, ค่าเช่าบ้าน"></div>
+        <div class="form-group"><label>Account</label><select id="sched-account"></select></div>
+        <div class="form-group">
+            <label>Type / Frequency (ประเภทการวนซ้ำ)</label>
+            <select id="sched-freq" onchange="toggleScheduleDate(this.value)">
+                <option value="Monthly">รายเดือน (Monthly Recurring)</option>
+                <option value="Yearly">รายปี (Yearly Recurring)</option>
+                <option value="One-time">ระบุวันเวลาเฉพาะครั้งเดียว (One-time Date)</option>
+            </select>
+        </div>
+        <div class="form-group" id="group-sched-date" style="display:none;">
+            <label>Specific DateTime (วันเวลาที่เกิดรายการ)</label>
+            <input type="datetime-local" id="sched-datetime">
+        </div>
+        <div class="form-group"><label>Amount</label><input type="number" id="sched-amount" step="0.01" placeholder="0.00"></div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveSchedule()">Save Schedule</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeScheduleModal()">Cancel</button>
+        </div>
     </div>
 </div>
 
@@ -287,6 +338,7 @@
 
     let transactions = [];
     let selectedAccount = null;
+    let pieChartInstance = null;
 
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
@@ -304,7 +356,6 @@
     let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
     let defaultCurrency = localStorage.getItem('wallet_default_currency') || 'THB';
 
-    // Init App
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
         document.getElementById('default-currency-select').value = defaultCurrency;
@@ -320,11 +371,8 @@
     });
 
     function toggleDarkMode(enabled) {
-        if (enabled) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
+        if (enabled) document.body.classList.add('dark-mode');
+        else document.body.classList.remove('dark-mode');
         localStorage.setItem('wallet_dark_mode', enabled);
     }
 
@@ -348,6 +396,10 @@
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         document.getElementById('tab-' + tabId).classList.add('active');
         element.classList.add('active');
+
+        if (tabId === 'report') {
+            renderReportChart();
+        }
     }
 
     function handleResponse(data) {
@@ -365,7 +417,7 @@
             })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
             renderAccountsList();
-            renderReport();
+            renderReportChart();
         }
     }
 
@@ -396,7 +448,6 @@
             
             if (!rawAccs[acc]) rawAccs[acc] = 0;
             rawAccs[acc] += amtVal;
-
             accCurrencies[acc] = cur;
 
             if (!currencyTotals[cur]) currencyTotals[cur] = 0;
@@ -409,10 +460,8 @@
             knownAccounts.push(main);
             subAccountsData[main].forEach(sub => knownAccounts.push(sub));
         });
-
         let unassignedAccounts = allSheetAccounts.filter(acc => !knownAccounts.includes(acc));
 
-        // Total Balance
         let balanceHtml = '';
         for (let cur in currencyTotals) {
             let val = currencyTotals[cur];
@@ -423,7 +472,6 @@
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">${defaultCurrency}</div><div class="balance-box-amt">0</div></div>`;
 
-        // Accounts List
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
 
@@ -450,7 +498,6 @@
 
             if (rawAccs[main]) mainTotal += rawAccs[main];
             let mainCur = accCurrencies[main] || defaultCurrency;
-
             let isExpanded = accountExpandState[main] !== false;
             let arrowIcon = isExpanded ? '▼' : '▶';
             let expandClass = isExpanded ? 'expanded' : '';
@@ -464,9 +511,7 @@
                         ${mainTotal.toLocaleString()} ${mainCur}
                     </div>
                 </div>
-                <div class="sub-acc-container ${expandClass}">
-                    ${subHtml}
-                </div>
+                <div class="sub-acc-container ${expandClass}">${subHtml}</div>
             </div>`;
         });
 
@@ -485,13 +530,8 @@
                     </div>
                 </div>`;
             });
-
-            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px; border-style: dashed;">
-                <div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts</div></div>
-                ${unassignedHtml}
-            </div>`;
+            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px; border-style: dashed;"><div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts</div></div>${unassignedHtml}</div>`;
         }
-
         accountsList.innerHTML = accHtml;
     }
 
@@ -505,11 +545,8 @@
         let subAccs = subAccountsData[accName] || [];
         let filtered = transactions.filter(t => {
             let a = t.account ? t.account.trim() : '';
-            if (subAccs.length > 0) {
-                return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
-            } else {
-                return a.toLowerCase() === accName.toLowerCase();
-            }
+            if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
+            return a.toLowerCase() === accName.toLowerCase();
         });
 
         if (filtered.length === 0) {
@@ -531,51 +568,31 @@
         renderAccountsList();
     }
 
-    /* ---- Category Management ---- */
+    /* ---- Category Manager ---- */
     function renderCategoryPreview() {
         const container = document.getElementById('settings-categories-preview');
         let html = '';
-        for (let main in categoriesData) {
-            html += `<div><strong>• ${main}</strong>: ${categoriesData[main].join(', ')}</div>`;
-        }
+        for (let main in categoriesData) html += `<div><strong>• ${main}</strong>: ${categoriesData[main].join(', ')}</div>`;
         container.innerHTML = html || 'No categories defined.';
     }
 
-    function openCategoryManagerModal() {
-        renderCategoryManagerList();
-        document.getElementById('category-manager-modal').classList.add('active');
-    }
-
-    function closeCategoryManagerModal() {
-        document.getElementById('category-manager-modal').classList.remove('active');
-        renderCategoryPreview();
-    }
-
+    function openCategoryManagerModal() { renderCategoryManagerList(); document.getElementById('category-manager-modal').classList.add('active'); }
+    function closeCategoryManagerModal() { document.getElementById('category-manager-modal').classList.remove('active'); renderCategoryPreview(); }
     function renderCategoryManagerList() {
         const container = document.getElementById('categories-manage-container');
         let html = '';
         for (let main in categoriesData) {
             html += `<div style="margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong>📂 ${main}</strong>
-                    <button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;"><strong>📂 ${main}</strong><button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
                 <div style="padding-left:12px; margin-top:6px;">
-                    <div style="display:flex; gap:6px; margin-bottom:6px;">
-                        <input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;">
-                        <button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button>
-                    </div>`;
+                    <div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button></div>`;
             categoriesData[main].forEach((sub, idx) => {
-                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;">
-                    <span>└─ ${sub}</span>
-                    <button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button>
-                </div>`;
+                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;"><span>└─ ${sub}</span><button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button></div>`;
             });
             html += `</div></div>`;
         }
         container.innerHTML = html;
     }
-
     function addMainCategory() {
         let val = document.getElementById('new-main-cat-input').value.trim();
         if (!val) return;
@@ -584,7 +601,6 @@
         document.getElementById('new-main-cat-input').value = '';
         renderCategoryManagerList();
     }
-
     function addSubCategoryDirect(main) {
         let input = document.getElementById(`sub-cat-input-${main}`);
         let val = input.value.trim();
@@ -596,175 +612,104 @@
             renderCategoryManagerList();
         }
     }
-
-    function deleteMainCategory(main) {
-        if (confirm(`Delete category "${main}"?`)) {
-            delete categoriesData[main];
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            renderCategoryManagerList();
-        }
-    }
-
-    function removeSubCategory(main, idx) {
-        categoriesData[main].splice(idx, 1);
-        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-        renderCategoryManagerList();
-    }
+    function deleteMainCategory(main) { if (confirm(`Delete category "${main}"?`)) { delete categoriesData[main]; localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); } }
+    function removeSubCategory(main, idx) { categoriesData[main].splice(idx, 1); localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData)); renderCategoryManagerList(); }
 
     /* ---- Account Manager ---- */
-    function openAccountManagerModal() {
-        renderAccountManagerList();
-        document.getElementById('account-manager-modal').classList.add('active');
-    }
-
-    function closeAccountManagerModal() {
-        document.getElementById('account-manager-modal').classList.remove('active');
-        renderAccountsList();
-    }
-
+    function openAccountManagerModal() { renderAccountManagerList(); document.getElementById('account-manager-modal').classList.add('active'); }
+    function closeAccountManagerModal() { document.getElementById('account-manager-modal').classList.remove('active'); renderAccountsList(); }
     function renderAccountManagerList() {
         const container = document.getElementById('accounts-manage-container');
         let mainKeys = Object.keys(subAccountsData);
         let html = '';
-
         mainKeys.forEach((main, mIdx) => {
             let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
             let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
-
             html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:4px;">
-                        <strong>💳 ${main} (Main)</strong>
-                        <div style="margin-left:8px;">${mainUp} ${mainDown}</div>
-                    </div>
-                    <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                </div>
-                <div style="margin-top:8px; padding-left:16px;">
-                    <div style="display:flex; gap:6px; margin-bottom:6px;">
-                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;">
-                        <button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button>
-                    </div>`;
-            
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${main} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button></div>`;
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
                 let subUp = sIdx > 0 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
                 let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
-
-                html += `<div class="sub-acc-row">
-                    <span>└─ ${sub}</span>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div>${subUp} ${subDown}</div>
-                        <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
-                    </div>
-                </div>`;
+                html += `<div class="sub-acc-row"><span>└─ ${sub}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div></div>`;
             });
             html += `</div></div>`;
         });
         container.innerHTML = html;
     }
-
     function moveMainAccount(index, direction) {
         let keys = Object.keys(subAccountsData);
         let targetIndex = index + direction;
         if (targetIndex < 0 || targetIndex >= keys.length) return;
-
-        let temp = keys[index];
-        keys[index] = keys[targetIndex];
-        keys[targetIndex] = temp;
-
-        let reorderedObj = {};
-        keys.forEach(k => { reorderedObj[k] = subAccountsData[k]; });
-        subAccountsData = reorderedObj;
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        let temp = keys[index]; keys[index] = keys[targetIndex]; keys[targetIndex] = temp;
+        let reorderedObj = {}; keys.forEach(k => { reorderedObj[k] = subAccountsData[k]; });
+        subAccountsData = reorderedObj; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
         renderAccountManagerList();
     }
-
     function moveSubAccount(main, index, direction) {
         let subs = subAccountsData[main];
         let targetIndex = index + direction;
         if (targetIndex < 0 || targetIndex >= subs.length) return;
-
-        let temp = subs[index];
-        subs[index] = subs[targetIndex];
-        subs[targetIndex] = temp;
-
+        let temp = subs[index]; subs[index] = subs[targetIndex]; subs[targetIndex] = temp;
         localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
         renderAccountManagerList();
     }
-
     function addMainAccount() {
         let name = document.getElementById('new-main-acc-input').value.trim();
         if (!name) return;
-        if (!subAccountsData[name]) {
-            subAccountsData[name] = [];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        }
-        document.getElementById('new-main-acc-input').value = '';
-        renderAccountManagerList();
+        if (!subAccountsData[name]) { subAccountsData[name] = []; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); }
+        document.getElementById('new-main-acc-input').value = ''; renderAccountManagerList();
     }
-
     function addSubAccountDirect(main) {
         let input = document.getElementById(`sub-input-${main}`);
         let val = input.value.trim();
         if (!val) return;
         if (!subAccountsData[main]) subAccountsData[main] = [];
-        if (!subAccountsData[main].includes(val)) {
-            subAccountsData[main].push(val);
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            input.value = '';
-            renderAccountManagerList();
-        }
+        if (!subAccountsData[main].includes(val)) { subAccountsData[main].push(val); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); input.value = ''; renderAccountManagerList(); }
     }
+    function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
+    function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    function deleteMainAccount(acc) {
-        if (confirm(`Delete main account "${acc}"?`)) {
-            delete subAccountsData[acc];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderAccountManagerList();
-        }
-    }
-
-    function removeSubFromMain(main, idx) {
-        subAccountsData[main].splice(idx, 1);
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        renderAccountManagerList();
-    }
-
-    /* ---- Budget Table Functions ---- */
+    /* ---- Budget Functions ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`;
             return;
         }
         let html = '';
         budgetData.forEach((b, idx) => {
-            html += `<tr>
-                <td>${b.category}</td>
-                <td>${b.amount.toLocaleString()} ${defaultCurrency}</td>
-                <td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
-            </tr>`;
+            html += `<tr><td>${b.category}</td><td>${b.period}</td><td>${b.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
         });
         tbody.innerHTML = html;
     }
-
-    function openAddBudgetModal() {
-        let cat = prompt("Enter Category for Budget (e.g., Food & Dining):");
-        let amt = parseFloat(prompt(`Enter Monthly Limit (${defaultCurrency}):`));
-        if (cat && !isNaN(amt)) {
-            budgetData.push({ category: cat, amount: amt });
-            localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
-            renderBudgets();
+    function openBudgetModal() {
+        let catSelect = document.getElementById('budget-category-select');
+        let catHtml = '';
+        for (let mainCat in categoriesData) {
+            catHtml += `<optgroup label="${mainCat}">`;
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            catHtml += `</optgroup>`;
         }
+        catSelect.innerHTML = catHtml;
+        document.getElementById('budget-amount').value = '';
+        document.getElementById('budget-modal').classList.add('active');
     }
-
-    function deleteBudget(idx) {
-        budgetData.splice(idx, 1);
+    function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('active'); }
+    function saveBudget() {
+        let cat = document.getElementById('budget-category-select').value;
+        let period = document.getElementById('budget-period').value;
+        let amt = parseFloat(document.getElementById('budget-amount').value);
+        if (!cat || isNaN(amt)) return alert('Please enter valid data');
+        budgetData.push({ category: cat, period: period, amount: amt });
         localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
         renderBudgets();
+        closeBudgetModal();
     }
+    function deleteBudget(idx) { budgetData.splice(idx, 1); localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); renderBudgets(); }
 
-    /* ---- Schedule Table Functions ---- */
+    /* ---- Schedule Functions (มีทั้งวันที่ และ Recurring) ---- */
     function renderSchedules() {
         const tbody = document.getElementById('schedule-table-body');
         if (scheduleData.length === 0) {
@@ -773,44 +718,87 @@
         }
         let html = '';
         scheduleData.forEach((s, idx) => {
-            html += `<tr>
-                <td>${s.title} (${s.frequency})</td>
-                <td>${s.account}</td>
-                <td>${s.amount.toLocaleString()} ${defaultCurrency}</td>
-                <td><button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
-            </tr>`;
+            let info = s.frequency === 'One-time' ? `${s.datetime}` : `🔄 ${s.frequency}`;
+            html += `<tr><td><strong>${s.title}</strong><br><small style="color:var(--text-muted);">${info}</small></td><td>${s.account}</td><td>${s.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
         });
         tbody.innerHTML = html;
     }
-
-    function openAddScheduleModal() {
-        let title = prompt("Schedule Title (e.g., Rent, Netflix):");
-        let amt = parseFloat(prompt(`Amount (${defaultCurrency}):`));
-        let acc = prompt("Account (e.g., SCOTIA):");
-        if (title && !isNaN(amt) && acc) {
-            scheduleData.push({ title: title, amount: amt, account: acc, frequency: 'Monthly' });
-            localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
-            renderSchedules();
-        }
+    function openScheduleModal() {
+        let accSelect = document.getElementById('sched-account');
+        let optHtml = '';
+        Object.keys(subAccountsData).forEach(main => {
+            optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
+            (subAccountsData[main] || []).forEach(sub => { optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
+        });
+        accSelect.innerHTML = optHtml;
+        document.getElementById('sched-title').value = '';
+        document.getElementById('sched-amount').value = '';
+        document.getElementById('sched-freq').value = 'Monthly';
+        document.getElementById('group-sched-date').style.display = 'none';
+        document.getElementById('schedule-modal').classList.add('active');
     }
-
-    function deleteSchedule(idx) {
-        scheduleData.splice(idx, 1);
+    function closeScheduleModal() { document.getElementById('schedule-modal').classList.remove('active'); }
+    function toggleScheduleDate(val) {
+        let dateGroup = document.getElementById('group-sched-date');
+        if (val === 'One-time') dateGroup.style.display = 'block';
+        else dateGroup.style.display = 'none';
+    }
+    function saveSchedule() {
+        let title = document.getElementById('sched-title').value.trim();
+        let acc = document.getElementById('sched-account').value;
+        let freq = document.getElementById('sched-freq').value;
+        let datetime = document.getElementById('sched-datetime').value;
+        let amt = parseFloat(document.getElementById('sched-amount').value);
+        if (!title || isNaN(amt)) return alert('Please enter valid title and amount');
+        scheduleData.push({ title, account: acc, frequency: freq, datetime: freq === 'One-time' ? datetime : '', amount: amt });
         localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
         renderSchedules();
+        closeScheduleModal();
     }
+    function deleteSchedule(idx) { scheduleData.splice(idx, 1); localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData)); renderSchedules(); }
 
-    function renderReport() {
-        const container = document.getElementById('report-summary-container');
-        let inc = 0, exp = 0;
+    /* ---- Report Pie Chart ตาม Category ---- */
+    function renderReportChart() {
+        let catTotals = {};
+        let totalInc = 0, totalExp = 0;
+
         transactions.forEach(t => {
-            if (t.amount > 0) inc += t.amount;
-            else exp += Math.abs(t.amount);
+            let amt = parseFloat(t.amount) || 0;
+            if (amt > 0) {
+                totalInc += amt;
+            } else {
+                totalExp += Math.abs(amt);
+                let cat = t.category ? t.category.trim() : 'Uncategorized';
+                if (!catTotals[cat]) catTotals[cat] = 0;
+                catTotals[cat] += Math.abs(amt);
+            }
         });
-        container.innerHTML = `
+
+        let labels = Object.keys(catTotals);
+        let dataVals = Object.values(catTotals);
+
+        const ctx = document.getElementById('expensePieChart').getContext('2d');
+        if (pieChartInstance) pieChartInstance.destroy();
+
+        pieChartInstance = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels.length > 0 ? labels : ['No Data'],
+                datasets: [{
+                    data: dataVals.length > 0 ? dataVals : [1],
+                    backgroundColor: ['#4f46e5', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#3b82f6', '#64748b']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+
+        document.getElementById('report-summary-container').innerHTML = `
             <div style="display:flex; justify-content:space-around; text-align:center; margin-top:8px;">
-                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${inc.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Income</small></div>
-                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${exp.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Expense</small></div>
+                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${totalInc.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Income</small></div>
+                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${totalExp.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Expense</small></div>
             </div>
         `;
     }
@@ -828,14 +816,9 @@
         let accSelect = document.getElementById('tx-account');
         let optHtml = '';
         let allSubs = [];
-        
         Object.keys(subAccountsData).forEach(main => {
             optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
-            let subs = subAccountsData[main] || [];
-            subs.forEach(sub => {
-                allSubs.push(sub);
-                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub} (in ${main})</option>`;
-            });
+            (subAccountsData[main] || []).forEach(sub => { allSubs.push(sub); optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
         });
         accSelect.innerHTML = optHtml;
         if (preSelectAcc) accSelect.value = preSelectAcc;
@@ -844,9 +827,7 @@
         let catHtml = '';
         for (let mainCat in categoriesData) {
             catHtml += `<optgroup label="${mainCat}">`;
-            categoriesData[mainCat].forEach(subCat => {
-                catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`;
-            });
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
             catHtml += `</optgroup>`;
         }
         catSelect.innerHTML = catHtml;
@@ -866,9 +847,7 @@
         document.getElementById('tx-modal').classList.add('active');
     }
 
-    function closeTxModal() {
-        document.getElementById('tx-modal').classList.remove('active');
-    }
+    function closeTxModal() { document.getElementById('tx-modal').classList.remove('active'); }
 
     function saveTransaction() {
         const type = document.getElementById('tx-type').value;
@@ -882,23 +861,10 @@
         const currency = document.getElementById('tx-currency').value;
         const memo = document.getElementById('tx-memo').value.trim();
 
-        if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) {
-            return alert('Please enter valid amount and datetime');
-        }
+        if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) return alert('Please enter valid amount and datetime');
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-
-        let newTx = {
-            datetime: datetime,
-            account: account,
-            category: category,
-            description: description,
-            payee: payee,
-            transfers: transfers,
-            amount: amount,
-            currency: currency,
-            memo: memo
-        };
+        let newTx = { datetime, account, category, description, payee, transfers, amount, currency, memo };
 
         fetch(WEBHOOK_URL, {
             method: 'POST',
@@ -908,12 +874,10 @@
         }).then(() => {
             transactions.unshift(newTx);
             renderAccountsList();
-            renderReport();
+            renderReportChart();
             closeTxModal();
             alert('Transaction saved successfully!');
-        }).catch(err => {
-            alert('Error saving transaction: ' + err);
-        });
+        }).catch(err => { alert('Error saving transaction: ' + err); });
     }
 
     fetchTransactionsFromSheet();
