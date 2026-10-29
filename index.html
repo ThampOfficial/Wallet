@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fixed Amount Reading</title>
+    <title>Wallet PWA - Account Specific Actions</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -44,13 +44,14 @@
         .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
-
-        .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; cursor: pointer; }
-        .sub-acc-row { padding-left: 16px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-top: 4px; padding-bottom: 4px; border-top: 1px dashed var(--border); }
         
-        .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
+        .mini-btn { padding: 4px 8px; font-size: 11px; border-radius: 4px; border: none; cursor: pointer; color: white; font-weight: 600; }
+        .btn-inc { background: var(--success); }
+        .btn-exp { background: var(--danger); }
 
+        .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+        .sub-acc-row { padding-left: 12px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; padding-top: 6px; padding-bottom: 6px; border-top: 1px dashed var(--border); }
+        
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
@@ -63,21 +64,16 @@
         <div id="accounts-main-view">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <h2 style="margin-bottom: 0;">Accounts & Sub-accounts</h2>
-                <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px; background: var(--primary);" onclick="openTxModal('Transfer', '')">⇄ Transfer</button>
+                    <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit</button>
+                </div>
             </div>
 
             <div class="card" style="text-align: center;">
                 <h3>Total Balance (By Currency)</h3>
                 <div id="total-balance-grid" class="balance-grid">
                     <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn" style="background: var(--success);" onclick="openTxModal('Income')">+ Income</button>
-                    <button class="btn" style="background: var(--danger);" onclick="openTxModal('Expense')">- Expense</button>
-                    <button class="btn" style="background: var(--primary);" onclick="openTxModal('Transfer')">⇄ Transfer</button>
                 </div>
             </div>
 
@@ -151,7 +147,6 @@
 </div>
 
 <script>
-    // อัปเดต Webhook URL ใหม่ของคุณที่นี่
     const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
@@ -164,7 +159,6 @@
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            // จับคู่ฟิลด์ให้ตรงกับ Apps Script ใหม่ที่ดึงจากคอลัมน์ A-J (Date, Time, Account, Category, Description, Payee, Transfers, Amount, Currency, Memo)
             transactions = data.transactions.map(t => ({
                 date: t.date || t.datetime || '',
                 account: t.account || '',
@@ -193,6 +187,7 @@
 
         let rawAccs = {};
         let currencyTotals = {};
+        let accCurrencies = {}; // จำสกุลเงินของแต่ละบัญชีจาก Transaction ล่าสุด
 
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
@@ -202,11 +197,13 @@
             if (!rawAccs[acc]) rawAccs[acc] = 0;
             rawAccs[acc] += amtVal;
 
+            accCurrencies[acc] = cur;
+
             if (!currencyTotals[cur]) currencyTotals[cur] = 0;
             currencyTotals[cur] += amtVal;
         });
 
-        // 1. Render Total Balance เฉพาะตาม Currency
+        // 1. Render Total Balance
         let balanceHtml = '';
         for (let cur in currencyTotals) {
             let val = currencyTotals[cur];
@@ -217,7 +214,7 @@
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0</div></div>`;
 
-        // 2. Render Main Accounts & Sub Accounts ด้านล่าง
+        // 2. Render Accounts List พร้อมปุ่มแยกแต่ละ Sub-account
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
         mainAccKeys.forEach(main => {
@@ -227,19 +224,32 @@
 
             subs.forEach(sub => {
                 let subTotal = rawAccs[sub] || 0;
+                let subCur = accCurrencies[sub] || 'THB';
                 mainTotal += subTotal;
-                subHtml += `<div class="sub-acc-row" onclick="openAccountDetail('${sub}')">
-                    <span>└─ ${sub}</span>
-                    <span style="font-weight:500; color:${subTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${subTotal.toLocaleString()} THB</span>
+
+                subHtml += `<div class="sub-acc-row">
+                    <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-weight:500; color:${subTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${subTotal.toLocaleString()} ${subCur}</span>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${subCur}')">+ In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${subCur}')">- Ex</button>
+                    </div>
                 </div>`;
             });
 
             if (rawAccs[main]) mainTotal += rawAccs[main];
+            let mainCur = accCurrencies[main] || 'THB';
 
             accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
-                <div class="acc-item" onclick="openAccountDetail('${main}')">
-                    <div><strong>💳 ${main}</strong><br><small style="color:var(--text-muted);">Main Account</small></div>
-                    <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${mainTotal.toLocaleString()} THB</div>
+                <div class="acc-item">
+                    <div onclick="openAccountDetail('${main}')" style="cursor:pointer; flex:1;">
+                        <strong>💳 ${main}</strong><br><small style="color:var(--text-muted);">Main Account</small>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${mainTotal.toLocaleString()} ${mainCur}</div>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${main}', '${mainCur}')">+ In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${main}', '${mainCur}')">- Ex</button>
+                    </div>
                 </div>
                 ${subHtml}
             </div>`;
@@ -283,6 +293,7 @@
         renderAccountsList();
     }
 
+    // Modal จัดการ Account
     function openAccountManagerModal() {
         renderAccountManagerList();
         document.getElementById('account-manager-modal').classList.add('active');
@@ -382,7 +393,8 @@
         renderAccountManagerList();
     }
 
-    function openTxModal(type) {
+    // Modal Transaction พร้อมแสดง Main / Sub ให้ชัดเจน และ Default Currency ตามบัญชี
+    function openTxModal(type, preSelectAcc = '', preSelectCur = 'THB') {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
         document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
@@ -393,13 +405,26 @@
         document.getElementById('tx-transfers').value = '';
         document.getElementById('tx-memo').value = '';
 
-        let allAccs = [];
+        // สร้างรายชื่อ Account แบบจัดหมวดหมู่ Main / Sub ชัดเจนใน Dropdown
+        let accSelect = document.getElementById('tx-account');
+        let optHtml = '';
+        
         Object.keys(subAccountsData).forEach(main => {
-            allAccs.push(main);
-            subAccountsData[main].forEach(sub => allAccs.push(sub));
+            optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
+            let subs = subAccountsData[main] || [];
+            subs.forEach(sub => {
+                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub} (in ${main})</option>`;
+            });
         });
+        accSelect.innerHTML = optHtml;
 
-        document.getElementById('tx-account').innerHTML = allAccs.map(a => `<option value="${a}">${a}</option>`).join('');
+        if (preSelectAcc) {
+            accSelect.value = preSelectAcc;
+        }
+
+        // ตั้งค่า Default Currency ตามที่แสดงอยู่บนหน้าจอ
+        document.getElementById('tx-currency').value = preSelectCur;
+
         document.getElementById('tx-modal').classList.add('active');
     }
 
