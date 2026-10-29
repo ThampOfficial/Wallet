@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Advanced Budget & RollOver</title>
+    <title>Wallet PWA - Smart Budget & Multi-Currency</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -65,6 +65,10 @@
         
         .checkbox-box { max-height: 100px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 12px; background: var(--card-bg); color: var(--text-main); }
         .checkbox-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+
+        .progress-bar-container { width: 100%; background-color: var(--border); border-radius: 4px; height: 8px; overflow: hidden; margin-top: 4px; }
+        .progress-bar-fill { height: 100%; background-color: var(--success); transition: width 0.3s; }
+        .progress-bar-fill.over { background-color: var(--danger); }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
@@ -129,10 +133,10 @@
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr><th>Budget Name</th><th>Period / Start</th><th>Limit</th><th>Action</th></tr>
+                        <tr><th>Budget Name / Details</th><th>Spent / Limit</th><th>Action</th></tr>
                     </thead>
                     <tbody id="budget-table-body">
-                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
+                        <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -150,7 +154,7 @@
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
-                        <tr><th>Title / Date</th><th>Account</th><th>Amount</th><th>Action</th></tr>
+                        <tr><th>Title / Details</th><th>Account</th><th>Amount</th><th>Action</th></tr>
                     </thead>
                     <tbody id="schedule-table-body">
                         <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>
@@ -286,7 +290,7 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Budget (Default รวมทุกอย่าง, เลือกวันเริ่ม & Roll Over) -->
+<!-- Modal เพิ่ม Budget (รองรับ Currency, StartDate, RollOver) -->
 <div id="budget-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Budget</h3>
@@ -305,9 +309,15 @@
             <label for="budget-startdate">Start Date (วันเริ่มต้นรอบงบประมาณ)</label>
             <input type="date" id="budget-startdate">
         </div>
-        <div class="form-group">
-            <label for="budget-amount">Limit Amount</label>
-            <input type="number" id="budget-amount" step="0.01" placeholder="0.00">
+        <div class="form-group" style="display:flex; gap:8px;">
+            <div style="flex:2;">
+                <label for="budget-amount">Limit Amount</label>
+                <input type="number" id="budget-amount" step="0.01" placeholder="0.00">
+            </div>
+            <div style="flex:1;">
+                <label for="budget-currency">Currency</label>
+                <select id="budget-currency"></select>
+            </div>
         </div>
         
         <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
@@ -332,7 +342,7 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Schedule -->
+<!-- Modal เพิ่ม Schedule & Recurring (รองรับ Currency) -->
 <div id="schedule-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Schedule / Recurring</h3>
@@ -341,24 +351,42 @@
             <input type="text" id="sched-title" placeholder="e.g., Netflix, Salary, Rent">
         </div>
         <div class="form-group">
-            <label for="sched-account">Account</label>
+            <label for="sched-account">Account (จากบัญชีไหน)</label>
             <select id="sched-account"></select>
         </div>
         <div class="form-group">
-            <label for="sched-freq">Frequency</label>
-            <select id="sched-freq" onchange="toggleScheduleDate(this.value)">
-                <option value="Monthly">รายเดือน (Monthly)</option>
-                <option value="Yearly">รายปี (Yearly)</option>
+            <label for="sched-type">Type (In / Ex / Trans)</label>
+            <select id="sched-type" onchange="toggleSchedType(this.value)">
+                <option value="Expense">รายจ่าย (Expense)</option>
+                <option value="Income">รายรับ (Income)</option>
+                <option value="Transfer">โอนเงิน (Transfer)</option>
+            </select>
+        </div>
+        <div class="form-group" id="group-sched-transfer" style="display:none;">
+            <label for="sched-transfer-to">Transfer To Account (โอนไปบัญชีไหน)</label>
+            <select id="sched-transfer-to"></select>
+        </div>
+        <div class="form-group">
+            <label for="sched-freq">Frequency (ความถี่)</label>
+            <select id="sched-freq">
+                <option value="Monthly">รายเดือน (Monthly Recurring)</option>
+                <option value="Yearly">รายปี (Yearly Recurring)</option>
                 <option value="One-time">ครั้งเดียว (One-time)</option>
             </select>
         </div>
-        <div class="form-group" id="group-sched-date" style="display:none;">
-            <label for="sched-datetime">Date & Time</label>
-            <input type="datetime-local" id="sched-datetime">
-        </div>
         <div class="form-group">
-            <label for="sched-amount">Amount</label>
-            <input type="number" id="sched-amount" step="0.01" placeholder="0.00">
+            <label for="sched-startdate">Start Date (เริ่มวันที่ / รอบวันที่)</label>
+            <input type="date" id="sched-startdate">
+        </div>
+        <div class="form-group" style="display:flex; gap:8px;">
+            <div style="flex:2;">
+                <label for="sched-amount">Amount</label>
+                <input type="number" id="sched-amount" step="0.01" placeholder="0.00">
+            </div>
+            <div style="flex:1;">
+                <label for="sched-currency">Currency</label>
+                <select id="sched-currency"></select>
+            </div>
         </div>
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveSchedule()">Save Schedule</button>
@@ -429,8 +457,7 @@
 
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
-        "Credit Cards (TH)": ["SCB M", "Citi Rewards", "Homepro", "Oce Siam"],
-        "Wealth Simple": ["FHSA Home", "RRSP"]
+        "Wealth Simple": ["Cash", "TFSA"]
     };
 
     let categoriesData = JSON.parse(localStorage.getItem('wallet_categories_map')) || {
@@ -487,6 +514,17 @@
         element.classList.add('active');
 
         if (tabId === 'report') renderReportChart();
+        if (tabId === 'budget') renderBudgets();
+    }
+
+    // ฟังก์ชันแปลงสกุลเงินอัตโนมัติเทียบกับสกุลเงินเป้าหมาย
+    function convertCurrency(amount, fromCur, toCur) {
+        if (fromCur === toCur) return amount;
+        let rateFrom = currenciesData[fromCur] || 1.0;
+        let rateTo = currenciesData[toCur] || 1.0;
+        // แปลงเป็น Base Currency ก่อน แล้วค่อยแปลงไปสกุลปลายทาง
+        let amountInBase = amount * rateFrom;
+        return amountInBase / rateTo;
     }
 
     function fetchTransactionsFromSheet() {
@@ -512,6 +550,7 @@
 
                         renderAccountsList();
                         renderReportChart();
+                        renderBudgets();
                     }
                 } catch (e) {
                     console.error("JSON parsing error:", e, text);
@@ -810,19 +849,62 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions (Default checked everything) ---- */
+    /* ---- Budget Functions (Calculation & Progress Bar) ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
-        if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
+        if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
         let html = '';
+        
         budgetData.forEach((b, idx) => {
-            let metaInfo = `เริ่ม: ${b.startDate || '-'} | RollOver: ${b.rollover ? 'Yes' : 'No'}`;
-            let excludeInfo = [];
-            if (b.excludeAccs && b.excludeAccs.length > 0) excludeInfo.push(`ยกเว้น Acc: ${b.excludeAccs.join(', ')}`);
-            if (b.excludeCats && b.excludeCats.length > 0) excludeInfo.push(`ยกเว้น Cat: ${b.excludeCats.join(', ')}`);
-            let subText = excludeInfo.length > 0 ? `<br><small style="color:var(--text-muted);">${excludeInfo.join(' | ')}</small>` : '';
+            let budgetCur = b.currency || defaultCurrency;
+            let startDate = new Date(b.startDate || '2026-01-01');
+            
+            // คำนวณหายอดใช้จ่ายจริงตั้งแต่ startDate เป็นต้นมา ที่ตรงตามเงื่อนไข (ไม่ถูกยกเว้น)
+            let spent = 0;
+            transactions.forEach(t => {
+                let tDate = new Date(t.date || t.datetime || '2026-01-01');
+                let amt = parseFloat(t.amount) || 0;
+                
+                // คำนวณเฉพาะรายจ่าย (amount < 0) และวันที่มากกว่าหรือเท่ากับ StartDate
+                if (amt < 0 && tDate >= startDate) {
+                    let acc = t.account ? t.account.trim() : '';
+                    let cat = t.category ? t.category.trim() : '';
+                    let tCur = t.currency || defaultCurrency;
 
-            html += `<tr><td><strong>${b.title}</strong><br><small style="color:var(--text-muted);">${metaInfo}</small>${subText}</td><td>${b.period}</td><td>${b.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
+                    let isExcludedAcc = (b.excludeAccs || []).includes(acc);
+                    let isExcludedCat = (b.excludeCats || []).includes(cat);
+
+                    if (!isExcludedAcc && !isExcludedCat) {
+                        // แปลงสกุลเงินของรายการให้เป็นสกุลเงินของ Budget อัตโนมัติ
+                        let convertedAmt = convertCurrency(Math.abs(amt), tCur, budgetCur);
+                        spent += convertedAmt;
+                    }
+                }
+            });
+
+            let limit = parseFloat(b.amount) || 0;
+            let percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
+            let isOver = spent > limit;
+            let barClass = isOver ? 'progress-bar-fill over' : 'progress-bar-fill';
+            let statusColor = isOver ? 'var(--danger)' : 'var(--success)';
+
+            html += `<tr>
+                <td>
+                    <strong>${b.title}</strong><br>
+                    <small style="color:var(--text-muted);">เริ่ม: ${b.startDate} | รอบ: ${b.period}</small>
+                </td>
+                <td>
+                    <div style="display:flex; justify-content:space-between; font-weight:bold;">
+                        <span style="color:${statusColor};">${spent.toLocaleString()} ${budgetCur}</span>
+                        <span style="color:var(--text-muted);">/ ${limit.toLocaleString()} ${budgetCur} (${percent}%)</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="${barClass}" style="width: ${percent}%;"></div>
+                    </div>
+                    ${isOver ? '<small style="color:var(--danger); font-weight:bold;">⚠️ เกินงบประมาณแล้ว!</small>' : ''}
+                </td>
+                <td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
+            </tr>`;
         });
         tbody.innerHTML = html;
     }
@@ -834,7 +916,10 @@
         document.getElementById('budget-startdate').value = new Date().toISOString().slice(0,10);
         document.getElementById('budget-rollover').checked = false;
 
-        // Default ติ๊กเลือกทุก Account ไว้ก่อน
+        let curSelect = document.getElementById('budget-currency');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+        curSelect.value = defaultCurrency;
+
         let accBox = document.getElementById('budget-exclude-accs');
         let accHtml = '';
         Object.keys(subAccountsData).forEach(main => {
@@ -844,7 +929,6 @@
         });
         accBox.innerHTML = accHtml || '<small style="color:var(--text-muted);">No accounts</small>';
 
-        // Default ติ๊กเลือกทุก Category ไว้ก่อน
         let catBox = document.getElementById('budget-exclude-cats');
         let subCatHtml = '';
         for (let mainCat in categoriesData) {
@@ -865,15 +949,15 @@
         let period = document.getElementById('budget-period').value;
         let startDate = document.getElementById('budget-startdate').value;
         let amt = parseFloat(document.getElementById('budget-amount').value);
+        let currency = document.getElementById('budget-currency').value;
         let rollover = document.getElementById('budget-rollover').checked;
 
         if (!title || isNaN(amt) || !startDate) return alert('Please fill in all required fields correctly.');
 
-        // เก็บรายชื่อบัญชี/หมวดหมู่ที่ถูก "ติ๊กออก" (ไม่ได้เลือก) เพื่อนำไปยกเว้น
         let excludeAccs = Array.from(document.querySelectorAll('input[name="ex-acc"]:not(:checked)')).map(cb => cb.value);
         let excludeCats = Array.from(document.querySelectorAll('input[name="ex-cat"]:not(:checked)')).map(cb => cb.value);
 
-        budgetData.push({ title, period, startDate, amount: amt, rollover, excludeAccs, excludeCats });
+        budgetData.push({ title, period, startDate, amount: amt, currency, rollover, excludeAccs, excludeCats });
         localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
         renderBudgets();
         closeBudgetModal();
@@ -887,43 +971,62 @@
         if (scheduleData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`; return; }
         let html = '';
         scheduleData.forEach((s, idx) => {
-            let info = s.frequency === 'One-time' ? `${s.datetime}` : `🔄 ${s.frequency}`;
-            html += `<tr><td><strong>${s.title}</strong><br><small style="color:var(--text-muted);">${info}</small></td><td>${s.account}</td><td>${s.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
+            let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
+            let detail = `${typeBadge} | เริ่ม: ${s.startDate} | 🔄 ${s.frequency}`;
+            if (s.type === 'Transfer') detail += ` ➔ ${s.transferTo}`;
+            let sCur = s.currency || defaultCurrency;
+            html += `<tr><td><strong>${s.title}</strong><br><small style="color:var(--text-muted);">${detail}</small></td><td>${s.account}</td><td>${s.amount.toLocaleString()} ${sCur}</td><td><button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
         });
         tbody.innerHTML = html;
     }
 
     function openScheduleModal() {
         let accSelect = document.getElementById('sched-account');
+        let transferSelect = document.getElementById('sched-transfer-to');
+        let curSelect = document.getElementById('sched-currency');
         let optHtml = '';
+        let allSubs = [];
+        
         Object.keys(subAccountsData).forEach(main => {
             optHtml += `<option value="${main}">💳 [Main] ${main}</option>`;
-            (subAccountsData[main] || []).forEach(sub => { optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
+            (subAccountsData[main] || []).forEach(sub => { 
+                allSubs.push(sub);
+                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; 
+            });
         });
         accSelect.innerHTML = optHtml;
+        transferSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+        curSelect.value = defaultCurrency;
+
         document.getElementById('sched-title').value = '';
         document.getElementById('sched-amount').value = '';
         document.getElementById('sched-freq').value = 'Monthly';
-        document.getElementById('sched-datetime').value = new Date().toISOString().slice(0,16);
-        document.getElementById('group-sched-date').style.display = 'none';
+        document.getElementById('sched-type').value = 'Expense';
+        document.getElementById('sched-startdate').value = new Date().toISOString().slice(0,10);
+        document.getElementById('group-sched-transfer').style.display = 'none';
         document.getElementById('schedule-modal').classList.add('active');
     }
 
     function closeScheduleModal() { document.getElementById('schedule-modal').classList.remove('active'); }
 
-    function toggleScheduleDate(val) { 
-        document.getElementById('group-sched-date').style.display = (val === 'One-time') ? 'block' : 'none'; 
+    function toggleSchedType(type) {
+        document.getElementById('group-sched-transfer').style.display = (type === 'Transfer') ? 'block' : 'none';
     }
 
     function saveSchedule() {
         let title = document.getElementById('sched-title').value.trim();
-        let acc = document.getElementById('sched-account').value;
-        let freq = document.getElementById('sched-freq').value;
-        let datetime = document.getElementById('sched-datetime').value;
+        let account = document.getElementById('sched-account').value;
+        let type = document.getElementById('sched-type').value;
+        let transferTo = type === 'Transfer' ? document.getElementById('sched-transfer-to').value : '';
+        let frequency = document.getElementById('sched-freq').value;
+        let startDate = document.getElementById('sched-startdate').value;
         let amt = parseFloat(document.getElementById('sched-amount').value);
-        if (!title || isNaN(amt)) return alert('Please enter valid title and amount');
+        let currency = document.getElementById('sched-currency').value;
 
-        scheduleData.push({ title, account: acc, frequency: freq, datetime: freq === 'One-time' ? datetime : '', amount: amt });
+        if (!title || isNaN(amt) || !startDate) return alert('Please enter valid title, amount and start date');
+
+        scheduleData.push({ title, account, type, transferTo, frequency, startDate, amount: amt, currency });
         localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
         renderSchedules(); 
         closeScheduleModal();
@@ -1055,6 +1158,7 @@
             transactions.unshift(newTx);
             renderAccountsList();
             renderReportChart();
+            renderBudgets();
             closeTxModal();
             alert('Transaction saved successfully!');
         }).catch(err => { alert('Error saving transaction: ' + err); });
