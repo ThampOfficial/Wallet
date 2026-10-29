@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Ultimate FinTracker</title>
+    <title>Wallet PWA - Fixed Accounts & Reports</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -148,7 +148,6 @@
     <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
         <h2>Budget Management</h2>
-        
         <div class="card">
             <h3>+ Create New Budget</h3>
             <div class="form-group"><label>Budget Name (ชื่อ)</label><input type="text" id="bud-name" placeholder="e.g., Monthly Food Budget"></div>
@@ -169,24 +168,17 @@
                 <input type="checkbox" id="bud-rollover" style="width: auto;">
                 <label for="bud-rollover" style="margin-bottom:0; cursor:pointer;">Enable Rollover (ยกยอดเงินคงเหลือไปงวดหน้า)</label>
             </div>
-
             <div class="form-group">
-                <label>Select Accounts (เลือกบัญชีที่นับรวม)</label>
+                <label>Select Accounts</label>
                 <div id="bud-accounts-select" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
             </div>
-
             <div class="form-group">
-                <label>Select Categories & Subcategories (เลือกหมวดหมู่ที่นับรวม)</label>
+                <label>Select Categories & Subcategories</label>
                 <div id="bud-categories-select" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
             </div>
-
             <button class="btn" onclick="saveNewBudget()">Save Budget</button>
         </div>
-
-        <div class="card">
-            <h3>Active Budgets Overview</h3>
-            <div id="budget-list-container"><p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p></div>
-        </div>
+        <div class="card"><h3>Active Budgets Overview</h3><div id="budget-list-container"><p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p></div></div>
     </div>
 
     <!-- TAB 3: SCHEDULE -->
@@ -205,13 +197,11 @@
             </div>
             <div class="form-group"><label>Title / Description</label><input type="text" id="sch-title" placeholder="e.g., Rent, Salary"></div>
             <div class="form-group"><label>Amount</label><input type="number" id="sch-amount" placeholder="0.00"></div>
-            
             <div id="sch-single-acc-group" class="form-group"><label>Account</label><select id="sch-account"></select></div>
             <div id="sch-transfer-acc-group" style="display:none;">
                 <div class="form-group"><label>From Account</label><select id="sch-from-account"></select></div>
                 <div class="form-group"><label>To Account</label><select id="sch-to-account"></select></div>
             </div>
-
             <div class="form-group"><label>Category</label><select id="sch-category"></select></div>
             <div class="form-group"><label>Start / Due Date</label><input type="date" id="sch-date"></div>
             <div class="form-group">
@@ -251,7 +241,7 @@
             <div id="chart-view-container" class="chart-container"></div>
         </div>
         <div class="card">
-            <h3>Expense Breakdown (Pie Chart)</h3>
+            <h3>Expense Breakdown by Main Category</h3>
             <div id="pie-chart-wrapper"></div>
             <div id="report-category-list" style="margin-top: 12px;"><p style="color:var(--text-muted); font-size:13px;">Analyzing data...</p></div>
         </div>
@@ -404,7 +394,7 @@
         "SCOTIA": []
     };
 
-    let accountHiddenMap = JSON.parse(localStorage.getItem('wallet_acc_hidden')) || {}; // เก็บค่า true ถ้าต้องการซ่อนไม่ให้นับรวม Total
+    let accountHiddenMap = JSON.parse(localStorage.getItem('wallet_acc_hidden')) || {};
     let budgetsData = JSON.parse(localStorage.getItem('wallet_budgets')) || [];
     let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
     let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
@@ -457,7 +447,6 @@
             rawAccs[acc].total += amtVal;
             rawAccs[acc].currency = cur;
 
-            // ถ้ายอดนี้ไม่ได้ถูกตั้งค่าให้ซ่อน ให้นำมารวมใน Total Balance
             if (!accountHiddenMap[acc]) {
                 if (!totalsByCur[cur]) totalsByCur[cur] = 0;
                 totalsByCur[cur] += amtVal;
@@ -628,6 +617,22 @@
             });
             html += `</div></div>`;
         }
+
+        // แสดง Unassigned accounts เผื่อดึงมา Assign
+        let assignedList = [];
+        Object.values(subAccountsData).forEach(arr => assignedList.push(...arr.map(s => s.toLowerCase())));
+        let unassigned = [...allRawAccs].filter(a => !subAccountsData[a] && !assignedList.includes(a.toLowerCase()));
+
+        if (unassigned.length > 0) {
+            html += `<h4 style="margin-top:16px; color:var(--text-muted);">Unassigned Accounts:</h4>`;
+            unassigned.forEach(acc => {
+                html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+                    <span>${acc}</span>
+                    <button class="btn" style="width:auto; padding:4px 8px; font-size:11px;" onclick="openAssignModal('${acc}')">Assign to Main ➔</button>
+                </div>`;
+            });
+        }
+
         container.innerHTML = html;
     }
 
@@ -679,6 +684,35 @@
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
             renderAccountManagerList();
         }
+    }
+
+    function openAssignModal(accName) {
+        document.getElementById('assign-sub-target').value = accName;
+        let select = document.getElementById('assign-main-select');
+        select.innerHTML = '';
+        for (let main in subAccountsData) {
+            let opt = document.createElement('option');
+            opt.value = main;
+            opt.textContent = main;
+            select.appendChild(opt);
+        }
+        document.getElementById('assign-sub-modal').classList.add('active');
+    }
+
+    function closeAssignModal() {
+        document.getElementById('assign-sub-modal').classList.remove('active');
+    }
+
+    function saveAssignedSubAccount() {
+        let subAcc = document.getElementById('assign-sub-target').value;
+        let mainAcc = document.getElementById('assign-main-select').value;
+        if (!subAccountsData[mainAcc]) subAccountsData[mainAcc] = [];
+        if (!subAccountsData[mainAcc].includes(subAcc)) {
+            subAccountsData[mainAcc].push(subAcc);
+            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        }
+        closeAssignModal();
+        renderAccountManagerList();
     }
 
     function removeSubFromMain(main, idx) {
@@ -841,7 +875,7 @@
         let newTx = {
             d: paidDate,
             amt: amountVal,
-            cur: 'THB', // Default or picked
+            cur: 'THB',
             a: s.accountInfo,
             cat: s.category,
             memo: `Paid: ${s.title}`
@@ -881,7 +915,7 @@
         list.innerHTML = html;
     }
 
-    /* Reports & Pie Chart Logic */
+    /* Reports & Pie Chart Logic (Grouped by Main Category) */
     function setReportView(mode) {
         reportViewMode = mode;
         if (mode === 'monthly') {
@@ -896,7 +930,7 @@
 
     function renderReport() {
         let chartMap = {};
-        let catMap = {};
+        let mainCatMap = {};
         let totalExp = 0;
 
         transactions.forEach(t => {
@@ -912,9 +946,13 @@
             } else if (amt < 0) {
                 let absAmt = Math.abs(amt);
                 chartMap[key].expense += absAmt;
-                let cat = t.cat || 'Uncategorized';
+                
+                // ดึงเฉพาะ Main Category (ตัด Sub ออก เช่น "Shopping ► Clothes" เหลือ "Shopping")
+                let rawCat = t.cat || 'Uncategorized';
+                let mainCat = rawCat.split(' ► ')[0].trim();
+
                 totalExp += absAmt;
-                catMap[cat] = (catMap[cat] || 0) + absAmt;
+                mainCatMap[mainCat] = (mainCatMap[mainCat] || 0) + absAmt;
             }
         });
 
@@ -945,8 +983,8 @@
             chartContainer.innerHTML = chartHtml;
         }
 
-        // Render Pie Chart & Breakdown
-        let sortedCats = Object.keys(catMap).sort((a,b) => catMap[b] - catMap[a]);
+        // Render Pie Chart & Main Category Breakdown
+        let sortedCats = Object.keys(mainCatMap).sort((a,b) => mainCatMap[b] - mainCatMap[a]);
         let pieWrapper = document.getElementById('pie-chart-wrapper');
         let catListHtml = '';
 
@@ -956,13 +994,12 @@
             return;
         }
 
-        // สร้าง conic-gradient สำหรับจำลอง Pie Chart แบบ CSS Pure
         let colors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
         let cumulativePercent = 0;
         let gradientStops = [];
 
         sortedCats.forEach((cat, idx) => {
-            let amt = catMap[cat];
+            let amt = mainCatMap[cat];
             let percent = totalExp > 0 ? (amt / totalExp) * 100 : 0;
             let start = cumulativePercent;
             let end = cumulativePercent + percent;
@@ -987,6 +1024,141 @@
             <div style="font-size:12px; color:var(--text-muted);">Total Expense: <br><strong style="font-size:16px; color:var(--text-main);">${totalExp.toLocaleString()}</strong></div>
         </div>`;
         document.getElementById('report-category-list').innerHTML = catListHtml;
+    }
+
+    /* Currency Manager Modal (Add, Edit, Delete) */
+    function renderModalCurrencies() {
+        let container = document.getElementById('modal-currencies-list');
+        if (!container) return;
+        let curHtml = `<table><thead><tr><th>Currency</th><th>Rate vs THB</th><th>Action</th></tr></thead><tbody>`;
+        for (let cur in currenciesData) {
+            curHtml += `<tr>
+                <td><strong>${cur}</strong></td>
+                <td>${currenciesData[cur]}</td>
+                <td>
+                    <button onclick="editCurrencyModal('${cur}')" style="background:none; border:none; color:var(--primary); cursor:pointer; margin-right:8px;">Edit</button>
+                    <button onclick="deleteCurrencyModal('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>
+                </td>
+            </tr>`;
+        }
+        curHtml += `</tbody></table>`;
+        container.innerHTML = curHtml;
+    }
+
+    function addCurrencySettingModal() {
+        const code = document.getElementById('cur-code-input').value.trim().toUpperCase();
+        const rate = parseFloat(document.getElementById('cur-rate-input').value);
+        if (!code || isNaN(rate)) return alert('Enter valid currency code and rate');
+        currenciesData[code] = rate;
+        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+        renderModalCurrencies();
+    }
+
+    function editCurrencyModal(code) {
+        let currentRate = currenciesData[code];
+        let newRateStr = prompt(`Edit exchange rate for ${code} (vs THB):`, currentRate);
+        if (newRateStr !== null) {
+            let newRate = parseFloat(newRateStr);
+            if (!isNaN(newRate) && newRate > 0) {
+                currenciesData[code] = newRate;
+                localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+                renderModalCurrencies();
+            } else {
+                alert('Invalid rate');
+            }
+        }
+    }
+
+    function deleteCurrencyModal(code) {
+        if (code === 'THB') return alert('Cannot delete THB');
+        delete currenciesData[code];
+        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
+        renderModalCurrencies();
+    }
+
+    /* Settings Detail Modal */
+    function openSettingsDetail(type) {
+        const modal = document.getElementById('settings-detail-modal');
+        const title = document.getElementById('settings-modal-title');
+        const body = document.getElementById('settings-modal-body');
+
+        if (type === 'categories') {
+            title.textContent = "Manage Categories & Sub-categories";
+            body.innerHTML = `<div class="form-group"><label>Main Category</label><input type="text" id="main-cat-input" placeholder="e.g., Shopping"></div>
+                              <div class="form-group"><label>Sub-category (Optional)</label><input type="text" id="sub-cat-input" placeholder="e.g., Clothes"></div>
+                              <button class="btn" onclick="addCategorySettingModal()">Add Category</button>
+                              <div id="modal-categories-list" style="margin-top: 16px;"></div>`;
+            renderModalCategories();
+        } else if (type === 'currency') {
+            title.textContent = "Manage Currencies & Exchange Rates";
+            body.innerHTML = `<div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
+                              <div class="form-group"><label>Exchange Rate (vs THB)</label><input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50"></div>
+                              <button class="btn" onclick="addCurrencySettingModal()">Add / Update Currency</button>
+                              <div id="modal-currencies-list" style="margin-top: 16px;"></div>`;
+            renderModalCurrencies();
+        }
+        modal.classList.add('active');
+    }
+
+    function closeSettingsDetail() {
+        document.getElementById('settings-detail-modal').classList.remove('active');
+    }
+
+    function renderModalCategories() {
+        let container = document.getElementById('modal-categories-list');
+        if (!container) return;
+        let catHtml = '';
+        for (let main in categoriesData) {
+            catHtml += `<div class="cat-group">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>📁 ${main}</strong>
+                    <div>
+                        <button onclick="editMainCategoryModal('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
+                        <button onclick="deleteMainCategoryModal('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
+                    </div>
+                </div>`;
+            categoriesData[main].forEach(sub => {
+                catHtml += `<div class="sub-cat-item"><span>└─ ${sub}</span><button onclick="deleteSubCategoryModal('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>`;
+            });
+            catHtml += `</div>`;
+        }
+        container.innerHTML = catHtml;
+    }
+
+    function addCategorySettingModal() {
+        const main = document.getElementById('main-cat-input').value.trim();
+        const sub = document.getElementById('sub-cat-input').value.trim();
+        if (!main) return alert('Enter main category name');
+        if (!categoriesData[main]) categoriesData[main] = [];
+        if (sub && !categoriesData[main].includes(sub)) categoriesData[main].push(sub);
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        document.getElementById('main-cat-input').value = '';
+        document.getElementById('sub-cat-input').value = '';
+        renderModalCategories();
+    }
+
+    function editMainCategoryModal(oldName) {
+        const newName = prompt("Edit Main Category name:", oldName);
+        if (newName && newName.trim() !== "" && newName !== oldName) {
+            categoriesData[newName.trim()] = categoriesData[oldName];
+            delete categoriesData[oldName];
+            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+            renderModalCategories();
+        }
+    }
+
+    function deleteMainCategoryModal(main) {
+        if (confirm(`Delete category "${main}"?`)) {
+            delete categoriesData[main];
+            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+            renderModalCategories();
+        }
+    }
+
+    function deleteSubCategoryModal(main, sub) {
+        categoriesData[main] = categoriesData[main].filter(s => s !== sub);
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        renderModalCategories();
     }
 
     /* Adjust Balance Logic */
@@ -1267,118 +1439,6 @@
         renderAccountsList();
         closeTxModal();
         alert('Transaction added successfully!');
-    }
-
-    /* Settings Detail Modal */
-    function openSettingsDetail(type) {
-        const modal = document.getElementById('settings-detail-modal');
-        const title = document.getElementById('settings-modal-title');
-        const body = document.getElementById('settings-modal-body');
-
-        if (type === 'categories') {
-            title.textContent = "Manage Categories & Sub-categories";
-            body.innerHTML = `<div class="form-group"><label>Main Category</label><input type="text" id="main-cat-input" placeholder="e.g., Shopping"></div>
-                              <div class="form-group"><label>Sub-category (Optional)</label><input type="text" id="sub-cat-input" placeholder="e.g., Clothes"></div>
-                              <button class="btn" onclick="addCategorySettingModal()">Add Category</button>
-                              <div id="modal-categories-list" style="margin-top: 16px;"></div>`;
-            renderModalCategories();
-        } else if (type === 'currency') {
-            title.textContent = "Manage Currencies & Exchange Rates";
-            body.innerHTML = `<div class="form-group"><label>Currency Code</label><input type="text" id="cur-code-input" placeholder="e.g., CAD"></div>
-                              <div class="form-group"><label>Exchange Rate (vs THB)</label><input type="number" id="cur-rate-input" step="0.01" placeholder="e.g., 26.50"></div>
-                              <button class="btn" onclick="addCurrencySettingModal()">Add / Update Currency</button>
-                              <div id="modal-currencies-list" style="margin-top: 16px;"></div>`;
-            renderModalCurrencies();
-        }
-        modal.classList.add('active');
-    }
-
-    function closeSettingsDetail() {
-        document.getElementById('settings-detail-modal').classList.remove('active');
-    }
-
-    function renderModalCategories() {
-        let container = document.getElementById('modal-categories-list');
-        if (!container) return;
-        let catHtml = '';
-        for (let main in categoriesData) {
-            catHtml += `<div class="cat-group">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <strong>📁 ${main}</strong>
-                    <div>
-                        <button onclick="editMainCategoryModal('${main}')" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">Edit</button>
-                        <button onclick="deleteMainCategoryModal('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                    </div>
-                </div>`;
-            categoriesData[main].forEach(sub => {
-                catHtml += `<div class="sub-cat-item"><span>└─ ${sub}</span><button onclick="deleteSubCategoryModal('${main}', '${sub}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>`;
-            });
-            catHtml += `</div>`;
-        }
-        container.innerHTML = catHtml;
-    }
-
-    function renderModalCurrencies() {
-        let container = document.getElementById('modal-currencies-list');
-        if (!container) return;
-        let curHtml = `<table><thead><tr><th>Currency</th><th>Rate vs THB</th><th>Action</th></tr></thead><tbody>`;
-        for (let cur in currenciesData) {
-            curHtml += `<tr><td><strong>${cur}</strong></td><td>${currenciesData[cur]}</td><td><button onclick="deleteCurrencyModal('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
-        }
-        curHtml += `</tbody></table>`;
-        container.innerHTML = curHtml;
-    }
-
-    function addCategorySettingModal() {
-        const main = document.getElementById('main-cat-input').value.trim();
-        const sub = document.getElementById('sub-cat-input').value.trim();
-        if (!main) return alert('Enter main category name');
-        if (!categoriesData[main]) categoriesData[main] = [];
-        if (sub && !categoriesData[main].includes(sub)) categoriesData[main].push(sub);
-        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-        document.getElementById('main-cat-input').value = '';
-        document.getElementById('sub-cat-input').value = '';
-        renderModalCategories();
-    }
-
-    function editMainCategoryModal(oldName) {
-        const newName = prompt("Edit Main Category name:", oldName);
-        if (newName && newName.trim() !== "" && newName !== oldName) {
-            categoriesData[newName.trim()] = categoriesData[oldName];
-            delete categoriesData[oldName];
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            renderModalCategories();
-        }
-    }
-
-    function deleteMainCategoryModal(main) {
-        if (confirm(`Delete category "${main}"?`)) {
-            delete categoriesData[main];
-            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-            renderModalCategories();
-        }
-    }
-
-    function deleteSubCategoryModal(main, sub) {
-        categoriesData[main] = categoriesData[main].filter(s => s !== sub);
-        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
-        renderModalCategories();
-    }
-
-    function addCurrencySettingModal() {
-        const code = document.getElementById('cur-code-input').value.trim().toUpperCase();
-        const rate = parseFloat(document.getElementById('cur-rate-input').value);
-        if (!code || isNaN(rate)) return alert('Enter valid currency code and rate');
-        currenciesData[code] = rate;
-        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
-        renderModalCurrencies();
-    }
-
-    function deleteCurrencyModal(code) {
-        if (code === 'THB') return alert('Cannot delete THB');
-        delete currenciesData[code];
-        localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
-        renderModalCurrencies();
     }
 
     fetchTransactionsFromSheet();
