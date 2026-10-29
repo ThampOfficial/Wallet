@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fixed CORS & Fetch</title>
+    <title>Wallet PWA - Advanced Budget Filter</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -63,6 +63,9 @@
         .sub-acc-container.expanded { display: block; }
         .sub-acc-row { padding-left: 12px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; padding-top: 6px; padding-bottom: 6px; border-top: 1px dashed var(--border); }
         
+        .checkbox-box { max-height: 100px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 12px; background: var(--card-bg); color: var(--text-main); }
+        .checkbox-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: var(--card-bg); width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; color: var(--text-main); }
@@ -283,7 +286,7 @@
     </div>
 </div>
 
-<!-- Modal เพิ่ม Budget -->
+<!-- Modal เพิ่ม Budget (พร้อมตัวเลือก Exclude Accounts & Categories) -->
 <div id="budget-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 style="margin-bottom: 12px;">Add Budget</h3>
@@ -293,14 +296,28 @@
         </div>
         <div class="form-group">
             <label for="budget-period">Period</label>
-            <select id="budget-period"><option value="Monthly">Monthly</option><option value="Yearly">Yearly</option></select>
+            <select id="budget-period">
+                <option value="Monthly">รายเดือน (Monthly)</option>
+                <option value="Yearly">รายปี (Yearly)</option>
+            </select>
         </div>
         <div class="form-group">
             <label for="budget-amount">Limit Amount</label>
             <input type="number" id="budget-amount" step="0.01" placeholder="0.00">
         </div>
+        
+        <div class="form-group">
+            <label>Exclude Accounts (ไม่รวมบัญชีเหล่านี้)</label>
+            <div id="budget-exclude-accs" class="checkbox-box"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Exclude Categories (ไม่รวมหมวดหมู่ย่อยเหล่านี้)</label>
+            <div id="budget-exclude-cats" class="checkbox-box"></div>
+        </div>
+
         <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveBudget()">Save</button>
+            <button class="btn" onclick="saveBudget()">Save Budget</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeBudgetModal()">Cancel</button>
         </div>
     </div>
@@ -462,7 +479,6 @@
         if (tabId === 'report') renderReportChart();
     }
 
-    // ฟังก์ชันดึงข้อมูลจาก Apps Script รองรับการติดตาม Redirect และไม่ติดปัญหา CORS
     function fetchTransactionsFromSheet() {
         if (!WEBHOOK_URL) return;
         
@@ -784,16 +800,22 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions ---- */
+    /* ---- Budget Functions (พร้อม Exclude Account & Category) ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
         let html = '';
         budgetData.forEach((b, idx) => {
-            html += `<tr><td>${b.category}</td><td>${b.period}</td><td>${b.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
+            let excludeInfo = [];
+            if (b.excludeAccs && b.excludeAccs.length > 0) excludeInfo.append ? null : excludeInfo.push(`Ex-Acc: ${b.excludeAccs.join(', ')}`);
+            if (b.excludeCats && b.excludeCats.length > 0) excludeInfo.push(`Ex-Cat: ${b.excludeCats.join(', ')}`);
+            let subText = excludeInfo.length > 0 ? `<br><small style="color:var(--text-muted);">${excludeInfo.join(' | ')}</small>` : '';
+
+            html += `<tr><td><strong>${b.category}</strong>${subText}</td><td>${b.period}</td><td>${b.amount.toLocaleString()} ${defaultCurrency}</td><td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td></tr>`;
         });
         tbody.innerHTML = html;
     }
+
     function openBudgetModal() {
         let catSelect = document.getElementById('budget-category-select');
         let catHtml = '';
@@ -804,18 +826,48 @@
         }
         catSelect.innerHTML = catHtml;
         document.getElementById('budget-amount').value = '';
+
+        // เรนเดอร์ Checkbox สำหรับเลือก Account ที่ต้องการ Exclude
+        let accBox = document.getElementById('budget-exclude-accs');
+        let accHtml = '';
+        Object.keys(subAccountsData).forEach(main => {
+            (subAccountsData[main] || []).forEach(sub => {
+                accHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-acc" value="${sub}" id="ex-acc-${sub}"><label for="ex-acc-${sub}" style="margin:0; font-weight:normal;">${sub} (${main})</label></div>`;
+            });
+        });
+        accBox.innerHTML = accHtml || '<small style="color:var(--text-muted);">No accounts</small>';
+
+        // เรนเดอร์ Checkbox สำหรับเลือก Category ที่ต้องการ Exclude
+        let catBox = document.getElementById('budget-exclude-cats');
+        let subCatHtml = '';
+        for (let mainCat in categoriesData) {
+            categoriesData[mainCat].forEach(subCat => {
+                let val = `${mainCat} ► ${subCat}`;
+                subCatHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-cat" value="${val}" id="ex-cat-${val}"><label for="ex-cat-${val}" style="margin:0; font-weight:normal;">${val}</label></div>`;
+            });
+        }
+        catBox.innerHTML = subCatHtml || '<small style="color:var(--text-muted);">No categories</small>';
+
         document.getElementById('budget-modal').classList.add('active');
     }
+
     function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('active'); }
+
     function saveBudget() {
         let cat = document.getElementById('budget-category-select').value;
         let period = document.getElementById('budget-period').value;
         let amt = parseFloat(document.getElementById('budget-amount').value);
-        if (!cat || isNaN(amt)) return;
-        budgetData.push({ category: cat, period, amount: amt });
+        if (!cat || isNaN(amt)) return alert('Please enter valid amount');
+
+        let excludeAccs = Array.from(document.querySelectorAll('input[name="ex-acc"]:checked')).map(cb => cb.value);
+        let excludeCats = Array.from(document.querySelectorAll('input[name="ex-cat"]:checked')).map(cb => cb.value);
+
+        budgetData.push({ category: cat, period, amount: amt, excludeAccs, excludeCats });
         localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
-        renderBudgets(); closeBudgetModal();
+        renderBudgets();
+        closeBudgetModal();
     }
+
     function deleteBudget(idx) { budgetData.splice(idx, 1); localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); renderBudgets(); }
 
     /* ---- Schedule Functions ---- */
