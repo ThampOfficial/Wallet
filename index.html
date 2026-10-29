@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Full Navigation & Restored Accounts</title>
+    <title>Wallet PWA - Fully Restored Features</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -16,8 +16,15 @@
             --danger: #ef4444;
             --success: #10b981;
         }
+        body.dark-mode {
+            --bg-color: #111827;
+            --card-bg: #1f2937;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            --border: #374151;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 80px; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding-bottom: 80px; transition: background-color 0.2s, color 0.2s; }
         .container { max-width: 600px; margin: 0 auto; padding: 16px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -35,13 +42,13 @@
         th { color: var(--text-muted); font-weight: 600; }
         
         .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 8px; }
-        .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+        .balance-box { background: rgba(0,0,0,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
         .balance-box-cur { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
         .balance-box-amt { font-size: 16px; font-weight: bold; margin-top: 4px; color: var(--primary); }
         
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--card-bg); color: var(--text-main); }
         .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; width: 100%; }
         .btn:hover { background: var(--primary-hover); }
         
@@ -50,12 +57,14 @@
         .btn-exp { background: var(--danger); }
         .btn-trf { background: var(--primary); }
 
-        .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-weight: bold; }
+        .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-weight: bold; cursor: pointer; user-select: none; }
+        .sub-acc-container { display: none; margin-top: 4px; }
+        .sub-acc-container.expanded { display: block; }
         .sub-acc-row { padding-left: 12px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; padding-top: 6px; padding-bottom: 6px; border-top: 1px dashed var(--border); }
         
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
-        .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
+        .modal-box { background: var(--card-bg); width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; color: var(--text-main); }
     </style>
 </head>
 <body>
@@ -107,19 +116,29 @@
 
     <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
-        <h2>Budget Management</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin-bottom:0;">Budget Management</h2>
+            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddBudgetModal()">+ Add Budget</button>
+        </div>
         <div class="card">
-            <h3>Active Budgets Overview</h3>
-            <p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p>
+            <h3>Category Budgets</h3>
+            <div id="budget-list-container">
+                <p style="color: var(--text-muted); font-size: 13px;">Loading budgets...</p>
+            </div>
         </div>
     </div>
 
     <!-- TAB 3: SCHEDULE -->
     <div id="tab-schedule" class="tab-content">
-        <h2>Schedule & Recurring</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin-bottom:0;">Schedule & Recurring</h2>
+            <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddScheduleModal()">+ Add Schedule</button>
+        </div>
         <div class="card">
-            <h3>Scheduled List</h3>
-            <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
+            <h3>Scheduled Transactions</h3>
+            <div id="schedule-list-container">
+                <p style="color: var(--text-muted); font-size: 13px;">Loading schedules...</p>
+            </div>
         </div>
     </div>
 
@@ -127,8 +146,10 @@
     <div id="tab-report" class="tab-content">
         <h2>Reports & Analytics</h2>
         <div class="card">
-            <h3>Income vs Expense</h3>
-            <p style="color: var(--text-muted); font-size: 13px;">No report data available.</p>
+            <h3>Income vs Expense Summary</h3>
+            <div id="report-summary-container">
+                <p style="color: var(--text-muted); font-size: 13px;">Calculating report...</p>
+            </div>
         </div>
     </div>
 
@@ -136,12 +157,35 @@
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
-            <p style="color: var(--text-muted); font-size: 13px;">Configuration options.</p>
+            <h3>App Customization</h3>
+            <div class="form-group" style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="margin:0;">Dark Mode</label>
+                <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)" style="width:auto;">
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin:0;">Manage Categories</h3>
+                <button class="btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="openCategoryManagerModal()">⚙️ Edit Categories</button>
+            </div>
+            <div id="settings-categories-preview" style="font-size:12px; color:var(--text-muted);">
+                Loading categories...
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Webhook Configuration</h3>
+            <div class="form-group">
+                <label>Google Apps Script Webhook URL</label>
+                <input type="text" id="webhook-url-input">
+            </div>
+            <button class="btn" onclick="saveWebhookUrl()">Save URL</button>
         </div>
     </div>
 </div>
 
-<!-- Navigation Bar ด้านล่างที่หายไป -->
+<!-- Navigation Bar -->
 <div class="nav-bar">
     <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
     <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
@@ -164,6 +208,23 @@
         <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
         <div id="accounts-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
         <div style="margin-top: 16px;"><button class="btn" onclick="closeAccountManagerModal()">Close</button></div>
+    </div>
+</div>
+
+<!-- Modal จัดการ Category -->
+<div id="category-manager-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 style="margin-bottom: 12px;">Manage Categories</h3>
+        <div class="form-group">
+            <label>Add Main Category</label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="new-main-cat-input" placeholder="e.g., Shopping">
+                <button class="btn" style="width: auto;" onclick="addMainCategory()">Add</button>
+            </div>
+        </div>
+        <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
+        <div id="categories-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
+        <div style="margin-top: 16px;"><button class="btn" onclick="closeCategoryManagerModal()">Close</button></div>
     </div>
 </div>
 
@@ -200,7 +261,7 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -215,6 +276,42 @@
         "Food & Dining": ["Restaurants", "Groceries"],
         "Bills & Utilities": ["Electricity", "Internet", "Phone"]
     };
+
+    let budgetData = JSON.parse(localStorage.getItem('wallet_budgets_data')) || [];
+    let scheduleData = JSON.parse(localStorage.getItem('wallet_schedule_data')) || [];
+    let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
+
+    // Init App
+    document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById('webhook-url-input').value = WEBHOOK_URL;
+        let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
+        document.getElementById('dark-mode-toggle').checked = isDark;
+        if (isDark) document.body.classList.add('dark-mode');
+
+        renderCategoryPreview();
+        renderBudgets();
+        renderSchedules();
+        fetchTransactionsFromSheet();
+    });
+
+    function toggleDarkMode(enabled) {
+        if (enabled) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+        localStorage.setItem('wallet_dark_mode', enabled);
+    }
+
+    function saveWebhookUrl() {
+        let val = document.getElementById('webhook-url-input').value.trim();
+        if (val) {
+            WEBHOOK_URL = val;
+            localStorage.setItem('wallet_webhook_url', val);
+            alert('Webhook URL saved!');
+            fetchTransactionsFromSheet();
+        }
+    }
 
     function switchTab(tabId, element) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -238,6 +335,7 @@
             })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
             renderAccountsList();
+            renderReport();
         }
     }
 
@@ -245,6 +343,12 @@
         const script = document.createElement('script');
         script.src = `${WEBHOOK_URL}?callback=handleResponse`;
         document.body.appendChild(script);
+    }
+
+    function toggleMainAccount(mainName) {
+        accountExpandState[mainName] = accountExpandState[mainName] === false ? true : false;
+        localStorage.setItem('wallet_acc_expand', JSON.stringify(accountExpandState));
+        renderAccountsList();
     }
 
     function renderAccountsList() {
@@ -269,7 +373,6 @@
             currencyTotals[cur] += amtVal;
         });
 
-        // ดึงชื่อบัญชีทั้งหมดจาก Sheet ที่มีอยู่จริง เพื่อตรวจสอบว่าตัวไหนยังไม่ได้จัดกลุ่ม Main/Sub
         let allSheetAccounts = Object.keys(rawAccs);
         let knownAccounts = [];
         Object.keys(subAccountsData).forEach(main => {
@@ -277,10 +380,9 @@
             subAccountsData[main].forEach(sub => knownAccounts.push(sub));
         });
 
-        // ค้นหาบัญชีที่หลุดรอด (ไม่ได้อยู่ในโครงสร้าง Main/Sub ที่ตั้งไว้)
         let unassignedAccounts = allSheetAccounts.filter(acc => !knownAccounts.includes(acc));
 
-        // 1. Total Balance
+        // Total Balance
         let balanceHtml = '';
         for (let cur in currencyTotals) {
             let val = currencyTotals[cur];
@@ -291,7 +393,7 @@
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0</div></div>`;
 
-        // 2. Accounts List (แสดง Main / Sub และเพิ่มหมวดบัญชีอิสระที่ไม่ได้อยู่ใน Main Account เพื่อไม่ให้หาย)
+        // Accounts List
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
 
@@ -319,20 +421,25 @@
             if (rawAccs[main]) mainTotal += rawAccs[main];
             let mainCur = accCurrencies[main] || 'THB';
 
+            let isExpanded = accountExpandState[main] !== false;
+            let arrowIcon = isExpanded ? '▼' : '▶';
+            let expandClass = isExpanded ? 'expanded' : '';
+
             accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
-                <div class="acc-item">
-                    <div onclick="openAccountDetail('${main}')" style="cursor:pointer; flex:1;">
-                        💳 ${main} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
+                <div class="acc-item" onclick="toggleMainAccount('${main}')">
+                    <div style="flex:1;">
+                        <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${main} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
                     </div>
                     <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">
                         ${mainTotal.toLocaleString()} ${mainCur}
                     </div>
                 </div>
-                ${subHtml}
+                <div class="sub-acc-container ${expandClass}">
+                    ${subHtml}
+                </div>
             </div>`;
         });
 
-        // หากมีบัญชีอื่นๆ ที่ไม่ได้อยู่ใน Main Account ให้แสดงรวบไว้ด้านล่างสุดด้วย
         if (unassignedAccounts.length > 0) {
             let unassignedHtml = '';
             unassignedAccounts.forEach(acc => {
@@ -350,7 +457,7 @@
             });
 
             accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px; border-style: dashed;">
-                <div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts (บัญชีอื่นๆ)</div></div>
+                <div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts</div></div>
                 ${unassignedHtml}
             </div>`;
         }
@@ -394,6 +501,87 @@
         renderAccountsList();
     }
 
+    /* ---- Category Management Functions ---- */
+    function renderCategoryPreview() {
+        const container = document.getElementById('settings-categories-preview');
+        let html = '';
+        for (let main in categoriesData) {
+            html += `<div><strong>• ${main}</strong>: ${categoriesData[main].join(', ')}</div>`;
+        }
+        container.innerHTML = html || 'No categories defined.';
+    }
+
+    function openCategoryManagerModal() {
+        renderCategoryManagerList();
+        document.getElementById('category-manager-modal').classList.add('active');
+    }
+
+    function closeCategoryManagerModal() {
+        document.getElementById('category-manager-modal').classList.remove('active');
+        renderCategoryPreview();
+    }
+
+    function renderCategoryManagerList() {
+        const container = document.getElementById('categories-manage-container');
+        let html = '';
+        for (let main in categoriesData) {
+            html += `<div style="margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>📂 ${main}</strong>
+                    <button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
+                </div>
+                <div style="padding-left:12px; margin-top:6px;">
+                    <div style="display:flex; gap:6px; margin-bottom:6px;">
+                        <input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;">
+                        <button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button>
+                    </div>`;
+            categoriesData[main].forEach((sub, idx) => {
+                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;">
+                    <span>└─ ${sub}</span>
+                    <button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button>
+                </div>`;
+            });
+            html += `</div></div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function addMainCategory() {
+        let val = document.getElementById('new-main-cat-input').value.trim();
+        if (!val) return;
+        if (!categoriesData[val]) categoriesData[val] = [];
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        document.getElementById('new-main-cat-input').value = '';
+        renderCategoryManagerList();
+    }
+
+    function addSubCategoryDirect(main) {
+        let input = document.getElementById(`sub-cat-input-${main}`);
+        let val = input.value.trim();
+        if (!val) return;
+        if (!categoriesData[main].includes(val)) {
+            categoriesData[main].push(val);
+            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+            input.value = '';
+            renderCategoryManagerList();
+        }
+    }
+
+    function deleteMainCategory(main) {
+        if (confirm(`Delete category "${main}"?`)) {
+            delete categoriesData[main];
+            localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+            renderCategoryManagerList();
+        }
+    }
+
+    function removeSubCategory(main, idx) {
+        categoriesData[main].splice(idx, 1);
+        localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+        renderCategoryManagerList();
+    }
+
+    /* ---- Account Manager ---- */
     function openAccountManagerModal() {
         renderAccountManagerList();
         document.getElementById('account-manager-modal').classList.add('active');
@@ -409,29 +597,35 @@
         let mainKeys = Object.keys(subAccountsData);
         let html = '';
 
-        mainKeys.forEach((main, index) => {
-            let upBtn = index > 0 ? `<button onclick="moveMainAccount(${index}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:4px;">▲</button>` : '';
-            let downBtn = index < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${index}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">▼</button>` : '';
+        mainKeys.forEach((main, mIdx) => {
+            let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
+            let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
 
-            html += `<div class="card" style="margin-bottom:8px; padding:10px;">
+            html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:4px;">
-                        ${upBtn} ${downBtn}
                         <strong>💳 ${main} (Main)</strong>
+                        <div style="margin-left:8px;">${mainUp} ${mainDown}</div>
                     </div>
                     <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
                 </div>
-                <div style="margin-top:8px; padding-left:24px;">
+                <div style="margin-top:8px; padding-left:16px;">
                     <div style="display:flex; gap:6px; margin-bottom:6px;">
-                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:6px;">
-                        <button class="btn" style="width:auto; padding:4px 10px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button>
+                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;">
+                        <button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button>
                     </div>`;
             
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
+                let subUp = sIdx > 0 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
+                let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
+
                 html += `<div class="sub-acc-row">
                     <span>└─ ${sub}</span>
-                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div>${subUp} ${subDown}</div>
+                        <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
+                    </div>
                 </div>`;
             });
             html += `</div></div>`;
@@ -455,9 +649,22 @@
         renderAccountManagerList();
     }
 
+    function moveSubAccount(main, index, direction) {
+        let subs = subAccountsData[main];
+        let targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= subs.length) return;
+
+        let temp = subs[index];
+        subs[index] = subs[targetIndex];
+        subs[targetIndex] = temp;
+
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountManagerList();
+    }
+
     function addMainAccount() {
         let name = document.getElementById('new-main-acc-input').value.trim();
-        if (!name) return alert('Enter account name');
+        if (!name) return;
         if (!subAccountsData[name]) {
             subAccountsData[name] = [];
             localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
@@ -469,7 +676,7 @@
     function addSubAccountDirect(main) {
         let input = document.getElementById(`sub-input-${main}`);
         let val = input.value.trim();
-        if (!val) return alert('Enter sub-account name');
+        if (!val) return;
         if (!subAccountsData[main]) subAccountsData[main] = [];
         if (!subAccountsData[main].includes(val)) {
             subAccountsData[main].push(val);
@@ -493,6 +700,88 @@
         renderAccountManagerList();
     }
 
+    /* ---- Budget & Schedule Logic ---- */
+    function renderBudgets() {
+        const container = document.getElementById('budget-list-container');
+        if (budgetData.length === 0) {
+            container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No active budgets set.</p>`;
+            return;
+        }
+        let html = '';
+        budgetData.forEach((b, idx) => {
+            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+                <div><strong>${b.category}</strong><br><small style="color:var(--text-muted);">${b.amount.toLocaleString()} THB / month</small></div>
+                <button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function openAddBudgetModal() {
+        let cat = prompt("Enter Category for Budget (e.g., Food & Dining):");
+        let amt = parseFloat(prompt("Enter Monthly Limit (THB):"));
+        if (cat && !isNaN(amt)) {
+            budgetData.push({ category: cat, amount: amt });
+            localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
+            renderBudgets();
+        }
+    }
+
+    function deleteBudget(idx) {
+        budgetData.splice(idx, 1);
+        localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
+        renderBudgets();
+    }
+
+    function renderSchedules() {
+        const container = document.getElementById('schedule-list-container');
+        if (scheduleData.length === 0) {
+            container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No scheduled transactions.</p>`;
+            return;
+        }
+        let html = '';
+        scheduleData.forEach((s, idx) => {
+            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+                <div><strong>${s.title}</strong> (${s.frequency})<br><small style="color:var(--text-muted);">${s.amount.toLocaleString()} THB - ${s.account}</small></div>
+                <button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function openAddScheduleModal() {
+        let title = prompt("Schedule Title (e.g., Rent, Netflix):");
+        let amt = parseFloat(prompt("Amount (THB):"));
+        let acc = prompt("Account (e.g., SCOTIA):");
+        if (title && !isNaN(amt) && acc) {
+            scheduleData.push({ title: title, amount: amt, account: acc, frequency: 'Monthly' });
+            localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+            renderSchedules();
+        }
+    }
+
+    function deleteSchedule(idx) {
+        scheduleData.splice(idx, 1);
+        localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
+        renderSchedules();
+    }
+
+    function renderReport() {
+        const container = document.getElementById('report-summary-container');
+        let inc = 0, exp = 0;
+        transactions.forEach(t => {
+            if (t.amount > 0) inc += t.amount;
+            else exp += Math.abs(t.amount);
+        });
+        container.innerHTML = `
+            <div style="display:flex; justify-content:space-around; text-align:center; margin-top:8px;">
+                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${inc.toLocaleString()} THB</div><small style="color:var(--text-muted);">Total Income</small></div>
+                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${exp.toLocaleString()} THB</div><small style="color:var(--text-muted);">Total Expense</small></div>
+            </div>
+        `;
+    }
+
+    /* ---- Transaction Form Logic ---- */
     function openTxModal(type, preSelectAcc = '', preSelectCur = 'THB') {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
@@ -585,6 +874,7 @@
         }).then(() => {
             transactions.unshift(newTx);
             renderAccountsList();
+            renderReport();
             closeTxModal();
             alert('Transaction saved successfully!');
         }).catch(err => {
