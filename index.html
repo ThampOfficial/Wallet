@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Hardcoded Webhook & Budget Exclusions</title>
+    <title>Wallet PWA - Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -412,7 +412,7 @@
 </div>
 
 <script>
-    // ฝัง Webhook URL ถาวรไว้ตรงนี้เรียบร้อย (สามารถเปลี่ยนได้ที่ Settings ในหน้าเว็บเช่นกัน)
+    // ฝัง Webhook URL ของคุณแบบถาวรที่นี่
     let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
@@ -801,7 +801,7 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions (พร้อม Exclude Account & Category) ---- */
+    /* ---- Budget Functions ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
