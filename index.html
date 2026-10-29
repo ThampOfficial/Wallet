@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Original View</title>
+    <title>Wallet PWA - 9 Columns Strict</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -34,7 +34,6 @@
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
         
-        /* Balance Boxes Grid แบบดั้งเดิมตามรูป */
         .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 8px; }
         .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
         .balance-box-cur { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; word-break: break-word; }
@@ -47,13 +46,8 @@
         .btn:hover { background: var(--primary-hover); }
 
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; cursor: pointer; }
-        .acc-item:hover { opacity: 0.8; }
         .sub-acc-row { padding-left: 16px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding-top: 4px; padding-bottom: 4px; border-top: 1px dashed var(--border); }
-        .sub-acc-row:hover { background: #f9fafb; border-radius: 4px; }
         
-        .cat-group { margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        .sub-cat-item { padding-left: 16px; font-size: 13px; color: var(--text-muted); margin: 6px 0; display: flex; justify-content: space-between; align-items: center; background: #f9fafb; padding: 6px 10px; border-radius: 6px; }
-
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: white; width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
@@ -62,7 +56,6 @@
 <body>
 
 <div class="container">
-    <!-- TAB 1: ACCOUNTS -->
     <div id="tab-accounts" class="tab-content active">
         <div id="accounts-main-view">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -70,7 +63,6 @@
                 <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit Accounts</button>
             </div>
 
-            <!-- Total Balance แสดงการ์ดย่อยตามภาพเดิม -->
             <div class="card" style="text-align: center;">
                 <h3>Total Balance</h3>
                 <div id="total-balance-grid" class="balance-grid">
@@ -86,7 +78,6 @@
                 </div>
             </div>
 
-            <!-- Accounts List ตามโครงสร้างหลัก/ย่อยเดิม -->
             <div class="card">
                 <h3>Accounts List</h3>
                 <div id="accounts-list">
@@ -98,16 +89,14 @@
         <div id="account-detail-view" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <button class="btn" style="width: auto; background: var(--text-muted);" onclick="backToAccountsList()">← Back</button>
-                <button class="btn" style="width: auto; background: var(--primary);" onclick="openAdjustBalanceModal()">⚙️ Adjust Balance</button>
             </div>
             <h2 id="detail-account-title">Account Details</h2>
-
             <div class="card">
-                <h3>Transactions (Newest First)</h3>
+                <h3>Transactions</h3>
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
-                            <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
+                            <tr><th>DateTime</th><th>Category</th><th>Amount</th></tr>
                         </thead>
                         <tbody id="account-tx-list">
                             <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
@@ -119,38 +108,21 @@
     </div>
 </div>
 
-<!-- Modal สำหรับจัดการ Main Account / Sub Account -->
-<div id="account-manager-modal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 style="margin-bottom: 12px;">Manage Accounts</h3>
-        <div class="form-group">
-            <label>Add Main Account</label>
-            <div style="display:flex; gap:8px;">
-                <input type="text" id="new-main-acc-input" placeholder="e.g., SCOTIA">
-                <button class="btn" style="width: auto;" onclick="addMainAccount()">Add</button>
-            </div>
-        </div>
-        <hr style="margin: 12px 0; border:0; border-top:1px solid var(--border);">
-        <div id="accounts-manage-container" style="max-height: 350px; overflow-y: auto;"></div>
-        <div style="margin-top: 16px;"><button class="btn" onclick="closeAccountManagerModal()">Close</button></div>
-    </div>
-</div>
-
-<!-- Modal สำหรับเพิ่ม Transaction -->
+<!-- Transaction Modal ครบชุด 9 ฟิลด์ -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
-        <div class="form-group"><label>Date</label><input type="date" id="tx-date"></div>
+        <div class="form-group"><label>DateTime</label><input type="datetime-local" id="tx-datetime"></div>
+        <div class="form-group"><label>Account</label><select id="tx-account"></select></div>
+        <div class="form-group"><label>Category</label><input type="text" id="tx-category" placeholder="e.g. Food"></div>
+        <div class="form-group"><label>Description</label><input type="text" id="tx-description" placeholder="Description..."></div>
+        <div class="form-group"><label>Payee</label><input type="text" id="tx-payee" placeholder="Payee..."></div>
+        <div class="form-group"><label>Transfers</label><input type="text" id="tx-transfers" placeholder="Transfers..."></div>
         <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
         <div class="form-group"><label>Currency</label><select id="tx-currency"><option value="THB">THB</option><option value="CAD">CAD</option></select></div>
-        <div id="tx-single-acc-group" class="form-group"><label>Account</label><select id="tx-account"></select></div>
-        <div id="tx-transfer-acc-group" style="display:none;">
-            <div class="form-group"><label>From Account</label><select id="tx-from-account"></select></div>
-            <div class="form-group"><label>To Account</label><select id="tx-to-account"></select></div>
-        </div>
-        <div class="form-group" id="tx-cat-group"><label>Category</label><input type="text" id="tx-category" placeholder="General"></div>
-        <div class="form-group"><label>Memo</label><input type="text" id="tx-memo" placeholder="Optional..."></div>
+        <div class="form-group"><label>Memo</label><input type="text" id="tx-memo" placeholder="Optional memo..."></div>
+        
         <div style="display: flex; gap: 8px; margin-top: 16px;">
             <button class="btn" onclick="saveTransaction()">Save</button>
             <button class="btn" style="background: var(--text-muted);" onclick="closeTxModal()">Cancel</button>
@@ -159,12 +131,11 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzx7YxPLBw0qS_goqLbMCFccRt64dLZrVVuwl7v8P9c5-DpD2XeqEFAJ2rtJcy00_vs/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyOgTrgbKTcdfsJnvZv_AQnoi9ItLccEdBVJkUMdR_Qj35bUq7fsG6aEdW3tg6vZ9bP/exec";
 
     let transactions = [];
     let selectedAccount = null;
 
-    // ข้อมูลจำลองตั้งต้นของ Main Accounts & Sub Accounts
     let subAccountsData = JSON.parse(localStorage.getItem('wallet_subaccounts_map')) || {
         "SCOTIA": ["Scotia POM", "Momentum master", "Momentum Visa", "Scotia Saving", "iTrade"],
         "Wealth Simple": ["Cash", "TFSA"]
@@ -172,7 +143,7 @@
 
     function handleResponse(data) {
         if (data && data.transactions) {
-            transactions = data.transactions.sort((a, b) => new Date(b.d) - new Date(a.d));
+            transactions = data.transactions.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
             renderAccountsList();
         }
     }
@@ -188,30 +159,24 @@
         const balanceGrid = document.getElementById('total-balance-grid');
 
         let rawAccs = {};
-
-        // รวมยอดตามชื่อบัญชีที่ได้รับมา
         transactions.forEach(t => {
-            let amtVal = parseFloat(t.amt) || 0;
-            let acc = (t.a && t.a.trim() !== "") ? t.a.trim() : 'General';
-            
+            let amtVal = parseFloat(t.amount) || 0;
+            let acc = (t.account && t.account.trim() !== "") ? t.account.trim() : 'General';
             if (!rawAccs[acc]) rawAccs[acc] = 0;
             rawAccs[acc] += amtVal;
         });
 
-        // 1. Render Total Balance Grid (การ์ดย่อยตามรูปภาพเดิม)
         let balanceHtml = '';
         for (let accName in rawAccs) {
             let val = rawAccs[accName];
             balanceHtml += `<div class="balance-box">
                 <div class="balance-box-cur">${accName}</div>
-                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString()}</div>
             </div>`;
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">No Data</div></div>`;
 
-        // 2. Render Main Accounts & Sub Accounts ด้านล่างตามรูปภาพเดิม
         let mainAccKeys = Object.keys(subAccountsData);
-
         let accHtml = '';
         mainAccKeys.forEach(main => {
             let subs = subAccountsData[main] || [];
@@ -227,18 +192,12 @@
                 </div>`;
             });
 
-            // คำนวณบวกยอด Main Account ถ้ามีรายการระบุเป็นชื่อ Main
             if (rawAccs[main]) mainTotal += rawAccs[main];
 
             accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
                 <div class="acc-item" onclick="openAccountDetail('${main}')">
-                    <div>
-                        <strong>💳 ${main}</strong><br>
-                        <small style="color:var(--text-muted);">Main Account</small>
-                    </div>
-                    <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">
-                        ${mainTotal.toLocaleString()} THB
-                    </div>
+                    <div><strong>💳 ${main}</strong><br><small style="color:var(--text-muted);">Main Account</small></div>
+                    <div style="font-weight:bold; color:${mainTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${mainTotal.toLocaleString()} THB</div>
                 </div>
                 ${subHtml}
             </div>`;
@@ -255,7 +214,7 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         let filtered = transactions.filter(t => {
-            let a = t.a ? t.a.trim() : '';
+            let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) {
                 return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             } else {
@@ -269,8 +228,8 @@
         }
         let html = '';
         filtered.forEach(t => {
-            let amtVal = parseFloat(t.amt) || 0;
-            html += `<tr><td>${t.d ? t.d.split('T')[0] : ''}</td><td>${t.cat || ''} <small style="color:var(--text-muted);">(${t.a || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.cur || 'THB'}</td></tr>`;
+            let amtVal = parseFloat(t.amount) || 0;
+            html += `<tr><td>${t.datetime ? t.datetime.replace('T', ' ') : ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || 'THB'}</td></tr>`;
         });
         txList.innerHTML = html;
     }
@@ -282,110 +241,15 @@
         renderAccountsList();
     }
 
-    function openAccountManagerModal() {
-        renderAccountManagerList();
-        document.getElementById('account-manager-modal').classList.add('active');
-    }
-
-    function closeAccountManagerModal() {
-        document.getElementById('account-manager-modal').classList.remove('active');
-        renderAccountsList();
-    }
-
-    function renderAccountManagerList() {
-        const container = document.getElementById('accounts-manage-container');
-        let mainKeys = Object.keys(subAccountsData);
-        let html = '';
-
-        mainKeys.forEach((main, index) => {
-            let upBtn = index > 0 ? `<button onclick="moveMainAccount(${index}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:4px;">▲</button>` : '';
-            let downBtn = index < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${index}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">▼</button>` : '';
-
-            html += `<div class="cat-group">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:4px;">
-                        ${upBtn} ${downBtn}
-                        <strong>💳 ${main} (Main)</strong>
-                    </div>
-                    <button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button>
-                </div>
-                <div style="margin-top:8px; padding-left:24px;">
-                    <div style="display:flex; gap:6px; margin-bottom:6px;">
-                        <input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:6px;">
-                        <button class="btn" style="width:auto; padding:4px 10px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button>
-                    </div>`;
-            
-            let subs = subAccountsData[main] || [];
-            subs.forEach((sub, sIdx) => {
-                html += `<div class="sub-cat-item">
-                    <span>└─ ${sub}</span>
-                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x] Remove</button>
-                </div>`;
-            });
-            html += `</div></div>`;
-        });
-        container.innerHTML = html;
-    }
-
-    function moveMainAccount(index, direction) {
-        let keys = Object.keys(subAccountsData);
-        let targetIndex = index + direction;
-        if (targetIndex < 0 || targetIndex >= keys.length) return;
-
-        let temp = keys[index];
-        keys[index] = keys[targetIndex];
-        keys[targetIndex] = temp;
-
-        let reorderedObj = {};
-        keys.forEach(k => { reorderedObj[k] = subAccountsData[k]; });
-        subAccountsData = reorderedObj;
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        renderAccountManagerList();
-    }
-
-    function addMainAccount() {
-        let name = document.getElementById('new-main-acc-input').value.trim();
-        if (!name) return alert('Enter account name');
-        if (!subAccountsData[name]) {
-            subAccountsData[name] = [];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        }
-        document.getElementById('new-main-acc-input').value = '';
-        renderAccountManagerList();
-    }
-
-    function addSubAccountDirect(main) {
-        let input = document.getElementById(`sub-input-${main}`);
-        let val = input.value.trim();
-        if (!val) return alert('Enter sub-account name');
-        if (!subAccountsData[main]) subAccountsData[main] = [];
-        if (!subAccountsData[main].includes(val)) {
-            subAccountsData[main].push(val);
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            input.value = '';
-            renderAccountManagerList();
-        }
-    }
-
-    function deleteMainAccount(acc) {
-        if (confirm(`Delete main account "${acc}"?`)) {
-            delete subAccountsData[acc];
-            localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-            renderAccountManagerList();
-        }
-    }
-
-    function removeSubFromMain(main, idx) {
-        subAccountsData[main].splice(idx, 1);
-        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
-        renderAccountManagerList();
-    }
-
     function openTxModal(type) {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
-        document.getElementById('tx-date').valueAsDate = new Date();
+        document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
         document.getElementById('tx-amount').value = '';
+        document.getElementById('tx-description').value = '';
+        document.getElementById('tx-payee').value = '';
+        document.getElementById('tx-transfers').value = '';
+        document.getElementById('tx-memo').value = '';
 
         let allAccs = [];
         Object.keys(subAccountsData).forEach(main => {
@@ -393,24 +257,7 @@
             subAccountsData[main].forEach(sub => allAccs.push(sub));
         });
 
-        let singleAccSel = document.getElementById('tx-account');
-        let fromAccSel = document.getElementById('tx-from-account');
-        let toAccSel = document.getElementById('tx-to-account');
-        let accHtml = allAccs.map(a => `<option value="${a}">${a}</option>`).join('');
-        singleAccSel.innerHTML = accHtml;
-        fromAccSel.innerHTML = accHtml;
-        toAccSel.innerHTML = accHtml;
-
-        if (type === 'Transfer') {
-            document.getElementById('tx-single-acc-group').style.display = 'none';
-            document.getElementById('tx-transfer-acc-group').style.display = 'block';
-            document.getElementById('tx-cat-group').style.display = 'none';
-        } else {
-            document.getElementById('tx-single-acc-group').style.display = 'block';
-            document.getElementById('tx-transfer-acc-group').style.display = 'none';
-            document.getElementById('tx-cat-group').style.display = 'block';
-        }
-
+        document.getElementById('tx-account').innerHTML = allAccs.map(a => `<option value="${a}">${a}</option>`).join('');
         document.getElementById('tx-modal').classList.add('active');
     }
 
@@ -420,22 +267,34 @@
 
     function saveTransaction() {
         const type = document.getElementById('tx-type').value;
-        const date = document.getElementById('tx-date').value;
+        const datetime = document.getElementById('tx-datetime').value;
+        const account = document.getElementById('tx-account').value;
+        const category = document.getElementById('tx-category').value.trim();
+        const description = document.getElementById('tx-description').value.trim();
+        const payee = document.getElementById('tx-payee').value.trim();
+        const transfers = document.getElementById('tx-transfers').value.trim();
         const rawAmt = parseFloat(document.getElementById('tx-amount').value);
         const currency = document.getElementById('tx-currency').value;
         const memo = document.getElementById('tx-memo').value.trim();
 
-        if (isNaN(rawAmt) || rawAmt <= 0 || !date) {
-            return alert('Please enter a valid amount and date');
+        if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) {
+            return alert('Please enter valid amount and datetime');
         }
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-        let account = type === 'Transfer' 
-            ? `${document.getElementById('tx-from-account').value} ➔ ${document.getElementById('tx-to-account').value}`
-            : document.getElementById('tx-account').value;
-        let category = type === 'Transfer' ? 'Transfer' : (document.getElementById('tx-category').value || 'General');
 
-        let newTx = { d: date, amt: amount, cur: currency, a: account, cat: category, memo: memo };
+        // จัดเตรียม Object ให้ตรงกับลำดับ 9 คอลัมน์ที่ต้องการ
+        let newTx = {
+            datetime: datetime,
+            account: account,
+            category: category,
+            description: description,
+            payee: payee,
+            transfers: transfers,
+            amount: amount,
+            currency: currency,
+            memo: memo
+        };
 
         fetch(WEBHOOK_URL, {
             method: 'POST',
@@ -446,7 +305,7 @@
             transactions.unshift(newTx);
             renderAccountsList();
             closeTxModal();
-            alert('Transaction saved to Google Sheet successfully!');
+            alert('Transaction saved successfully with 9 columns!');
         }).catch(err => {
             alert('Error saving transaction: ' + err);
         });
