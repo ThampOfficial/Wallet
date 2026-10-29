@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fully Restored Features</title>
+    <title>Wallet PWA - Fully Restored Settings, Budget & Schedule</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -114,30 +114,44 @@
         </div>
     </div>
 
-    <!-- TAB 2: BUDGET -->
+    <!-- TAB 2: BUDGET (คืนค่าตาราง Budget เดิม) -->
     <div id="tab-budget" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h2 style="margin-bottom:0;">Budget Management</h2>
             <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddBudgetModal()">+ Add Budget</button>
         </div>
         <div class="card">
-            <h3>Category Budgets</h3>
-            <div id="budget-list-container">
-                <p style="color: var(--text-muted); font-size: 13px;">Loading budgets...</p>
+            <h3>Budgets Overview</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Category</th><th>Limit</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="budget-table-body">
+                        <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <!-- TAB 3: SCHEDULE -->
+    <!-- TAB 3: SCHEDULE (คืนค่าตาราง Schedule เดิม) -->
     <div id="tab-schedule" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h2 style="margin-bottom:0;">Schedule & Recurring</h2>
             <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAddScheduleModal()">+ Add Schedule</button>
         </div>
         <div class="card">
-            <h3>Scheduled Transactions</h3>
-            <div id="schedule-list-container">
-                <p style="color: var(--text-muted); font-size: 13px;">Loading schedules...</p>
+            <h3>Scheduled List</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Title</th><th>Account</th><th>Amount</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="schedule-table-body">
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -153,14 +167,22 @@
         </div>
     </div>
 
-    <!-- TAB 5: SETTINGS -->
+    <!-- TAB 5: SETTINGS (คืนค่า Currency Setting เดิม) -->
     <div id="tab-settings" class="tab-content">
         <h2>Settings</h2>
         <div class="card">
             <h3>App Customization</h3>
-            <div class="form-group" style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <label style="margin:0;">Dark Mode</label>
                 <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode(this.checked)" style="width:auto;">
+            </div>
+            <div class="form-group">
+                <label>Default Currency</label>
+                <select id="default-currency-select" onchange="saveDefaultCurrency(this.value)">
+                    <option value="THB">THB</option>
+                    <option value="CAD">CAD</option>
+                    <option value="USD">USD</option>
+                </select>
             </div>
         </div>
 
@@ -250,7 +272,7 @@
         </div>
 
         <div class="form-group"><label>Amount</label><input type="number" id="tx-amount" step="0.01" placeholder="0.00"></div>
-        <div class="form-group"><label>Currency</label><select id="tx-currency"><option value="THB">THB</option><option value="CAD">CAD</option></select></div>
+        <div class="form-group"><label>Currency</label><select id="tx-currency"><option value="THB">THB</option><option value="CAD">CAD</option><option value="USD">USD</option></select></div>
         <div class="form-group"><label>Memo</label><input type="text" id="tx-memo" placeholder="Optional memo..."></div>
         
         <div style="display: flex; gap: 8px; margin-top: 16px;">
@@ -280,10 +302,13 @@
     let budgetData = JSON.parse(localStorage.getItem('wallet_budgets_data')) || [];
     let scheduleData = JSON.parse(localStorage.getItem('wallet_schedule_data')) || [];
     let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
+    let defaultCurrency = localStorage.getItem('wallet_default_currency') || 'THB';
 
     // Init App
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
+        document.getElementById('default-currency-select').value = defaultCurrency;
+        
         let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
@@ -301,6 +326,11 @@
             document.body.classList.remove('dark-mode');
         }
         localStorage.setItem('wallet_dark_mode', enabled);
+    }
+
+    function saveDefaultCurrency(cur) {
+        defaultCurrency = cur;
+        localStorage.setItem('wallet_default_currency', cur);
     }
 
     function saveWebhookUrl() {
@@ -330,7 +360,7 @@
                 payee: t.payee || '',
                 transfers: t.transfers || '',
                 amount: parseFloat(t.amount) || 0,
-                currency: t.currency || 'THB',
+                currency: t.currency || defaultCurrency,
                 memo: t.memo || ''
             })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -362,7 +392,7 @@
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
             let acc = (t.account && t.account.trim() !== "") ? t.account.trim() : 'General';
-            let cur = (t.currency && t.currency.trim() !== "") ? t.currency.trim() : 'THB';
+            let cur = (t.currency && t.currency.trim() !== "") ? t.currency.trim() : defaultCurrency;
             
             if (!rawAccs[acc]) rawAccs[acc] = 0;
             rawAccs[acc] += amtVal;
@@ -391,7 +421,7 @@
                 <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString()}</div>
             </div>`;
         }
-        balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0</div></div>`;
+        balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">${defaultCurrency}</div><div class="balance-box-amt">0</div></div>`;
 
         // Accounts List
         let mainAccKeys = Object.keys(subAccountsData);
@@ -404,7 +434,7 @@
 
             subs.forEach(sub => {
                 let subTotal = rawAccs[sub] || 0;
-                let subCur = accCurrencies[sub] || 'THB';
+                let subCur = accCurrencies[sub] || defaultCurrency;
                 mainTotal += subTotal;
 
                 subHtml += `<div class="sub-acc-row">
@@ -419,7 +449,7 @@
             });
 
             if (rawAccs[main]) mainTotal += rawAccs[main];
-            let mainCur = accCurrencies[main] || 'THB';
+            let mainCur = accCurrencies[main] || defaultCurrency;
 
             let isExpanded = accountExpandState[main] !== false;
             let arrowIcon = isExpanded ? '▼' : '▶';
@@ -444,7 +474,7 @@
             let unassignedHtml = '';
             unassignedAccounts.forEach(acc => {
                 let accTotal = rawAccs[acc] || 0;
-                let accCur = accCurrencies[acc] || 'THB';
+                let accCur = accCurrencies[acc] || defaultCurrency;
                 unassignedHtml += `<div class="sub-acc-row">
                     <span onclick="openAccountDetail('${acc}')" style="cursor:pointer; flex:1;">• ${acc}</span>
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -489,7 +519,7 @@
         let html = '';
         filtered.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
-            html += `<tr><td>${t.date || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || 'THB'}</td></tr>`;
+            html += `<tr><td>${t.date || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td></tr>`;
         });
         txList.innerHTML = html;
     }
@@ -501,7 +531,7 @@
         renderAccountsList();
     }
 
-    /* ---- Category Management Functions ---- */
+    /* ---- Category Management ---- */
     function renderCategoryPreview() {
         const container = document.getElementById('settings-categories-preview');
         let html = '';
@@ -700,26 +730,27 @@
         renderAccountManagerList();
     }
 
-    /* ---- Budget & Schedule Logic ---- */
+    /* ---- Budget Table Functions ---- */
     function renderBudgets() {
-        const container = document.getElementById('budget-list-container');
+        const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) {
-            container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No active budgets set.</p>`;
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`;
             return;
         }
         let html = '';
         budgetData.forEach((b, idx) => {
-            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
-                <div><strong>${b.category}</strong><br><small style="color:var(--text-muted);">${b.amount.toLocaleString()} THB / month</small></div>
-                <button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>
-            </div>`;
+            html += `<tr>
+                <td>${b.category}</td>
+                <td>${b.amount.toLocaleString()} ${defaultCurrency}</td>
+                <td><button onclick="deleteBudget(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
+            </tr>`;
         });
-        container.innerHTML = html;
+        tbody.innerHTML = html;
     }
 
     function openAddBudgetModal() {
         let cat = prompt("Enter Category for Budget (e.g., Food & Dining):");
-        let amt = parseFloat(prompt("Enter Monthly Limit (THB):"));
+        let amt = parseFloat(prompt(`Enter Monthly Limit (${defaultCurrency}):`));
         if (cat && !isNaN(amt)) {
             budgetData.push({ category: cat, amount: amt });
             localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
@@ -733,25 +764,28 @@
         renderBudgets();
     }
 
+    /* ---- Schedule Table Functions ---- */
     function renderSchedules() {
-        const container = document.getElementById('schedule-list-container');
+        const tbody = document.getElementById('schedule-table-body');
         if (scheduleData.length === 0) {
-            container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No scheduled transactions.</p>`;
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`;
             return;
         }
         let html = '';
         scheduleData.forEach((s, idx) => {
-            html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
-                <div><strong>${s.title}</strong> (${s.frequency})<br><small style="color:var(--text-muted);">${s.amount.toLocaleString()} THB - ${s.account}</small></div>
-                <button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button>
-            </div>`;
+            html += `<tr>
+                <td>${s.title} (${s.frequency})</td>
+                <td>${s.account}</td>
+                <td>${s.amount.toLocaleString()} ${defaultCurrency}</td>
+                <td><button onclick="deleteSchedule(${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">Delete</button></td>
+            </tr>`;
         });
-        container.innerHTML = html;
+        tbody.innerHTML = html;
     }
 
     function openAddScheduleModal() {
         let title = prompt("Schedule Title (e.g., Rent, Netflix):");
-        let amt = parseFloat(prompt("Amount (THB):"));
+        let amt = parseFloat(prompt(`Amount (${defaultCurrency}):`));
         let acc = prompt("Account (e.g., SCOTIA):");
         if (title && !isNaN(amt) && acc) {
             scheduleData.push({ title: title, amount: amt, account: acc, frequency: 'Monthly' });
@@ -775,14 +809,14 @@
         });
         container.innerHTML = `
             <div style="display:flex; justify-content:space-around; text-align:center; margin-top:8px;">
-                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${inc.toLocaleString()} THB</div><small style="color:var(--text-muted);">Total Income</small></div>
-                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${exp.toLocaleString()} THB</div><small style="color:var(--text-muted);">Total Expense</small></div>
+                <div><div style="color:var(--success); font-weight:bold; font-size:16px;">+${inc.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Income</small></div>
+                <div><div style="color:var(--danger); font-weight:bold; font-size:16px;">-${exp.toLocaleString()} ${defaultCurrency}</div><small style="color:var(--text-muted);">Total Expense</small></div>
             </div>
         `;
     }
 
     /* ---- Transaction Form Logic ---- */
-    function openTxModal(type, preSelectAcc = '', preSelectCur = 'THB') {
+    function openTxModal(type, preSelectAcc = '', preSelectCur = defaultCurrency) {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
         document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
@@ -828,7 +862,7 @@
             document.getElementById('group-transfers').style.display = 'none';
         }
 
-        document.getElementById('tx-currency').value = preSelectCur;
+        document.getElementById('tx-currency').value = preSelectCur || defaultCurrency;
         document.getElementById('tx-modal').classList.add('active');
     }
 
