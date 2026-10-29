@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Sheet Connected</title>
+    <title>Wallet PWA - Fixed Accounts Display</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -348,7 +348,7 @@
 </div>
 
 <script>
-    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbz5B4Bx2ouIRc2PZ9B5e1EXDtE66A0qva-4QExN44CabORmtXCCUVkpm2trbLWfN8Tf/exec";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyg2QpKNnRP3xVnso5tlFvoQRhxjcahY6lFjhnhhmsCdGwcuACgvmJWECPSXYZLMTk-/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -403,7 +403,7 @@
         document.body.appendChild(script);
     }
 
-   function renderAccountsList() {
+    function renderAccountsList() {
         const accountsList = document.getElementById('accounts-list');
         const balanceGrid = document.getElementById('total-balance-grid');
         if(!transactions || transactions.length === 0) {
@@ -430,7 +430,6 @@
             }
         });
 
-        // แก้ไขจุดนี้ให้แสดงผลเฉพาะยอดรวมตามสกุลเงินใน Total Balance เท่านั้น
         let balanceHtml = '';
         for (let cur in totalsByCur) {
             let val = totalsByCur[cur];
