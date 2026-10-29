@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Full Featured</title>
+    <title>Wallet PWA - Ultimate Control</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -111,10 +111,10 @@
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
-                            <tr><th>Date</th><th>Category</th><th>Amount</th></tr>
+                            <tr><th>Date & Time</th><th>Category</th><th>Amount</th><th>Action</th></tr>
                         </thead>
                         <tbody id="account-tx-list">
-                            <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
+                            <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -409,13 +409,14 @@
     </div>
 </div>
 
-<!-- Transaction Modal -->
+<!-- Transaction Modal (รองรับทั้ง Add และ Edit) -->
 <div id="tx-modal" class="modal-overlay">
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
+        <input type="hidden" id="tx-edit-index" value="-1">
         <div class="form-group">
-            <label for="tx-datetime">DateTime</label>
+            <label for="tx-datetime">DateTime (วันที่และเวลา)</label>
             <input type="datetime-local" id="tx-datetime">
         </div>
         <div class="form-group">
@@ -463,7 +464,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGPHFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
     let transactions = [];
     let selectedAccount = null;
@@ -548,7 +549,7 @@
                 try {
                     let data = JSON.parse(text);
                     if (data && data.transactions) {
-                        // เรียงลำดับจากใหม่ไปเก่าเสมอ (Newer First)
+                        // บังคับเรียงลำดับจากใหม่ไปเก่าเสมอ (Newer First) โดยใช้ getTime()
                         transactions = data.transactions.map(t => ({
                             date: t.date || t.datetime || '',
                             account: t.account || '',
@@ -559,7 +560,7 @@
                             amount: parseFloat(t.amount) || 0,
                             currency: t.currency || defaultCurrency,
                             memo: t.memo || ''
-                        })).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
+                        })).sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
 
                         renderAccountsList();
                         renderBudgets();
@@ -690,21 +691,35 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // เรียงจากใหม่ไปเก่า (Newer First)
+        // กรองและเรียงจากใหม่ไปเก่า (Newer First) พร้อมโชว์เวลา
         let filtered = transactions.filter(t => {
             let a = t.account ? t.account.trim() : '';
             if (subAccs.length > 0) return a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase());
             return a.toLowerCase() === accName.toLowerCase();
-        }).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
+        }).sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
 
         if (filtered.length === 0) {
-            txList.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
+            txList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
             return;
         }
+
         let html = '';
         filtered.forEach(t => {
+            let realIdx = transactions.indexOf(t);
             let amtVal = parseFloat(t.amount) || 0;
-            html += `<tr><td>${t.date || t.datetime || ''}</td><td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td><td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td></tr>`;
+            let displayDate = t.date || t.datetime || '';
+            
+            html += `<tr>
+                <td>${displayDate.replace('T', ' ')}</td>
+                <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                <td style="color:${amtVal < 0 ? 'var(--danger)' : 'var(--success)'}; font-weight:bold;">${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button class="mini-btn" style="background:var(--primary);" onclick="openTxEditModal(${realIdx})">Edit</button>
+                        <button class="mini-btn btn-exp" onclick="deleteTransaction(${realIdx})">Del</button>
+                    </div>
+                </td>
+            </tr>`;
         });
         txList.innerHTML = html;
     }
@@ -865,7 +880,7 @@
     function deleteMainAccount(acc) { if (confirm(`Delete main account "${acc}"?`)) { delete subAccountsData[acc]; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); } }
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
-    /* ---- Budget Functions (With Edit Support) ---- */
+    /* ---- Budget Functions ---- */
     function renderBudgets() {
         const tbody = document.getElementById('budget-table-body');
         if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
@@ -1004,7 +1019,7 @@
         }
     }
 
-    /* ---- Schedule Functions (With Edit & Pay Support) ---- */
+    /* ---- Schedule Functions ---- */
     function renderSchedules() {
         const tbody = document.getElementById('schedule-table-body');
         if (scheduleData.length === 0) { tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No scheduled transactions</td></tr>`; return; }
@@ -1128,7 +1143,6 @@
             transactions.unshift(newTx);
             renderAccountsList();
 
-            // เลื่อนวันเริ่มต้นรอบถัดไปอัตโนมัติถ้าเป็น Recurring
             let d = new Date(s.startDate);
             if (s.frequency === 'Monthly') {
                 d.setMonth(d.getMonth() + 1);
@@ -1138,6 +1152,7 @@
             s.startDate = d.toISOString().slice(0,10);
             localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
             renderSchedules();
+            if (selectedAccount) openAccountDetail(selectedAccount);
             alert('Payment recorded and schedule updated successfully!');
         }).catch(err => { alert('Error recording payment: ' + err); });
     }
@@ -1150,7 +1165,7 @@
         }
     }
 
-    /* ---- Report Analytics (Monthly & Yearly) ---- */
+    /* ---- Report Analytics ---- */
     function initReportView() {
         let mode = document.getElementById('report-view-mode').value;
         let periodSelect = document.getElementById('report-period-select');
@@ -1159,8 +1174,8 @@
         transactions.forEach(t => {
             let dt = t.date || t.datetime || '';
             if (dt.length >= 7) {
-                let mKey = dt.slice(0, 7); // YYYY-MM
-                let yKey = dt.slice(0, 4); // YYYY
+                let mKey = dt.slice(0, 7);
+                let yKey = dt.slice(0, 4);
                 periods[mKey] = mKey;
                 periods[yKey] = yKey;
             }
@@ -1236,8 +1251,9 @@
         `;
     }
 
-    /* ---- Transaction Form Logic ---- */
+    /* ---- Transaction Form Logic (Add & Edit) ---- */
     function openTxModal(type, preSelectAcc = '', preSelectCur = defaultCurrency) {
+        document.getElementById('tx-edit-index').value = -1;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
         document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
@@ -1246,6 +1262,32 @@
         document.getElementById('tx-payee').value = '';
         document.getElementById('tx-memo').value = '';
 
+        setupTxModalDropdowns(preSelectAcc, preSelectCur, type);
+        document.getElementById('tx-modal').classList.add('active');
+    }
+
+    function openTxEditModal(index) {
+        let t = transactions[index];
+        let type = t.amount < 0 ? 'Expense' : 'Income';
+        if (t.category === 'Transfer') type = 'Transfer';
+
+        document.getElementById('tx-edit-index').value = index;
+        document.getElementById('tx-type').value = type;
+        document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
+        document.getElementById('tx-datetime').value = t.date || t.datetime || new Date().toISOString().slice(0,16);
+        document.getElementById('tx-amount').value = Math.abs(t.amount);
+        document.getElementById('tx-description').value = t.description || '';
+        document.getElementById('tx-payee').value = t.payee || '';
+        document.getElementById('tx-memo').value = t.memo || '';
+
+        setupTxModalDropdowns(t.account, t.currency || defaultCurrency, type);
+        if (type !== 'Transfer') document.getElementById('tx-category').value = t.category;
+        if (type === 'Transfer') document.getElementById('tx-transfers-select').value = t.transfers;
+
+        document.getElementById('tx-modal').classList.add('active');
+    }
+
+    function setupTxModalDropdowns(preSelectAcc, preSelectCur, type) {
         let accSelect = document.getElementById('tx-account');
         let optHtml = '';
         let allSubs = [];
@@ -1283,13 +1325,12 @@
             document.getElementById('group-category').style.display = 'block';
             document.getElementById('group-transfers').style.display = 'none';
         }
-
-        document.getElementById('tx-modal').classList.add('active');
     }
 
     function closeTxModal() { document.getElementById('tx-modal').classList.remove('active'); }
 
     function saveTransaction() {
+        let editIdx = parseInt(document.getElementById('tx-edit-index').value);
         const type = document.getElementById('tx-type').value;
         const datetime = document.getElementById('tx-datetime').value;
         const account = document.getElementById('tx-account').value;
@@ -1304,22 +1345,31 @@
         if (isNaN(rawAmt) || rawAmt <= 0 || !datetime) return alert('Please enter valid amount and datetime');
 
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-        let newTx = { datetime, account, category, description, payee, transfers, amount, currency, memo };
+        let txObj = { datetime, account, category, description, payee, transfers, amount, currency, memo };
 
-        if (!WEBHOOK_URL) return alert("Please set Webhook URL in Settings first.");
+        if (editIdx >= 0) {
+            transactions[editIdx] = txObj;
+        } else {
+            transactions.unshift(txObj);
+        }
 
-        fetch(WEBHOOK_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(newTx)
-        }).then(() => {
-            transactions.unshift(newTx);
+        // จัดเรียงใหม่ให้ Newer First เสมอ
+        transactions.sort((a, b) => new Date(b.date || b.datetime).getTime() - new Date(a.date || a.datetime).getTime());
+
+        renderAccountsList();
+        renderBudgets();
+        if (selectedAccount) openAccountDetail(selectedAccount);
+        closeTxModal();
+        alert('Transaction saved successfully!');
+    }
+
+    function deleteTransaction(index) {
+        if (confirm('Delete this transaction?')) {
+            transactions.splice(index, 1);
             renderAccountsList();
             renderBudgets();
-            closeTxModal();
-            alert('Transaction saved successfully!');
-        }).catch(err => { alert('Error saving transaction: ' + err); });
+            if (selectedAccount) openAccountDetail(selectedAccount);
+        }
     }
 
     fetchTransactionsFromSheet();
