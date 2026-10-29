@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Adjust Balance</title>
+    <title>Wallet PWA - Advanced Budget & Balances</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -34,7 +34,12 @@
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
         th { color: var(--text-muted); font-weight: 600; }
-        .balance-summary { font-size: 18px; margin: 4px 0; font-weight: bold; color: var(--primary); }
+        
+        /* Currency Balance Boxes Grid */
+        .balance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
+        .balance-box { background: #f9fafb; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+        .balance-box-cur { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .balance-box-amt { font-size: 15px; font-weight: bold; margin-top: 2px; }
         
         /* Form elements & buttons */
         .form-group { margin-bottom: 12px; }
@@ -79,8 +84,8 @@
 
             <div class="card" style="text-align: center;">
                 <h3>Total Balance</h3>
-                <div id="total-balance-container" style="margin-top: 8px;">
-                    <div class="balance-summary">Loading...</div>
+                <div id="total-balance-grid" class="balance-grid">
+                    <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
                 </div>
             </div>
             
@@ -100,7 +105,7 @@
             </div>
         </div>
 
-        <!-- Account / Sub-account Detail View -->
+        <!-- Account Detail View -->
         <div id="account-detail-view" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                 <button class="btn" style="width: auto; background: var(--text-muted);" onclick="backToAccountsList()">← Back</button>
@@ -138,16 +143,45 @@
 
     <!-- TAB 2: BUDGET -->
     <div id="tab-budget" class="tab-content">
-        <h2>Monthly Budget & Exclusions</h2>
+        <h2>Budget Management</h2>
+        
         <div class="card">
-            <h3>Configure Excluded Categories</h3>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">เลือกหมวดหมู่ที่ไม่ต้องการให้นับรวมยอดใช้จ่ายในงบประมาณ (Budget):</p>
-            <div id="budget-exclude-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 12px;"></div>
-            <button class="btn" onclick="saveBudgetExclusions()">Save Budget Settings</button>
+            <h3>+ Create New Budget</h3>
+            <div class="form-group"><label>Budget Name (ชื่อ)</label><input type="text" id="bud-name" placeholder="e.g., Monthly Food Budget"></div>
+            <div class="form-group"><label>Target Amount (งบจำกัด)</label><input type="number" id="bud-amount" step="0.01" placeholder="0.00"></div>
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex:1;"><label>Start Date</label><input type="date" id="bud-start"></div>
+                <div class="form-group" style="flex:1;"><label>End Date</label><input type="date" id="bud-end"></div>
+            </div>
+            <div class="form-group">
+                <label>Frequency (ความถี่)</label>
+                <select id="bud-freq">
+                    <option value="One-time">One-time (ครั้งเดียว)</option>
+                    <option value="Monthly">Monthly (รายเดือน)</option>
+                    <option value="Yearly">Yearly (รายปี)</option>
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="bud-rollover" style="width: auto;">
+                <label for="bud-rollover" style="margin-bottom:0; cursor:pointer;">Enable Rollover (ยกยอดเงินคงเหลือไปงวดหน้า)</label>
+            </div>
+
+            <div class="form-group">
+                <label>Select Accounts (เลือกบัญชีที่นับรวม)</label>
+                <div id="bud-accounts-select" style="max-height: 120px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Select Categories & Subcategories (เลือกหมวดหมู่ที่นับรวม)</label>
+                <div id="bud-categories-select" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; border-radius: 6px;"></div>
+            </div>
+
+            <button class="btn" onclick="saveNewBudget()">Save Budget</button>
         </div>
+
         <div class="card">
-            <h3>Budget Overview</h3>
-            <div id="budget-summary-list"><p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p></div>
+            <h3>Active Budgets Overview</h3>
+            <div id="budget-list-container"><p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p></div>
         </div>
     </div>
 
@@ -344,10 +378,12 @@
         "SCOTIA": []
     };
 
-    let budgetExclusions = JSON.parse(localStorage.getItem('wallet_budget_exclusions')) || [];
+    let budgetsData = JSON.parse(localStorage.getItem('wallet_budgets')) || [];
     let accountPreferences = JSON.parse(localStorage.getItem('wallet_acc_prefs')) || {};
     let schedulesData = JSON.parse(localStorage.getItem('wallet_schedules')) || [];
 
+    document.getElementById('bud-start').valueAsDate = new Date();
+    document.getElementById('bud-end').valueAsDate = new Date(new Date().setMonth(new Date().getMonth() + 1));
     document.getElementById('sch-date').valueAsDate = new Date();
 
     function switchTab(tabId, element) {
@@ -357,7 +393,7 @@
         element.classList.add('active');
         if(tabId === 'schedule') renderScheduleForm();
         if(tabId === 'report') renderReport();
-        if(tabId === 'budget') renderBudgetSettings();
+        if(tabId === 'budget') renderBudgetTab();
     }
 
     function handleResponse(data) {
@@ -375,10 +411,10 @@
 
     function renderAccountsList() {
         const accountsList = document.getElementById('accounts-list');
-        const balanceContainer = document.getElementById('total-balance-container');
+        const balanceGrid = document.getElementById('total-balance-grid');
         if(!transactions || transactions.length === 0) {
             accountsList.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">No accounts found</p>`;
-            balanceContainer.innerHTML = `<div class="balance-summary">0.00</div>`;
+            balanceGrid.innerHTML = `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0.00</div></div>`;
             return;
         }
 
@@ -398,11 +434,16 @@
             rawAccs[acc].currency = cur;
         });
 
+        // Render Balance Grid Boxes
         let balanceHtml = '';
         for (let cur in totalsByCur) {
-            balanceHtml += `<div class="balance-summary" style="color: ${totalsByCur[cur] < 0 ? 'var(--danger)' : 'var(--primary)'};">${totalsByCur[cur].toLocaleString()} ${cur}</div>`;
+            let val = totalsByCur[cur];
+            balanceHtml += `<div class="balance-box">
+                <div class="balance-box-cur">${cur}</div>
+                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--primary)'};">${val.toLocaleString()}</div>
+            </div>`;
         }
-        balanceContainer.innerHTML = balanceHtml;
+        balanceGrid.innerHTML = balanceHtml;
 
         let mainAccMap = {};
         for (let main in subAccountsData) {
@@ -504,13 +545,136 @@
         alert('Saved preferred currency');
     }
 
+    /* Budget Management Logic */
+    function renderBudgetTab() {
+        // Render Account Selector
+        let allAccs = [];
+        transactions.forEach(t => { if(t.a) allAccs.push(t.a.trim()); });
+        Object.keys(subAccountsData).forEach(main => {
+            allAccs.push(main);
+            subAccountsData[main].forEach(sub => allAccs.push(sub));
+        });
+        allAccs = [...new Set(allAccs)];
+
+        let accSelHtml = '';
+        allAccs.forEach(acc => {
+            accSelHtml += `<label style="display:block; font-size:12px; margin-bottom:4px;"><input type="checkbox" value="${acc}" class="bud-acc-chk" checked> ${acc}</label>`;
+        });
+        document.getElementById('bud-accounts-select').innerHTML = accSelHtml || '<small>No accounts found</small>';
+
+        // Render Categories Selector
+        let catSelHtml = '';
+        for (let main in categoriesData) {
+            if (categoriesData[main].length === 0) {
+                catSelHtml += `<label style="display:block; font-size:12px; margin-bottom:4px;"><input type="checkbox" value="${main}" class="bud-cat-chk" checked> ${main}</label>`;
+            } else {
+                categoriesData[main].forEach(sub => {
+                    let val = `${main} ► ${sub}`;
+                    catSelHtml += `<label style="display:block; font-size:12px; margin-bottom:4px;"><input type="checkbox" value="${val}" class="bud-cat-chk" checked> 📁 ${main} ➔ ${sub}</label>`;
+                });
+            }
+        }
+        document.getElementById('bud-categories-select').innerHTML = catSelHtml;
+
+        renderBudgetOverview();
+    }
+
+    function saveNewBudget() {
+        let name = document.getElementById('bud-name').value.trim();
+        let amount = parseFloat(document.getElementById('bud-amount').value);
+        let start = document.getElementById('bud-start').value;
+        let end = document.getElementById('bud-end').value;
+        let freq = document.getElementById('bud-freq').value;
+        let rollover = document.getElementById('bud-rollover').checked;
+
+        if (!name || isNaN(amount) || !start || !end) {
+            return alert('Please fill in all required budget fields.');
+        }
+
+        let selectedAccounts = [];
+        document.querySelectorAll('.bud-acc-chk:checked').forEach(chk => selectedAccounts.push(chk.value));
+
+        let selectedCategories = [];
+        document.querySelectorAll('.bud-cat-chk:checked').forEach(chk => selectedCategories.push(chk.value));
+
+        let newBudget = {
+            id: Date.now(),
+            name, amount, start, end, freq, rollover,
+            accounts: selectedAccounts,
+            categories: selectedCategories
+        };
+
+        budgetsData.push(newBudget);
+        localStorage.setItem('wallet_budgets', JSON.stringify(budgetsData));
+        
+        document.getElementById('bud-name').value = '';
+        document.getElementById('bud-amount').value = '';
+        renderBudgetOverview();
+        alert('Budget created successfully!');
+    }
+
+    function deleteBudget(id) {
+        budgetsData = budgetsData.filter(b => b.id !== id);
+        localStorage.setItem('wallet_budgets', JSON.stringify(budgetsData));
+        renderBudgetOverview();
+    }
+
+    function renderBudgetOverview() {
+        const container = document.getElementById('budget-list-container');
+        if (budgetsData.length === 0) {
+            container.innerHTML = `<p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p>`;
+            return;
+        }
+
+        let html = '';
+        budgetsData.forEach(b => {
+            // คำนวณยอดใช้จ่ายจริงในช่วงวันที่กำหนด และตามเงื่อนไข Account / Category
+            let spent = 0;
+            transactions.forEach(t => {
+                let tDate = t.d ? t.d.split('T')[0] : '';
+                if (tDate >= b.start && tDate <= b.end) {
+                    let acc = t.a ? t.a.trim() : '';
+                    let cat = t.cat || '';
+                    let amt = t.amt || 0;
+
+                    let accMatch = b.accounts.length === 0 || b.accounts.includes(acc);
+                    let catMatch = b.categories.length === 0 || b.categories.includes(cat);
+
+                    if (accMatch && catMatch && amt < 0) {
+                        spent += Math.abs(amt);
+                    }
+                }
+            });
+
+            let percent = b.amount > 0 ? Math.min((spent / b.amount) * 100, 100).toFixed(1) : 0;
+            let barColor = percent >= 100 ? 'var(--danger)' : 'var(--primary)';
+
+            html += `<div style="margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>${b.name}</strong>
+                    <button onclick="deleteBudget(${b.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete</button>
+                </div>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                    🗓 ${b.start} to ${b.end} | 🔁 ${b.freq} ${b.rollover ? '| 🔄 Rollover' : ''}
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:13px; margin-top:6px;">
+                    <span>Spent: <strong>${spent.toLocaleString()}</strong> / Target: ${b.amount.toLocaleString()}</span>
+                    <span>${percent}%</span>
+                </div>
+                <div style="background:#e5e7eb; height:8px; border-radius:4px; overflow:hidden; margin-top:4px;">
+                    <div style="background:${barColor}; height:100%; width: ${percent}%;"></div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+
     /* Adjust Balance Logic */
     function openAdjustBalanceModal() {
         if (!selectedAccount) return;
         document.getElementById('adjust-modal-title').textContent = `Adjust Balance: ${selectedAccount}`;
         document.getElementById('adjust-date').valueAsDate = new Date();
 
-        // คำนวณยอดปัจจุบันของ Account นี้
         let currentBal = 0;
         let curCode = 'THB';
         let subAccs = subAccountsData[selectedAccount] || [];
@@ -543,7 +707,6 @@
             return alert('Please enter a valid target balance and date');
         }
 
-        // คำนวณยอดปัจจุบันอีกครั้งเพื่อหาผลต่าง (Difference)
         let currentBal = 0;
         let curCode = 'THB';
         let subAccs = subAccountsData[selectedAccount] || [];
@@ -565,7 +728,6 @@
             return alert('Balance is already matching the target amount.');
         }
 
-        // สร้าง Transaction ประเภท Adjustment
         let newTx = {
             d: date,
             amt: diff,
@@ -577,41 +739,8 @@
 
         transactions.unshift(newTx);
         closeAdjustBalanceModal();
-        openAccountDetail(selectedAccount); // รีเฟรชหน้า Detail
+        openAccountDetail(selectedAccount);
         alert('Balance adjusted successfully!');
-    }
-
-    /* Budget Exclusions Logic */
-    function renderBudgetSettings() {
-        const container = document.getElementById('budget-exclude-list');
-        let html = '';
-        for (let main in categoriesData) {
-            if (categoriesData[main].length === 0) {
-                let isChecked = budgetExclusions.includes(main) ? 'checked' : '';
-                html += `<label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;">
-                    <input type="checkbox" value="${main}" ${isChecked} class="budget-exc-chk"> ${main}
-                </label>`;
-            } else {
-                categoriesData[main].forEach(sub => {
-                    let catName = `${main} ► ${sub}`;
-                    let isChecked = budgetExclusions.includes(catName) ? 'checked' : '';
-                    html += `<label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px;">
-                        <input type="checkbox" value="${catName}" ${isChecked} class="budget-exc-chk"> 📁 ${main} ➔ ${sub}
-                    </label>`;
-                });
-            }
-        }
-        container.innerHTML = html;
-    }
-
-    function saveBudgetExclusions() {
-        let checkboxes = document.querySelectorAll('.budget-exc-chk');
-        budgetExclusions = [];
-        checkboxes.forEach(chk => {
-            if (chk.checked) budgetExclusions.push(chk.value);
-        });
-        localStorage.setItem('wallet_budget_exclusions', JSON.stringify(budgetExclusions));
-        alert('Budget exclusions saved successfully!');
     }
 
     /* Reports & Charts Logic */
@@ -646,10 +775,8 @@
                 let absAmt = Math.abs(amt);
                 chartMap[key].expense += absAmt;
                 let cat = t.cat || 'Uncategorized';
-                if (!budgetExclusions.includes(cat)) {
-                    totalExp += absAmt;
-                    catMap[cat] = (catMap[cat] || 0) + absAmt;
-                }
+                totalExp += absAmt;
+                catMap[cat] = (catMap[cat] || 0) + absAmt;
             }
         });
 
