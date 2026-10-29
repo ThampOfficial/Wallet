@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Fixed Data Loading</title>
+    <title>Wallet PWA - Fixed CORS & Fetch</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -395,7 +395,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";
 
     let transactions = [];
     let selectedAccount = null;
@@ -462,31 +462,36 @@
         if (tabId === 'report') renderReportChart();
     }
 
-    // แก้ไขระบบโหลดข้อมูลให้รองรับทั้ง Text Response และ JSON ปกติจาก Google Apps Script
+    // ฟังก์ชันดึงข้อมูลจาก Apps Script รองรับการติดตาม Redirect และไม่ติดปัญหา CORS
     function fetchTransactionsFromSheet() {
-        fetch(WEBHOOK_URL)
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.transactions) {
-                    transactions = data.transactions.map(t => ({
-                        date: t.date || t.datetime || '',
-                        account: t.account || '',
-                        category: t.category || '',
-                        description: t.description || '',
-                        payee: t.payee || '',
-                        transfers: t.transfers || '',
-                        amount: parseFloat(t.amount) || 0,
-                        currency: t.currency || defaultCurrency,
-                        memo: t.memo || ''
-                    })).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
+        if (!WEBHOOK_URL) return;
+        
+        fetch(WEBHOOK_URL, { redirect: "follow" })
+            .then(res => res.text())
+            .then(text => {
+                try {
+                    let data = JSON.parse(text);
+                    if (data && data.transactions) {
+                        transactions = data.transactions.map(t => ({
+                            date: t.date || t.datetime || '',
+                            account: t.account || '',
+                            category: t.category || '',
+                            description: t.description || '',
+                            payee: t.payee || '',
+                            transfers: t.transfers || '',
+                            amount: parseFloat(t.amount) || 0,
+                            currency: t.currency || defaultCurrency,
+                            memo: t.memo || ''
+                        })).sort((a, b) => new Date(b.date || b.datetime) - new Date(a.date || a.datetime));
 
-                    renderAccountsList();
-                    renderReportChart();
+                        renderAccountsList();
+                        renderReportChart();
+                    }
+                } catch (e) {
+                    console.error("JSON parsing error:", e, text);
                 }
             })
-            .catch(err => {
-                console.error("Error fetching transactions:", err);
-            });
+            .catch(err => console.error("Error fetching transactions:", err));
     }
 
     function toggleMainAccount(mainName) {
@@ -962,10 +967,12 @@
         let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
         let newTx = { datetime, account, category, description, payee, transfers, amount, currency, memo };
 
+        if (!WEBHOOK_URL) return alert("Please set Webhook URL in Settings first.");
+
         fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(newTx)
         }).then(() => {
             transactions.unshift(newTx);
