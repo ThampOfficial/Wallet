@@ -600,7 +600,6 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชันแปลงวันที่และเวลา รองรับ Column B แบบแม่นยำ
     function parseUniversalDate(dateStr) {
         if (!dateStr) return new Date(0);
         let str = String(dateStr).trim();
@@ -625,7 +624,6 @@
         return new Date(str.replace(' ', 'T'));
     }
 
-    // ดึงค่าวันที่และเวลาจาก Column B ป้องกันการเติม 00:00:00 ถ้าไม่มีเวลาจริง
     function getDisplayDateTime(t) {
         let raw = t.datetime || t.date || '';
         if (!raw) return '-';
@@ -639,7 +637,6 @@
             let h = String(parsed.getHours()).padStart(2, '0');
             let min = String(parsed.getMinutes()).padStart(2, '0');
 
-            // ถ้าในสตริงดิบไม่มีการระบุเวลาชัดเจน (เช่น มาจาก Date ของ Google Sheets ที่เป็น 00:00) ให้แสดงแค่วันที่
             if (h === '00' && min === '00' && !strRaw.includes(':')) {
                 return `${y}-${m}-${d}`;
             }
@@ -703,7 +700,7 @@
         let currencyTotals = {};
         let netWorthTHB = 0;
 
-        // คำนวณยอดเงินรวมทุกบัญชี รองรับ Transfer ตัดยอดต้นทาง และบวกปลายทาง
+        // คำนวณยอดเงินแต่ละบัญชี แยกโอนออก (ตัดเงิน) และรับโอน (บวกเงินเข้าปลายทาง)
         transactions.forEach(t => {
             let amtVal = parseFloat(t.amount) || 0;
             let acc = (t.account && String(t.account).trim() !== "") ? String(t.account).trim() : 'General';
@@ -714,12 +711,11 @@
             if (!rawAccs[acc]) rawAccs[acc] = {};
             if (!rawAccs[acc][cur]) rawAccs[acc][cur] = 0;
 
-            // ตรวจสอบว่าเป็นรายการ Transfer หรือไม่
             if (cat === 'transfer' || trfTo !== '') {
-                // บัญชีต้นทางถูกตัดเงินออก
+                // บัญชีต้นทางยอดเงินลดลง (เงินออก)
                 rawAccs[acc][cur] -= Math.abs(amtVal);
 
-                // หากมีบัญชีปลายทาง ให้บวกเงินเข้าบัญชีปลายทางด้วย
+                // บัญชีปลายทางยอดเงินเพิ่มขึ้น (เงินเข้า)
                 if (trfTo) {
                     if (!rawAccs[trfTo]) rawAccs[trfTo] = {};
                     if (!rawAccs[trfTo][cur]) rawAccs[trfTo][cur] = 0;
@@ -730,7 +726,6 @@
             }
         });
 
-        // คำนวณยอด Net Worth ภาพรวมจากทุกบัญชี (นับเฉพาะยอดสุทธิของแต่ละบัญชี)
         for (let acc in rawAccs) {
             for (let cur in rawAccs[acc]) {
                 let val = rawAccs[acc][cur];
@@ -837,15 +832,11 @@
         const txList = document.getElementById('account-tx-list');
         let subAccs = subAccountsData[accName] || [];
         
-        // ค้นหา Transaction ทั้งที่บัญชีนี้เป็นผู้ส่ง หรือบัญชีนี้เป็นปลายทางการโอน (Transfer To)
+        // กรองเฉพาะ Transaction ที่บัญชีนี้เป็นเจ้าของจริงๆ (ไม่นำรายการจำลองของฝั่งรับโอนมาปะปนในหน้าบัญชีต้นทาง)
         let filtered = transactions.filter(t => {
             let a = t.account ? String(t.account).trim() : '';
-            let trfTo = t.transfers ? String(t.transfers).trim() : '';
-            
             let isMatchAccount = subAccs.length > 0 ? (a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase())) : (a.toLowerCase() === accName.toLowerCase());
-            let isMatchTransferTo = subAccs.length > 0 ? (trfTo === accName || subAccs.some(s => s.toLowerCase() === trfTo.toLowerCase())) : (trfTo.toLowerCase() === accName.toLowerCase());
-
-            return isMatchAccount || isMatchTransferTo;
+            return isMatchAccount;
         }).sort((a, b) => parseUniversalDate(b.datetime || b.date).getTime() - parseUniversalDate(a.datetime || a.date).getTime());
 
         if (filtered.length === 0) {
@@ -860,26 +851,18 @@
             let displayDate = getDisplayDateTime(t);
             let cat = String(t.category || '').toLowerCase();
             let trfTo = String(t.transfers || '').trim();
-            let acc = String(t.account || '').trim();
 
             let isTransfer = cat === 'transfer' || trfTo !== '';
-            let isIncomingTransfer = isTransfer && acc.toLowerCase() !== accName.toLowerCase();
 
-            // แยกป้ายกำกับและสีให้ชัดเจนตามประเภท (Income = เขียว, Expense = แดง, Transfer = เหลือง)
             let badgeHtml = '';
             let amountDisplay = '';
             let amountColor = '';
 
             if (isTransfer) {
-                if (isIncomingTransfer) {
-                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ รับโอน (From: ${acc})</span>`;
-                    amountDisplay = `+${Math.abs(amtVal).toLocaleString()}`;
-                    amountColor = 'var(--warning)';
-                } else {
-                    badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ โอนเงิน (To: ${trfTo || 'Other'})</span>`;
-                    amountDisplay = `-${Math.abs(amtVal).toLocaleString()}`;
-                    amountColor = 'var(--warning)';
-                }
+                // แสดงเป็นรายการโอนออกสีเหลืองอย่างถูกต้องตามหลักบัญชี
+                badgeHtml = `<span style="background:rgba(217,119,6,0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">⇄ โอนเงิน (To: ${trfTo || 'Other'})</span>`;
+                amountDisplay = `-${Math.abs(amtVal).toLocaleString()}`;
+                amountColor = 'var(--warning)';
             } else if (amtVal > 0) {
                 badgeHtml = `<span style="background:rgba(16,185,129,0.15); color:var(--success); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold;">🟢 รายรับ (Income)</span>`;
                 amountDisplay = `+${amtVal.toLocaleString()}`;
@@ -1150,7 +1133,6 @@
                 let trfTo = String(t.transfers || '').trim();
                 let isTransfer = cat === 'transfer' || trfTo !== '';
                 
-                // ไม่นับรายการที่เป็น Transfer มาคำนวณงบประมาณรายจ่าย
                 if (amt < 0 && !isTransfer && tDate >= startDate) {
                     let acc = t.account ? String(t.account).trim() : '';
                     let cStr = t.category ? String(t.category).trim() : '';
@@ -1677,7 +1659,6 @@
             let trfTo = String(t.transfers || '').trim();
             let isTransfer = cat === 'transfer' || trfTo !== '';
 
-            // ไม่นำรายการ Transfer มาคิดเป็นรายรับ/รายจ่ายในรายงาน
             if (isTransfer) return;
 
             let tCur = t.currency || defaultCurrency;
