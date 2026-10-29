@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wallet PWA - Optimized Forms & Sub-account Actions</title>
+    <title>Wallet PWA - Full Navigation & Restored Accounts</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -61,6 +61,7 @@
 <body>
 
 <div class="container">
+    <!-- TAB 1: ACCOUNTS -->
     <div id="tab-accounts" class="tab-content active">
         <div id="accounts-main-view">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -103,6 +104,50 @@
             </div>
         </div>
     </div>
+
+    <!-- TAB 2: BUDGET -->
+    <div id="tab-budget" class="tab-content">
+        <h2>Budget Management</h2>
+        <div class="card">
+            <h3>Active Budgets Overview</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">No active budgets.</p>
+        </div>
+    </div>
+
+    <!-- TAB 3: SCHEDULE -->
+    <div id="tab-schedule" class="tab-content">
+        <h2>Schedule & Recurring</h2>
+        <div class="card">
+            <h3>Scheduled List</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">No scheduled transactions.</p>
+        </div>
+    </div>
+
+    <!-- TAB 4: REPORT -->
+    <div id="tab-report" class="tab-content">
+        <h2>Reports & Analytics</h2>
+        <div class="card">
+            <h3>Income vs Expense</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">No report data available.</p>
+        </div>
+    </div>
+
+    <!-- TAB 5: SETTINGS -->
+    <div id="tab-settings" class="tab-content">
+        <h2>Settings</h2>
+        <div class="card">
+            <p style="color: var(--text-muted); font-size: 13px;">Configuration options.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation Bar ด้านล่างที่หายไป -->
+<div class="nav-bar">
+    <div class="nav-item active" onclick="switchTab('accounts', this)"><div>💳</div>Accounts</div>
+    <div class="nav-item" onclick="switchTab('budget', this)"><div>📊</div>Budget</div>
+    <div class="nav-item" onclick="switchTab('schedule', this)"><div>📅</div>Schedule</div>
+    <div class="nav-item" onclick="switchTab('report', this)"><div>📈</div>Report</div>
+    <div class="nav-item" onclick="switchTab('settings', this)"><div>⚙️</div>Settings</div>
 </div>
 
 <!-- Modal จัดการ Account -->
@@ -130,7 +175,6 @@
         <div class="form-group"><label>DateTime</label><input type="datetime-local" id="tx-datetime"></div>
         <div class="form-group"><label>Account</label><select id="tx-account"></select></div>
         
-        <!-- Category แบบ Dropdown -->
         <div class="form-group" id="group-category">
             <label>Category</label>
             <select id="tx-category"></select>
@@ -139,7 +183,6 @@
         <div class="form-group"><label>Description</label><input type="text" id="tx-description" placeholder="Description..."></div>
         <div class="form-group"><label>Payee</label><input type="text" id="tx-payee" placeholder="Payee..."></div>
         
-        <!-- Transfers แบบ Dropdown เฉพาะตอนเลือก Transfer -->
         <div class="form-group" id="group-transfers" style="display:none;">
             <label>Transfer To Account (ไปยังบัญชี)</label>
             <select id="tx-transfers-select"></select>
@@ -172,6 +215,13 @@
         "Food & Dining": ["Restaurants", "Groceries"],
         "Bills & Utilities": ["Electricity", "Internet", "Phone"]
     };
+
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabId).classList.add('active');
+        element.classList.add('active');
+    }
 
     function handleResponse(data) {
         if (data && data.transactions) {
@@ -219,6 +269,17 @@
             currencyTotals[cur] += amtVal;
         });
 
+        // ดึงชื่อบัญชีทั้งหมดจาก Sheet ที่มีอยู่จริง เพื่อตรวจสอบว่าตัวไหนยังไม่ได้จัดกลุ่ม Main/Sub
+        let allSheetAccounts = Object.keys(rawAccs);
+        let knownAccounts = [];
+        Object.keys(subAccountsData).forEach(main => {
+            knownAccounts.push(main);
+            subAccountsData[main].forEach(sub => knownAccounts.push(sub));
+        });
+
+        // ค้นหาบัญชีที่หลุดรอด (ไม่ได้อยู่ในโครงสร้าง Main/Sub ที่ตั้งไว้)
+        let unassignedAccounts = allSheetAccounts.filter(acc => !knownAccounts.includes(acc));
+
         // 1. Total Balance
         let balanceHtml = '';
         for (let cur in currencyTotals) {
@@ -230,9 +291,10 @@
         }
         balanceGrid.innerHTML = balanceHtml || `<div class="balance-box"><div class="balance-box-cur">THB</div><div class="balance-box-amt">0</div></div>`;
 
-        // 2. Accounts List (Main account ไม่มีปุ่มทำรายการ มีแค่ Sub-account เท่านั้นที่มีปุ่ม +In, -Ex, ⇄Trf)
+        // 2. Accounts List (แสดง Main / Sub และเพิ่มหมวดบัญชีอิสระที่ไม่ได้อยู่ใน Main Account เพื่อไม่ให้หาย)
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
+
         mainAccKeys.forEach(main => {
             let subs = subAccountsData[main] || [];
             let mainTotal = 0;
@@ -269,6 +331,30 @@
                 ${subHtml}
             </div>`;
         });
+
+        // หากมีบัญชีอื่นๆ ที่ไม่ได้อยู่ใน Main Account ให้แสดงรวบไว้ด้านล่างสุดด้วย
+        if (unassignedAccounts.length > 0) {
+            let unassignedHtml = '';
+            unassignedAccounts.forEach(acc => {
+                let accTotal = rawAccs[acc] || 0;
+                let accCur = accCurrencies[acc] || 'THB';
+                unassignedHtml += `<div class="sub-acc-row">
+                    <span onclick="openAccountDetail('${acc}')" style="cursor:pointer; flex:1;">• ${acc}</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-weight:500; color:${accTotal < 0 ? 'var(--danger)' : 'var(--success)'};">${accTotal.toLocaleString()} ${accCur}</span>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${acc}', '${accCur}')">+In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${acc}', '${accCur}')">-Ex</button>
+                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${acc}', '${accCur}')">⇄Trf</button>
+                    </div>
+                </div>`;
+            });
+
+            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px; border-style: dashed;">
+                <div class="acc-item"><div style="flex:1;">📁 Unassigned Accounts (บัญชีอื่นๆ)</div></div>
+                ${unassignedHtml}
+            </div>`;
+        }
+
         accountsList.innerHTML = accHtml;
     }
 
@@ -308,7 +394,6 @@
         renderAccountsList();
     }
 
-    // Modal จัดการ Account
     function openAccountManagerModal() {
         renderAccountManagerList();
         document.getElementById('account-manager-modal').classList.add('active');
@@ -328,7 +413,7 @@
             let upBtn = index > 0 ? `<button onclick="moveMainAccount(${index}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:4px;">▲</button>` : '';
             let downBtn = index < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${index}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-right:8px;">▼</button>` : '';
 
-            html += `<div class="cat-group">
+            html += `<div class="card" style="margin-bottom:8px; padding:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:4px;">
                         ${upBtn} ${downBtn}
@@ -344,9 +429,9 @@
             
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
-                html += `<div class="sub-cat-item">
+                html += `<div class="sub-acc-row">
                     <span>└─ ${sub}</span>
-                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x] Remove</button>
+                    <button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button>
                 </div>`;
             });
             html += `</div></div>`;
@@ -408,7 +493,6 @@
         renderAccountManagerList();
     }
 
-    // Modal Transaction จัดการฟิลด์ตาม Type (Income/Expense หรือ Transfer)
     function openTxModal(type, preSelectAcc = '', preSelectCur = 'THB') {
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
@@ -418,7 +502,6 @@
         document.getElementById('tx-payee').value = '';
         document.getElementById('tx-memo').value = '';
 
-        // Dropdown Account หลัก
         let accSelect = document.getElementById('tx-account');
         let optHtml = '';
         let allSubs = [];
@@ -434,7 +517,6 @@
         accSelect.innerHTML = optHtml;
         if (preSelectAcc) accSelect.value = preSelectAcc;
 
-        // Dropdown Category เป็นแบบเลือกจากหมวดหมู่
         let catSelect = document.getElementById('tx-category');
         let catHtml = '';
         for (let mainCat in categoriesData) {
@@ -446,11 +528,9 @@
         }
         catSelect.innerHTML = catHtml;
 
-        // Dropdown สำหรับ Transfer ไปยัง Sub-account อื่นๆ
         let trfSelect = document.getElementById('tx-transfers-select');
         trfSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
 
-        // ซ่อน/แสดง ฟิลด์ตามประเภท Income/Expense หรือ Transfer
         if (type === 'Transfer') {
             document.getElementById('group-category').style.display = 'none';
             document.getElementById('group-transfers').style.display = 'block';
@@ -459,9 +539,7 @@
             document.getElementById('group-transfers').style.display = 'none';
         }
 
-        // Default Currency ตามหน้าจอ
         document.getElementById('tx-currency').value = preSelectCur;
-
         document.getElementById('tx-modal').classList.add('active');
     }
 
