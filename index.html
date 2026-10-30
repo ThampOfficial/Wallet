@@ -612,17 +612,13 @@
         return '';
     }
 
-    // ฟังก์ชั่นกรองตัวอักษรขยะหรือภาษาต่างดาวออก
     function cleanGarbageText(text) {
         if (!text) return '';
         let str = String(text).trim();
-        // ถ้ามีสัญลักษณ์ประหลาดปะปนยาวๆ ให้ตัดทิ้งหรือเลือกเฉพาะส่วนที่อ่านออก
-        // ตรวจสอบเบื้องต้น: หากมีอักขระพิเศษภาษาต่างดาวหนาแน่น ให้ทำความสะอาด
         if (/[\u0080-\u00FF\ufffd]/.test(str)) {
-            // พยายามดึงเฉพาะตัวอักษรภาษาอังกฤษ ตัวเลข และคำไทยที่ถูกต้องออกมา หรือใช้ค่าสำรองถ้าเพี้ยนหนัก
             let cleaned = str.replace(/[àâáäãåçèêéëìíîïñòôóöõùúûüýÿÿžšœæ¢£¥§ªº¬¯°±²³µ¶·¸¹º¼½¾¿ÀÁÂÃÄÅÇÈÊÉËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝŸ]/g, '').trim();
             if (cleaned.length < 2) {
-                return "Account"; // Fallback ป้องกันชื่อพัง
+                return "Account";
             }
             return cleaned;
         }
@@ -1795,14 +1791,17 @@
         let accSelect = document.getElementById('tx-account');
         let optHtml = '';
         let allSubs = [];
+        
+        // ดึงบัญชีย่อยตามกลุ่ม Main ที่ตั้งค่าไว้
         Object.keys(subAccountsData).forEach(main => {
             optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => { 
-                allSubs.push(sub); 
+                if (!allSubs.includes(sub)) allSubs.push(sub); 
                 optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; 
             });
         });
 
+        // ดึงบัญชีย่อยอื่นๆ ทั้งหมดจาก transactions ที่อาจจะยังไม่ได้ผูกกับ Main
         let extraSubs = [];
         transactions.forEach(t => {
             let a = t.account ? String(t.account).trim() : '';
@@ -1811,8 +1810,9 @@
                 allSubs.push(a);
             }
         });
+
         if (extraSubs.length > 0) {
-            optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others</option>`;
+            optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others / Unassigned</option>`;
             extraSubs.forEach(sub => {
                 optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
             });
