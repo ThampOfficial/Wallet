@@ -600,7 +600,6 @@
         return amountInBase / rateTo;
     }
 
-    // ฟังก์ชั่นดึงเฉพาะ HH:mm จากสตริงเวลาขยะ
     function cleanTimeString(timeStr) {
         if (!timeStr) return '';
         let str = String(timeStr).trim();
@@ -613,7 +612,6 @@
         return '';
     }
 
-    // ฟังก์ชั่นแสดงผล Date & Time ให้เหลือสั้นๆ เช่น 29/11/25 20:20
     function getDisplayDateTime(t) {
         let datePart = String(t.date || t.datetime || '').trim();
         if (datePart.includes('T')) datePart = datePart.split('T')[0];
@@ -627,7 +625,6 @@
         return datePart || '-';
     }
 
-    // ฟังก์ชั่นแปลงเป็น Date Object เพื่อนำไป Sort (Newest First + Time)
     function parseUniversalDate(t) {
         let dateStr = String(t.date || t.datetime || '').trim();
         if (dateStr.includes('T')) dateStr = dateStr.split('T')[0];
@@ -635,7 +632,6 @@
 
         let timeClean = cleanTimeString(t.time || t.datetime || '') || '00:00';
 
-        // รองรับ DD/MM/YY หรือ DD/MM/YYYY
         let dParts = dateStr.split('/');
         let year = 1970, month = 0, day = 1;
         if (dParts.length === 3) {
@@ -751,6 +747,26 @@
         }
         balanceGrid.innerHTML = balanceHtml;
 
+        // รวบรวม Sub-accounts ทั้งหมดที่มีอยู่ในระบบ (ทั้งในและนอก Main)
+        let allKnownSubs = new Set();
+        Object.keys(subAccountsData).forEach(main => {
+            (subAccountsData[main] || []).forEach(sub => allKnownSubs.add(sub));
+        });
+        
+        // ตรวจสอบบัญชีจาก Transaction ที่อยู่นอกเหนือจาก Main
+        let unassignedSubs = [];
+        Object.keys(rawAccs).forEach(acc => {
+            let isAssigned = false;
+            Object.keys(subAccountsData).forEach(main => {
+                if (main.toLowerCase() === acc.toLowerCase() || (subAccountsData[main] || []).some(s => s.toLowerCase() === acc.toLowerCase())) {
+                    isAssigned = true;
+                }
+            });
+            if (!isAssigned) {
+                unassignedSubs.push(acc);
+            }
+        });
+
         let mainAccKeys = Object.keys(subAccountsData);
         let accHtml = '';
 
@@ -819,6 +835,62 @@
             </div>`;
         });
 
+        // แสดงบัญชีที่อยู่นอกเหนือ Main Account (ถ้ามี)
+        if (unassignedSubs.length > 0) {
+            let otherCurTotals = {};
+            let otherSubHtml = '';
+
+            unassignedSubs.forEach(sub => {
+                let subCurMap = rawAccs[sub] || {};
+                let subTextArr = [];
+                let primaryCur = defaultCurrency;
+                let primaryAmt = 0;
+
+                for (let cur in subCurMap) {
+                    let amt = subCurMap[cur];
+                    subTextArr.push(`${amt.toLocaleString()} ${cur}`);
+                    primaryCur = cur;
+                    primaryAmt = amt;
+
+                    if (!otherCurTotals[cur]) otherCurTotals[cur] = 0;
+                    otherCurTotals[cur] += amt;
+                }
+                let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
+
+                otherSubHtml += `<div class="sub-acc-row">
+                    <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">${subDisplay}</span>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
+                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
+                    </div>
+                </div>`;
+            });
+
+            let otherTextArr = [];
+            let otherPrimaryAmt = 0;
+            for (let cur in otherCurTotals) {
+                let amt = otherCurTotals[cur];
+                otherTextArr.push(`${amt.toLocaleString()} ${cur}`);
+                otherPrimaryAmt = amt;
+            }
+            let otherDisplay = otherTextArr.length > 0 ? otherTextArr.join(', ') : `0 ${defaultCurrency}`;
+            let isExpandedOther = accountExpandState["Others"] !== false;
+
+            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
+                <div class="acc-item" onclick="toggleMainAccount('Others')">
+                    <div style="flex:1;">
+                        <span style="font-size:12px; margin-right:4px;">${isExpandedOther ? '▼' : '▶'}</span> 💳 Others / Unassigned
+                    </div>
+                    <div style="font-weight:bold; color:${otherPrimaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">
+                        ${otherDisplay}
+                    </div>
+                </div>
+                <div class="sub-acc-container ${isExpandedOther ? 'expanded' : ''}">${otherSubHtml}</div>
+            </div>`;
+        }
+
         accountsList.innerHTML = accHtml;
     }
 
@@ -829,7 +901,7 @@
         document.getElementById('detail-account-title').textContent = `Account: ${accName}`;
 
         const txList = document.getElementById('account-tx-list');
-        let subAccs = subAccountsData[accName] || [];
+        let subAccs = subAccountsData[accName] || [accName];
         
         let filtered = transactions.filter(t => {
             let a = t.account ? String(t.account).trim() : '';
@@ -837,10 +909,7 @@
 
             if (amtVal === 0) return false;
 
-            let isMatchAccount = subAccs.length > 0 
-                ? (a === accName || subAccs.some(s => s.toLowerCase() === a.toLowerCase())) 
-                : (a.toLowerCase() === accName.toLowerCase());
-
+            let isMatchAccount = subAccs.some(s => s.toLowerCase() === a.toLowerCase()) || a.toLowerCase() === accName.toLowerCase();
             return isMatchAccount;
         }).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
@@ -1430,6 +1499,27 @@
                 accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
             });
         });
+        // รวมบัญชีอื่นๆ ที่มีในระบบแต่ไม่อยู่ใน Main
+        transactions.forEach(t => {
+            let a = t.account ? String(t.account).trim() : '';
+            if (a && !allSubsOnly.includes(a)) {
+                allSubsOnly.push(a);
+            }
+        });
+        unassignedSubsList = allSubsOnly.filter(sub => {
+            let found = false;
+            Object.keys(subAccountsData).forEach(m => {
+                if ((subAccountsData[m] || []).includes(sub)) found = true;
+            });
+            return !found;
+        });
+        if (unassignedSubsList.length > 0) {
+            accOptHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others</option>`;
+            unassignedSubsList.forEach(sub => {
+                accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+            });
+        }
+
         accSelect.innerHTML = accOptHtml;
         transferSelect.innerHTML = allSubsOnly.map(s => `<option value="${s}">${s}</option>`).join('');
         curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
@@ -1697,8 +1787,29 @@
         let optHtml = '';
         let allSubs = [];
         Object.keys(subAccountsData).forEach(main => {
-            (subAccountsData[main] || []).forEach(sub => { allSubs.push(sub); optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; });
+            optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
+            (subAccountsData[main] || []).forEach(sub => { 
+                allSubs.push(sub); 
+                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; 
+            });
         });
+
+        // รวบรวมบัญชีย่อยอื่นๆ นอก Main
+        let extraSubs = [];
+        transactions.forEach(t => {
+            let a = t.account ? String(t.account).trim() : '';
+            if (a && !allSubs.includes(a) && !extraSubs.includes(a)) {
+                extraSubs.push(a);
+                allSubs.push(a);
+            }
+        });
+        if (extraSubs.length > 0) {
+            optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others</option>`;
+            extraSubs.forEach(sub => {
+                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+            });
+        }
+
         accSelect.innerHTML = optHtml;
         if (preSelectAcc) accSelect.value = preSelectAcc;
 
