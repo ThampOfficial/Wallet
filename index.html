@@ -58,6 +58,7 @@
         .btn-inc { background: var(--success); }
         .btn-exp { background: var(--danger); }
         .btn-trf { background: var(--warning); color: #fff; }
+        .btn-adj { background: #8b5cf6; color: #fff; }
 
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-weight: bold; cursor: pointer; user-select: none; }
         .sub-acc-container { display: none; margin-top: 4px; }
@@ -513,6 +514,30 @@
     </div>
 </div>
 
+<!-- Modal Adjust Balance -->
+<div id="adjust-balance-modal" class="modal-overlay">
+    <div class="modal-box">
+        <h3 id="adjust-modal-title" style="margin-bottom: 12px;">Adjust Balance</h3>
+        <input type="hidden" id="adj-account-name">
+        <input type="hidden" id="adj-account-cur">
+        <div class="form-group">
+            <label>Current Calculated Balance: <strong id="adj-current-calc" style="color:var(--primary);">0.00</strong></label>
+        </div>
+        <div class="form-group">
+            <label for="adj-target-amount">Actual Balance (ยอดเงินจริงที่ต้องการปรับ)</label>
+            <input type="number" id="adj-target-amount" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label for="adj-note">Memo / Note</label>
+            <input type="text" id="adj-note" value="Balance Adjustment">
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+            <button class="btn" onclick="saveAdjustBalance()">Confirm Adjustment</button>
+            <button class="btn" style="background: var(--text-muted);" onclick="closeAdjustBalanceModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
@@ -612,33 +637,25 @@
         return '';
     }
 
-    // ฟังก์ชั่นถอดรหัสข้อความภาษาไทยที่เพี้ยนจากระบบ (ISO-8859-1 / Windows-1252 to UTF-8 fix)
-    function fixThaiEncoding(str) {
-        if (!str) return '';
-        let s = String(str);
-        // ตรวจสอบว่ามีคราบอักษรเพี้ยนแบบ à... หรือไม่
-        if (/[\u0080-\u00FF]/.test(s)) {
-            try {
-                let bytes = [];
-                for (let i = 0; i < s.length; i++) {
-                    bytes.push(s.charCodeAt(i) & 0xFF);
-                }
-                let decoded = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
-                if (decoded && !decoded.includes('')) {
-                    return decoded.trim();
-                }
-            } catch (e) {
-                // Ignore decoding error, fallback below
-            }
-        }
-        return s.trim();
-    }
-
+    // ฟังก์ชันถอดรหัสข้อความภาษาไทยและล้างขยะ Encoding ที่เพี้ยนจาก Sheets
     function cleanGarbageText(text) {
-        let fixed = fixThaiEncoding(text);
-        if (!fixed) return '';
-        // ลบอักขระขยะประหลาดถ้ามีหลุดมา
-        return fixed;
+        if (!text) return '';
+        let s = String(text).trim();
+        try {
+            // ลองแปลงหากติดรหัส ISO-8859-1 ที่ปนมากับภาษาไทย
+            let bytes = [];
+            for (let i = 0; i < s.length; i++) {
+                bytes.push(s.charCodeAt(i) & 0xFF);
+            }
+            let decoded = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+            if (decoded && !decoded.includes('\ufffd') && /[ก-๙]/.test(decoded)) {
+                s = decoded.trim();
+            }
+        } catch (e) {}
+
+        // ตัดอักขระขยะที่ขึ้นต้นด้วย â€CE หรือลักษณะเพี้ยนอื่นๆ ถ้ามี
+        s = s.replace(/^[â€œÂ£¥¢§ªº¬°±²³µ¶·¸¹º¼½¾¿ÀÁÂÃÄÅÇÈÊÉËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝŸ]+/, '').trim();
+        return s;
     }
 
     function getDisplayDateTime(t) {
@@ -816,11 +833,12 @@
 
                 subHtml += `<div class="sub-acc-row">
                     <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">${subDisplay}</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
                         <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
                         <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
                         <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
+                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal('${sub}', '${primaryCur}', ${primaryAmt})">⚙️Adj</button>
                     </div>
                 </div>`;
             });
@@ -880,11 +898,12 @@
 
                 otherSubHtml += `<div class="sub-acc-row">
                     <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">${subDisplay}</span>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
                         <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
                         <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
                         <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
+                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal('${sub}', '${primaryCur}', ${primaryAmt})">⚙️Adj</button>
                     </div>
                 </div>`;
             });
@@ -915,6 +934,81 @@
         accountsList.innerHTML = accHtml;
     }
 
+    /* ---- Adjust Balance Modal ---- */
+    function openAdjustBalanceModal(accName, cur, currentBal) {
+        document.getElementById('adj-account-name').value = accName;
+        document.getElementById('adj-account-cur').value = cur;
+        document.getElementById('adj-modal-title').textContent = `Adjust Balance: ${accName}`;
+        document.getElementById('adj-current-calc').textContent = `${currentBal.toLocaleString()} ${cur}`;
+        document.getElementById('adj-target-amount').value = currentBal;
+        document.getElementById('adjust-balance-modal').classList.add('active');
+    }
+
+    function closeAdjustBalanceModal() {
+        document.getElementById('adjust-balance-modal').classList.remove('active');
+    }
+
+    function saveAdjustBalance() {
+        let accName = document.getElementById('adj-account-name').value;
+        let cur = document.getElementById('adj-account-cur').value;
+        let targetAmt = parseFloat(document.getElementById('adj-target-amount').value);
+        let note = document.getElementById('adj-note').value.trim() || 'Balance Adjustment';
+
+        if (isNaN(targetAmt)) return alert('Please enter a valid amount.');
+
+        let currentBal = 0;
+        transactions.forEach(t => {
+            let a = cleanGarbageText(t.account || '');
+            let c = cleanGarbageText(t.currency || defaultCurrency);
+            if (a.toLowerCase() === accName.toLowerCase() && c === cur) {
+                currentBal += parseFloat(t.amount) || 0;
+            }
+        });
+
+        let diff = targetAmt - currentBal;
+        if (diff === 0) {
+            closeAdjustBalanceModal();
+            return;
+        }
+
+        let now = new Date();
+        let datePart = now.toISOString().slice(0, 10);
+        let timePart = now.toTimeString().slice(0, 8);
+
+        let adjTx = {
+            date: datePart,
+            time: timePart,
+            account: accName,
+            category: 'Adjustment ► Balance Correction',
+            description: note,
+            payee: '',
+            transfers: '',
+            amount: diff,
+            currency: cur,
+            memo: 'System Balance Adjustment'
+        };
+
+        transactions.unshift(adjTx);
+        transactions.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
+        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+
+        renderAccountsList();
+        renderBudgets();
+        if (selectedAccount) openAccountDetail(selectedAccount);
+        closeAdjustBalanceModal();
+
+        if (WEBHOOK_URL) {
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(adjTx)
+            }).catch(e => console.log("Offline: Adjustment saved locally."));
+        }
+
+        alert('Balance adjusted successfully!');
+    }
+
     function openAccountDetail(accName) {
         selectedAccount = accName;
         document.getElementById('accounts-main-view').style.display = 'none';
@@ -925,7 +1019,7 @@
         let subAccs = subAccountsData[accName] || [accName];
         
         let filtered = transactions.filter(t => {
-            let a = t.account ? String(t.account).trim() : '';
+            let a = cleanGarbageText(t.account || '');
             let amtVal = parseFloat(t.amount) || 0;
 
             if (amtVal === 0) return false;
@@ -945,7 +1039,7 @@
             let amtVal = parseFloat(t.amount) || 0;
             let displayDate = getDisplayDateTime(t);
             let cat = String(t.category || '').toLowerCase();
-            let trfAcc = String(t.transfers || '').trim();
+            let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
 
             let isTransfer = cat === 'transfer' || trfAcc !== '';
 
@@ -956,17 +1050,17 @@
             if (isTransfer) {
                 if (amtVal > 0) {
                     detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ รับโอน</span> <small style="color:var(--text-muted);">(From: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
+                    detailsHtml += `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
                     amountDisplay = `+${amtVal.toLocaleString()}`;
                     amountColor = 'var(--success)';
                 } else {
                     detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ โอนออก</span> <small style="color:var(--text-muted);">(To: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
+                    detailsHtml += `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
                     amountDisplay = `${amtVal.toLocaleString()}`;
                     amountColor = 'var(--danger)';
                 }
             } else {
-                detailsHtml = `<span style="font-weight:500;">${t.category || ''}</span> <small style="color:var(--text-muted);">(${t.description || t.memo || ''})</small>`;
+                detailsHtml = `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
                 amountDisplay = (amtVal > 0 ? '+' : '') + amtVal.toLocaleString();
                 amountColor = amtVal > 0 ? 'var(--success)' : 'var(--danger)';
             }
@@ -974,7 +1068,7 @@
             html += `<tr>
                 <td>${displayDate}</td>
                 <td>${detailsHtml}</td>
-                <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${t.currency || defaultCurrency}</td>
+                <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${cleanGarbageText(t.currency || defaultCurrency)}</td>
                 <td>
                     <div style="display:flex; gap:4px;">
                         <button class="mini-btn" style="background:var(--primary);" onclick="openTxEditModal(${realIdx})">Edit</button>
@@ -1006,15 +1100,15 @@
                 let amtVal = parseFloat(t.amount) || 0;
                 let displayDate = getDisplayDateTime(t);
                 let cat = String(t.category || '').toLowerCase();
-                let trfAcc = String(t.transfers || '').trim();
+                let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
                 let isTransfer = cat === 'transfer' || trfAcc !== '';
                 let amountColor = isTransfer ? (amtVal > 0 ? 'var(--success)' : 'var(--danger)') : (amtVal < 0 ? 'var(--danger)' : 'var(--success)');
 
                 html += `<tr>
                     <td>${displayDate}</td>
-                    <td>${t.account || ''} ${trfAcc ? '(' + trfAcc + ')' : ''}</td>
-                    <td>${t.category || ''} <br><small style="color:var(--text-muted);">${t.description || t.memo || ''}</small></td>
-                    <td style="color:${amountColor}; font-weight:bold;">${amtVal > 0 ? '+' : ''}${amtVal.toLocaleString()} ${t.currency || defaultCurrency}</td>
+                    <td>${cleanGarbageText(t.account || '')} ${trfAcc ? '(' + trfAcc + ')' : ''}</td>
+                    <td>${cleanGarbageText(t.category || '')} <br><small style="color:var(--text-muted);">${cleanGarbageText(t.description || t.memo || '')}</small></td>
+                    <td style="color:${amountColor}; font-weight:bold;">${amtVal > 0 ? '+' : ''}${amtVal.toLocaleString()} ${cleanGarbageText(t.currency || defaultCurrency)}</td>
                 </tr>`;
             });
             tbody.innerHTML = html;
@@ -1030,13 +1124,13 @@
         let q = String(keyword || '').trim().toLowerCase();
         if (!q) return;
         let matched = transactions.filter(t => {
-            let acc = String(t.account || '').toLowerCase();
-            let cat = String(t.category || '').toLowerCase();
-            let desc = String(t.description || '').toLowerCase();
-            let payee = String(t.payee || '').toLowerCase();
-            let memo = String(t.memo || '').toLowerCase();
+            let acc = cleanGarbageText(t.account || '').toLowerCase();
+            let cat = cleanGarbageText(t.category || '').toLowerCase();
+            let desc = cleanGarbageText(t.description || '').toLowerCase();
+            let payee = cleanGarbageText(t.payee || '').toLowerCase();
+            let memo = cleanGarbageText(t.memo || '').toLowerCase();
             let amt = String(t.amount || '').toLowerCase();
-            let trf = String(t.transfers || '').toLowerCase();
+            let trf = cleanGarbageText(t.transfers || '').toLowerCase();
 
             return acc.includes(q) || cat.includes(q) || desc.includes(q) || payee.includes(q) || memo.includes(q) || amt.includes(q) || trf.includes(q);
         });
@@ -1225,13 +1319,13 @@
                 let tDate = parseUniversalDate(t);
                 let amt = parseFloat(t.amount) || 0;
                 let cat = String(t.category || '').toLowerCase();
-                let trfAcc = String(t.transfers || '').trim();
+                let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
                 let isTransfer = cat === 'transfer' || trfAcc !== '';
                 
                 if (amt < 0 && !isTransfer && tDate >= startDate) {
-                    let acc = t.account ? String(t.account).trim() : '';
-                    let cStr = t.category ? String(t.category).trim() : '';
-                    let tCur = t.currency || defaultCurrency;
+                    let acc = cleanGarbageText(t.account || '');
+                    let cStr = cleanGarbageText(t.category || '');
+                    let tCur = cleanGarbageText(t.currency || defaultCurrency);
 
                     let isExcludedAcc = (b.excludeAccs || []).includes(acc);
                     let isExcludedCat = (b.excludeCats || []).includes(cStr);
@@ -1292,14 +1386,14 @@
                 let parsed = parseUniversalDate(t);
                 let amt = parseFloat(t.amount) || 0;
                 let cat = String(t.category || '').toLowerCase();
-                let trfAcc = String(t.transfers || '').trim();
+                let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
                 let isTransfer = cat === 'transfer' || trfAcc !== '';
 
                 if (amt < 0 && !isTransfer && !isNaN(parsed.getTime())) {
                     let ty = parsed.getFullYear();
                     let tm = String(parsed.getMonth() + 1).padStart(2, '0');
                     if (`${ty}-${tm}` === ym) {
-                        let tCur = t.currency || defaultCurrency;
+                        let tCur = cleanGarbageText(t.currency || defaultCurrency);
                         sum += convertCurrency(Math.abs(amt), tCur, defaultCurrency);
                     }
                 }
@@ -1361,12 +1455,12 @@
             let tDate = parseUniversalDate(t);
             let amt = parseFloat(t.amount) || 0;
             let cat = String(t.category || '').toLowerCase();
-            let trfAcc = String(t.transfers || '').trim();
+            let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
             let isTransfer = cat === 'transfer' || trfAcc !== '';
 
             if (amt < 0 && !isTransfer && tDate >= startDate) {
-                let acc = t.account ? String(t.account).trim() : '';
-                let cStr = t.category ? String(t.category).trim() : '';
+                let acc = cleanGarbageText(t.account || '');
+                let cStr = cleanGarbageText(t.category || '');
                 let isExcludedAcc = (b.excludeAccs || []).includes(acc);
                 let isExcludedCat = (b.excludeCats || []).includes(cStr);
                 return !isExcludedAcc && !isExcludedCat;
@@ -1381,12 +1475,12 @@
             let html = '';
             matchedTxs.forEach(t => {
                 let amtVal = parseFloat(t.amount) || 0;
-                let tCur = t.currency || defaultCurrency;
+                let tCur = cleanGarbageText(t.currency || defaultCurrency);
                 let converted = convertCurrency(Math.abs(amtVal), tCur, budgetCur);
                 let displayDate = getDisplayDateTime(t);
                 html += `<tr>
                     <td>${displayDate}</td>
-                    <td>${t.category || ''} <small style="color:var(--text-muted);">(${t.account || ''})</small></td>
+                    <td>${cleanGarbageText(t.category || '')} <small style="color:var(--text-muted);">(${cleanGarbageText(t.account || '')})</small></td>
                     <td style="color:var(--danger); font-weight:bold;">-${converted.toLocaleString()} ${budgetCur}</td>
                 </tr>`;
             });
@@ -1516,17 +1610,18 @@
         Object.keys(subAccountsData).forEach(main => {
             accOptHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => {
-                allSubsOnly.push(sub);
+                if (!allSubsOnly.includes(sub)) allSubsOnly.push(sub);
                 accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
             });
         });
 
         transactions.forEach(t => {
-            let a = t.account ? String(t.account).trim() : '';
+            let a = cleanGarbageText(t.account || '');
             if (a && !allSubsOnly.includes(a)) {
                 allSubsOnly.push(a);
             }
         });
+
         let unassignedSubsList = allSubsOnly.filter(sub => {
             let found = false;
             Object.keys(subAccountsData).forEach(m => {
@@ -1726,19 +1821,19 @@
 
             let amt = parseFloat(t.amount) || 0;
             let cat = String(t.category || '').toLowerCase();
-            let trfAcc = String(t.transfers || '').trim();
+            let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
             let isTransfer = cat === 'transfer' || trfAcc !== '';
 
             if (isTransfer || amt === 0) return;
 
-            let tCur = t.currency || defaultCurrency;
+            let tCur = cleanGarbageText(t.currency || defaultCurrency);
             let converted = convertCurrency(Math.abs(amt), tCur, defaultCurrency);
 
             if (amt > 0) {
                 totalInc += converted;
             } else {
                 totalExp += converted;
-                let cStr = t.category ? t.category.trim() : 'Uncategorized';
+                let cStr = t.category ? cleanGarbageText(t.category.trim()) : 'Uncategorized';
                 if (!catTotals[cStr]) catTotals[cStr] = 0;
                 catTotals[cStr] += converted;
             }
@@ -1792,13 +1887,13 @@
         document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
         document.getElementById('tx-datetime').value = (t.date || new Date().toISOString().slice(0,10)) + 'T' + cleanTimeString(t.time || '00:00');
         document.getElementById('tx-amount').value = Math.abs(t.amount);
-        document.getElementById('tx-description').value = t.description || '';
-        document.getElementById('tx-payee').value = t.payee || '';
-        document.getElementById('tx-memo').value = t.memo || '';
+        document.getElementById('tx-description').value = cleanGarbageText(t.description || '');
+        document.getElementById('tx-payee').value = cleanGarbageText(t.payee || '');
+        document.getElementById('tx-memo').value = cleanGarbageText(t.memo || '');
 
-        setupTxModalDropdowns(t.account, t.currency || defaultCurrency, type);
-        if (type !== 'Transfer') document.getElementById('tx-category').value = t.category;
-        if (type === 'Transfer') document.getElementById('tx-transfers-select').value = t.transfers;
+        setupTxModalDropdowns(cleanGarbageText(t.account), cleanGarbageText(t.currency || defaultCurrency), type);
+        if (type !== 'Transfer') document.getElementById('tx-category').value = cleanGarbageText(t.category);
+        if (type === 'Transfer') document.getElementById('tx-transfers-select').value = cleanGarbageText(t.transfers);
 
         document.getElementById('tx-modal').classList.add('active');
     }
@@ -1812,15 +1907,16 @@
         Object.keys(subAccountsData).forEach(main => {
             optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => { 
-                if (!allSubs.includes(sub)) allSubs.push(sub); 
-                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`; 
+                let cleanSub = cleanGarbageText(sub);
+                if (!allSubs.includes(cleanSub)) allSubs.push(cleanSub); 
+                optHtml += `<option value="${cleanSub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${cleanSub}</option>`; 
             });
         });
 
         // 2. ดึงบัญชีย่อยอื่นๆ ทั้งหมดจาก transactions ที่อยู่นอก Main
         let extraSubs = [];
         transactions.forEach(t => {
-            let a = t.account ? String(t.account).trim() : '';
+            let a = cleanGarbageText(t.account || '');
             if (a) {
                 let foundInMain = false;
                 Object.keys(subAccountsData).forEach(main => {
@@ -1843,7 +1939,7 @@
         }
 
         accSelect.innerHTML = optHtml;
-        if (preSelectAcc) accSelect.value = preSelectAcc;
+        if (preSelectAcc) accSelect.value = cleanGarbageText(preSelectAcc);
 
         let catSelect = document.getElementById('tx-category');
         let catHtml = '';
@@ -1860,7 +1956,7 @@
             curHtml += `<option value="${cur}">${cur}</option>`;
         }
         curSelect.innerHTML = curHtml;
-        curSelect.value = preSelectCur || defaultCurrency;
+        curSelect.value = cleanGarbageText(preSelectCur || defaultCurrency);
 
         let trfSelect = document.getElementById('tx-transfers-select');
         trfSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
@@ -1881,14 +1977,14 @@
         const type = document.getElementById('tx-type').value;
         const datetimeVal = document.getElementById('tx-datetime').value;
         const [datePart, timePart] = datetimeVal ? datetimeVal.split('T') : [new Date().toISOString().slice(0,10), '00:00'];
-        const account = document.getElementById('tx-account').value;
-        const category = type === 'Transfer' ? 'Transfer' : document.getElementById('tx-category').value;
-        const description = document.getElementById('tx-description').value.trim();
-        const payee = document.getElementById('tx-payee').value.trim();
-        const transfers = type === 'Transfer' ? document.getElementById('tx-transfers-select').value : '';
+        const account = cleanGarbageText(document.getElementById('tx-account').value);
+        const category = type === 'Transfer' ? 'Transfer' : cleanGarbageText(document.getElementById('tx-category').value);
+        const description = cleanGarbageText(document.getElementById('tx-description').value.trim());
+        const payee = cleanGarbageText(document.getElementById('tx-payee').value.trim());
+        const transfers = type === 'Transfer' ? cleanGarbageText(document.getElementById('tx-transfers-select').value) : '';
         const rawAmt = parseFloat(document.getElementById('tx-amount').value);
-        const currency = document.getElementById('tx-currency').value;
-        const memo = document.getElementById('tx-memo').value.trim();
+        const currency = cleanGarbageText(document.getElementById('tx-currency').value);
+        const memo = cleanGarbageText(document.getElementById('tx-memo').value.trim());
 
         if (isNaN(rawAmt) || rawAmt <= 0 || !datePart) return alert('Please enter valid amount and datetime');
 
