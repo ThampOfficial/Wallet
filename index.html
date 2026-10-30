@@ -612,6 +612,23 @@
         return '';
     }
 
+    // ฟังก์ชั่นกรองตัวอักษรขยะหรือภาษาต่างดาวออก
+    function cleanGarbageText(text) {
+        if (!text) return '';
+        let str = String(text).trim();
+        // ถ้ามีสัญลักษณ์ประหลาดปะปนยาวๆ ให้ตัดทิ้งหรือเลือกเฉพาะส่วนที่อ่านออก
+        // ตรวจสอบเบื้องต้น: หากมีอักขระพิเศษภาษาต่างดาวหนาแน่น ให้ทำความสะอาด
+        if (/[\u0080-\u00FF\ufffd]/.test(str)) {
+            // พยายามดึงเฉพาะตัวอักษรภาษาอังกฤษ ตัวเลข และคำไทยที่ถูกต้องออกมา หรือใช้ค่าสำรองถ้าเพี้ยนหนัก
+            let cleaned = str.replace(/[àâáäãåçèêéëìíîïñòôóöõùúûüýÿÿžšœæ¢£¥§ªº¬¯°±²³µ¶·¸¹º¼½¾¿ÀÁÂÃÄÅÇÈÊÉËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝŸ]/g, '').trim();
+            if (cleaned.length < 2) {
+                return "Account"; // Fallback ป้องกันชื่อพัง
+            }
+            return cleaned;
+        }
+        return str;
+    }
+
     function getDisplayDateTime(t) {
         let datePart = String(t.date || t.datetime || '').trim();
         if (datePart.includes('T')) datePart = datePart.split('T')[0];
@@ -666,14 +683,14 @@
                             datetime: t.datetime || t.date || '',
                             time: t.time || '',
                             date: t.date || t.datetime || '',
-                            account: t.account || '',
-                            category: t.category || '',
-                            description: t.description || '',
-                            payee: t.payee || '',
-                            transfers: t.transfers || '',
+                            account: cleanGarbageText(t.account || ''),
+                            category: cleanGarbageText(t.category || ''),
+                            description: cleanGarbageText(t.description || ''),
+                            payee: cleanGarbageText(t.payee || ''),
+                            transfers: cleanGarbageText(t.transfers || ''),
                             amount: parseFloat(t.amount) || 0,
-                            currency: t.currency || defaultCurrency,
-                            memo: t.memo || ''
+                            currency: cleanGarbageText(t.currency || defaultCurrency),
+                            memo: cleanGarbageText(t.memo || '')
                         })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
                         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
@@ -712,8 +729,8 @@
             let amtVal = parseFloat(t.amount) || 0;
             if (amtVal === 0) return;
 
-            let acc = (t.account && String(t.account).trim() !== "") ? String(t.account).trim() : 'General';
-            let cur = (t.currency && String(t.currency).trim() !== "") ? String(t.currency).trim() : defaultCurrency;
+            let acc = (t.account && String(t.account).trim() !== "") ? cleanGarbageText(String(t.account).trim()) : 'General';
+            let cur = (t.currency && String(t.currency).trim() !== "") ? cleanGarbageText(String(t.currency).trim()) : defaultCurrency;
 
             if (!rawAccs[acc]) rawAccs[acc] = {};
             if (!rawAccs[acc][cur]) rawAccs[acc][cur] = 0;
@@ -747,13 +764,6 @@
         }
         balanceGrid.innerHTML = balanceHtml;
 
-        // รวบรวม Sub-accounts ทั้งหมดที่มีอยู่ในระบบ (ทั้งในและนอก Main)
-        let allKnownSubs = new Set();
-        Object.keys(subAccountsData).forEach(main => {
-            (subAccountsData[main] || []).forEach(sub => allKnownSubs.add(sub));
-        });
-        
-        // ตรวจสอบบัญชีจาก Transaction ที่อยู่นอกเหนือจาก Main
         let unassignedSubs = [];
         Object.keys(rawAccs).forEach(acc => {
             let isAssigned = false;
@@ -835,7 +845,6 @@
             </div>`;
         });
 
-        // แสดงบัญชีที่อยู่นอกเหนือ Main Account (ถ้ามี)
         if (unassignedSubs.length > 0) {
             let otherCurTotals = {};
             let otherSubHtml = '';
@@ -1499,14 +1508,14 @@
                 accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
             });
         });
-        // รวมบัญชีอื่นๆ ที่มีในระบบแต่ไม่อยู่ใน Main
+
         transactions.forEach(t => {
             let a = t.account ? String(t.account).trim() : '';
             if (a && !allSubsOnly.includes(a)) {
                 allSubsOnly.push(a);
             }
         });
-        unassignedSubsList = allSubsOnly.filter(sub => {
+        let unassignedSubsList = allSubsOnly.filter(sub => {
             let found = false;
             Object.keys(subAccountsData).forEach(m => {
                 if ((subAccountsData[m] || []).includes(sub)) found = true;
@@ -1794,7 +1803,6 @@
             });
         });
 
-        // รวบรวมบัญชีย่อยอื่นๆ นอก Main
         let extraSubs = [];
         transactions.forEach(t => {
             let a = t.account ? String(t.account).trim() : '';
