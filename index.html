@@ -612,17 +612,33 @@
         return '';
     }
 
-    function cleanGarbageText(text) {
-        if (!text) return '';
-        let str = String(text).trim();
-        if (/[\u0080-\u00FF\ufffd]/.test(str)) {
-            let cleaned = str.replace(/[àâáäãåçèêéëìíîïñòôóöõùúûüýÿÿžšœæ¢£¥§ªº¬¯°±²³µ¶·¸¹º¼½¾¿ÀÁÂÃÄÅÇÈÊÉËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝŸ]/g, '').trim();
-            if (cleaned.length < 2) {
-                return "Account";
+    // ฟังก์ชั่นถอดรหัสข้อความภาษาไทยที่เพี้ยนจากระบบ (ISO-8859-1 / Windows-1252 to UTF-8 fix)
+    function fixThaiEncoding(str) {
+        if (!str) return '';
+        let s = String(str);
+        // ตรวจสอบว่ามีคราบอักษรเพี้ยนแบบ à... หรือไม่
+        if (/[\u0080-\u00FF]/.test(s)) {
+            try {
+                let bytes = [];
+                for (let i = 0; i < s.length; i++) {
+                    bytes.push(s.charCodeAt(i) & 0xFF);
+                }
+                let decoded = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
+                if (decoded && !decoded.includes('')) {
+                    return decoded.trim();
+                }
+            } catch (e) {
+                // Ignore decoding error, fallback below
             }
-            return cleaned;
         }
-        return str;
+        return s.trim();
+    }
+
+    function cleanGarbageText(text) {
+        let fixed = fixThaiEncoding(text);
+        if (!fixed) return '';
+        // ลบอักขระขยะประหลาดถ้ามีหลุดมา
+        return fixed;
     }
 
     function getDisplayDateTime(t) {
@@ -1792,7 +1808,7 @@
         let optHtml = '';
         let allSubs = [];
         
-        // ดึงบัญชีย่อยตามกลุ่ม Main ที่ตั้งค่าไว้
+        // 1. ดึงบัญชีย่อยตามกลุ่ม Main ที่ตั้งค่าไว้
         Object.keys(subAccountsData).forEach(main => {
             optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => { 
@@ -1801,13 +1817,21 @@
             });
         });
 
-        // ดึงบัญชีย่อยอื่นๆ ทั้งหมดจาก transactions ที่อาจจะยังไม่ได้ผูกกับ Main
+        // 2. ดึงบัญชีย่อยอื่นๆ ทั้งหมดจาก transactions ที่อยู่นอก Main
         let extraSubs = [];
         transactions.forEach(t => {
             let a = t.account ? String(t.account).trim() : '';
-            if (a && !allSubs.includes(a) && !extraSubs.includes(a)) {
-                extraSubs.push(a);
-                allSubs.push(a);
+            if (a) {
+                let foundInMain = false;
+                Object.keys(subAccountsData).forEach(main => {
+                    if (main.toLowerCase() === a.toLowerCase() || (subAccountsData[main] || []).some(s => s.toLowerCase() === a.toLowerCase())) {
+                        foundInMain = true;
+                    }
+                });
+                if (!foundInMain && !extraSubs.includes(a) && !allSubs.includes(a)) {
+                    extraSubs.push(a);
+                    allSubs.push(a);
+                }
             }
         });
 
