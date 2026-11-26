@@ -94,7 +94,8 @@ function getSheet_() {
 }
 
 function cellText_(v, tz, fmt) {
-  if (v instanceof Date) return Utilities.formatDate(v, tz, fmt);
+  // a text column that Sheets turned into a real date (e.g. "1/5") comes back as a Date
+  if (v instanceof Date) return Utilities.formatDate(v, tz, fmt || "dd/MM/yyyy");
   return v === null || v === undefined ? "" : fixMojibake(String(v));
 }
 
@@ -109,7 +110,7 @@ function readTransactions_() {
   var sheet = getSheet_();
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  var tz = Session.getScriptTimeZone();
+  var tz = sheet.getParent().getSpreadsheetTimeZone() || Session.getScriptTimeZone();
   var rows = sheet.getRange(2, 1, lastRow - 1, 10).getValues(); // A..J, header skipped
   var transactions = [];
 

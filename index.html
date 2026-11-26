@@ -548,7 +548,7 @@
 </div>
 
 <script>
-    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
+    let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";   // set in Settings (kept out of the public repo)
 
     const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const jsArg = v => esc(JSON.stringify(String(v === null || v === undefined ? '' : v)));   // safe JS string argument inside an onclick="..." attribute
@@ -621,6 +621,10 @@
         let val = document.getElementById('webhook-url-input').value.trim();
         API_KEY = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('wallet_api_key', API_KEY);
+        if (val && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(val)) {
+            alert('The URL must look like https://script.google.com/macros/s/.../exec');
+            return;
+        }
         if (val) {
             WEBHOOK_URL = val;
             localStorage.setItem('wallet_webhook_url', val);
@@ -789,7 +793,7 @@
     }
 
     function fetchTransactionsFromSheet() {
-        if (!WEBHOOK_URL) return;
+        if (!WEBHOOK_URL) { setSyncStatus('Set your script URL and access key in Settings'); return; }
         setSyncStatus('Syncing...');
         
         fetch(readUrl(), { redirect: "follow" })
