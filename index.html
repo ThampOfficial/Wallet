@@ -146,6 +146,7 @@
         .bud-left { text-align: right; font-weight: 700; font-size: 17px; white-space: nowrap; }
         .bud-left small { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); }
         .bud-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+        .acc-badge { background: var(--bg-color); color: var(--text-muted); border-radius: 999px; padding: 1px 7px; font-size: 10px; margin-left: 4px; white-space: nowrap; }
         .pk-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-top: 1px solid var(--border); font-size: 14px; }
         .pk-row input { width: 18px; height: 18px; flex: none; }
         .split-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
@@ -634,6 +635,34 @@
     let scheduleData = JSON.parse(localStorage.getItem('wallet_schedule_data')) || [];
     let accountExpandState = JSON.parse(localStorage.getItem('wallet_acc_expand')) || {};
 
+    // per-account switches: tot = show in total assets / net worth, grp = add to its main account's total
+    // keys: 'S:<sub-account or plain account>' and 'M:<main account>'; everything defaults to ON
+    let accountFlags = JSON.parse(localStorage.getItem('wallet_acc_flags')) || {};
+    function accFlag(key, field) { return !(accountFlags[key] && accountFlags[key][field] === false); }
+    function setAccFlag(key, field, on) {
+        if (!accountFlags[key]) accountFlags[key] = {};
+        accountFlags[key][field] = !!on;
+        if (accountFlags[key].tot !== false && accountFlags[key].grp !== false) delete accountFlags[key];
+        localStorage.setItem('wallet_acc_flags', JSON.stringify(accountFlags));
+        renderAccountsList();
+        if (document.getElementById('account-manager-modal') && document.getElementById('account-manager-modal').classList.contains('active')) renderAccountManagerList();
+    }
+    function accMainOf(acc) {
+        const a = String(acc).toLowerCase();
+        return Object.keys(subAccountsData).find(m => m.toLowerCase() === a || (subAccountsData[m] || []).some(x => x.toLowerCase() === a));
+    }
+    function accCounts(acc) {   // does this account's balance go into Net Worth / total assets?
+        if (!accFlag('S:' + acc, 'tot')) return false;
+        const m = accMainOf(acc);
+        return m ? accFlag('M:' + m, 'tot') : true;
+    }
+    function accBadges(sub) {
+        let b = '';
+        if (!accFlag('S:' + sub, 'grp')) b += ` <small class="acc-badge" title="Not added to its main account total">not in group</small>`;
+        if (!accFlag('S:' + sub, 'tot')) b += ` <small class="acc-badge" title="Not counted in total assets">not in total</small>`;
+        return b;
+    }
+
     let chartMonthLabels = [];
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -920,6 +949,7 @@
         });
 
         for (let acc in rawAccs) {
+            if (!accCounts(acc)) continue;
             for (let cur in rawAccs[acc]) {
                 let val = rawAccs[acc][cur];
                 if (!currencyTotals[cur]) currencyTotals[cur] = 0;
@@ -933,6 +963,7 @@
 
         let assetsTHB = 0, liabTHB = 0;
         for (let a in rawAccs) {
+            if (!accCounts(a)) continue;
             let v = 0;
             for (let c in rawAccs[a]) v += convertCurrency(rawAccs[a][c], c, 'THB');
             if (v >= 0) assetsTHB += v; else liabTHB += v;
@@ -984,13 +1015,15 @@
                     primaryCur = cur;
                     primaryAmt = amt;
 
-                    if (!mainCurTotals[cur]) mainCurTotals[cur] = 0;
-                    mainCurTotals[cur] += amt;
+                    if (accFlag('S:' + sub, 'grp')) {
+                        if (!mainCurTotals[cur]) mainCurTotals[cur] = 0;
+                        mainCurTotals[cur] += amt;
+                    }
                 }
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 subHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}${accBadges(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
                         <button class="ic-btn btn-inc" title="Income" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+</button>
@@ -1023,7 +1056,7 @@
             accHtml += `<div class="card acc-group">
                 <div class="acc-item" onclick="toggleMainAccount(${jsArg(main)})">
                     <div style="flex:1;">
-                        <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${esc(main)} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
+                        <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${esc(main)} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>${accFlag('M:' + main, 'tot') ? '' : ' <small class="acc-badge">not in total</small>'}
                     </div>
                     <div style="font-weight:bold; color:${mainPrimaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">
                         ${mainDisplay}
@@ -1056,7 +1089,7 @@
 
                 let grpOpts = `<option value="">📁 ย้ายไปกลุ่ม…</option>` + Object.keys(subAccountsData).map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('') + `<option value="__new__">＋ กลุ่มใหม่…</option>`;
                 otherSubHtml += `<div class="sub-acc-row" style="flex-wrap:wrap;">
-                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}${accBadges(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
                         <button class="ic-btn btn-inc" title="Income" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+</button>
@@ -1065,6 +1098,7 @@
                         <button class="ic-btn btn-adj" title="Adjust balance" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙</button>
                     </div>
                     <select class="grp-sel" onchange="assignAccountToGroup(${jsArg(sub)}, this)" style="width:100%; margin-top:6px; padding:6px; font-size:12px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text-muted);">${grpOpts}</select>
+                    <label style="width:100%; font-size:12px; color:var(--text-muted); margin-top:6px; display:flex; align-items:center; gap:6px;"><input type="checkbox" ${accFlag('S:' + sub, 'tot') ? 'checked' : ''} onchange="setAccFlag(${jsArg('S:' + sub)}, 'tot', this.checked)"> Show in total assets</label>
                 </div>`;
             });
 
@@ -1421,13 +1455,18 @@
             let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
             let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
             html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${main} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${esc(main)} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); margin-top:6px;"><input type="checkbox" ${accFlag('M:' + main, 'tot') ? 'checked' : ''} onchange="setAccFlag(${jsArg('M:' + main)}, 'tot', this.checked)"> Show this group in total assets</label>
                 <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect(${jsArg(main)})">+ Sub</button></div>`;
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
                 let subUp = sIdx > 0 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
                 let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
-                html += `<div class="sub-acc-row"><span>└─ ${esc(sub)}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain(${jsArg(main)}, ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div></div>`;
+                html += `<div class="sub-acc-row" style="flex-wrap:wrap;"><span>└─ ${esc(sub)}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain(${jsArg(main)}, ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>
+                    <div style="width:100%; display:flex; gap:14px; font-size:11px; color:var(--text-muted); margin-top:4px;">
+                        <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${accFlag('S:' + sub, 'grp') ? 'checked' : ''} onchange="setAccFlag(${jsArg('S:' + sub)}, 'grp', this.checked)"> Add to ${esc(main)} total</label>
+                        <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${accFlag('S:' + sub, 'tot') ? 'checked' : ''} onchange="setAccFlag(${jsArg('S:' + sub)}, 'tot', this.checked)"> Show in total assets</label>
+                    </div></div>`;
             });
             html += `</div></div>`;
         });
