@@ -1717,6 +1717,8 @@
             },
             options: {
                 responsive: true,
+                onClick: (e, els) => { if (els.length) openChartMonthTxs(chartMonthLabels[els[0].index]); },
+                onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
                 plugins: { legend: { position: 'bottom' } },
                 scales: {
                     x: { stacked: false },
@@ -1753,6 +1755,24 @@
             listBody.innerHTML = html;
         }
 
+        document.getElementById('budget-tx-modal').classList.add('active');
+    }
+
+    // tap a bar on the chart: list the expenses counted in that month
+    function openChartMonthTxs(ym) {
+        const list = transactions.filter(t => {
+            const amt = parseFloat(t.amount) || 0, d = parseUniversalDate(t);
+            const isTransfer = String(t.category || '').toLowerCase() === 'transfer' || cleanGarbageText(String(t.transfers || '').trim()) !== '';
+            return amt < 0 && !isTransfer && !isBalanceAdj(t) && !isNaN(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === ym;
+        }).sort((x, y) => parseUniversalDate(y) - parseUniversalDate(x));
+        let total = 0;
+        const rows = list.map(t => {
+            const v = convertCurrency(Math.abs(parseFloat(t.amount) || 0), cleanGarbageText(t.currency || defaultCurrency), defaultCurrency);
+            total += v;
+            return `<tr><td>${getDisplayDateTime(t)}</td><td>${esc(cleanGarbageText(t.category || ''))} <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.account || ''))})</small></td><td style="color:var(--danger); font-weight:bold;">-${Math.round(v * 100) / 100 === v ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${esc(defaultCurrency)}</td></tr>`;
+        }).join('');
+        document.getElementById('budget-tx-modal-title').textContent = `${ym} · ${list.length} expenses · ${Math.round(total).toLocaleString()} ${defaultCurrency}`;
+        document.getElementById('budget-tx-list-body').innerHTML = rows || `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No expenses this month</td></tr>`;
         document.getElementById('budget-tx-modal').classList.add('active');
     }
 
