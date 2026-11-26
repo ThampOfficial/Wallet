@@ -632,7 +632,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b5';
+    const APP_BUILD = 'b6';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -1011,7 +1011,7 @@
                             time: t.time || '',
                             date: t.date || t.datetime || '',
                             account: cleanGarbageText(t.account || ''),
-                            category: cleanGarbageText(t.category || ''),
+                            category: cleanGarbageText(t.category || '').replace(/^Exclude\s{1,3}Other$/i, 'Exclude ► Other'),
                             description: cleanGarbageText(t.description || ''),
                             payee: cleanGarbageText(t.payee || ''),
                             transfers: cleanGarbageText(t.transfers || ''),
@@ -2473,6 +2473,7 @@
         if (changed) localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
     }
     function catOptionsHtml() {
+        if (!categoriesData['Exclude']) categoriesData['Exclude'] = ['Other'];
         let h = '';
         for (let m in categoriesData) {
             const subs = categoriesData[m] || [];
@@ -2512,7 +2513,11 @@
         d.className = 'split-row';
         d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="splitAutoFill('${k}', this)"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary('${k}')">×</button>`;
         rows.appendChild(d);
-        if (cat) d.querySelector('select').value = cat;
+        if (cat) {
+            const sel = d.querySelector('select');
+            sel.value = cat;
+            if (sel.value !== cat) { sel.insertAdjacentHTML('beforeend', `<option value="${esc(cat)}">${esc(cat)}</option>`); sel.value = cat; }   // e.g. Exclude ► Other when it is not in the category list yet
+        }
         d.querySelector('input').value = amt === '' ? '' : Math.round(amt * 100) / 100;
         updateSplitSummary(k);
     }
@@ -2593,7 +2598,7 @@
         if (editIdx >= 0) {
             let grp = [editIdx];
             try { const g = JSON.parse(document.getElementById('tx-edit-group').value || '[]'); if (g.length) grp = g; } catch (e) {}
-            if (grp.some(i => transactions[i] && !transactions[i].id)) alert('This transaction has no sheet ID yet (update Code.gs, then refresh). The old row will stay in the sheet.');
+            if (grp.some(i => transactions[i] && !transactions[i].id)) return alert('This transaction has no sheet ID yet, so editing it would create a duplicate. Update Code.gs, refresh the app, then edit again.');
             grp.forEach(i => { if (transactions[i] && transactions[i].id) oldIds.push(transactions[i].id); });
             grp.slice().sort((a, b) => b - a).forEach(i => transactions.splice(i, 1));
             txObjs.slice().reverse().forEach(o => transactions.unshift(o));
@@ -2621,9 +2626,9 @@
 
     function deleteTransaction(index) {
         if (confirm('Delete this transaction?')) {
+            if (!transactions[index].id) return alert('This transaction has no sheet ID yet, so it cannot be deleted from the sheet. Update Code.gs, refresh the app, then delete again.');
             const gone = transactions.splice(index, 1)[0];
-            if (gone && gone.id) queueOp({ op: 'del', id: gone.id });
-            else alert('This transaction has no sheet ID yet, so it was removed here only. Update Code.gs, refresh, and delete it again.');
+            queueOp({ op: 'del', id: gone.id });
             localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
             renderAccountsList();
             renderBudgets();
