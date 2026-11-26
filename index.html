@@ -11,21 +11,21 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" async></script>
     <style>
         :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
-            --bg-color: #f3f4f6;
+            --primary: #1f7ae0;
+            --primary-hover: #1665bd;
+            --bg-color: #eef1f5;
             --card-bg: #ffffff;
             --text-main: #1f2937;
             --text-muted: #6b7280;
             --border: #e5e7eb;
-            --danger: #ef4444;
-            --success: #10b981;
+            --danger: #e5484d;
+            --success: #17a673;
             --warning: #d97706;
         }
         body.dark-mode {
-            --bg-color: #111827;
-            --card-bg: #1f2937;
-            --text-main: #f9fafb;
+            --bg-color: #0f1621;
+            --card-bg: #1c2533;
+            --text-main: #f4f6fa;
             --text-muted: #9ca3af;
             --border: #374151;
         }
@@ -81,6 +81,44 @@
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; padding: 16px; }
         .modal-overlay.active { display: flex; }
         .modal-box { background: var(--card-bg); width: 100%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; color: var(--text-main); }
+
+        /* ===== MoneyWiz-style skin ===== */
+        body { font-size: 15px; }
+        .card { border-radius: 14px; border: none; box-shadow: 0 1px 2px rgba(16,24,40,.06); }
+        .card > h3 { text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
+        .btn { border-radius: 10px; }
+        .form-group input, .form-group select { border-radius: 10px; padding: 10px; }
+        .nav-bar { padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -1px 0 var(--border); }
+        .nav-item { font-size: 10px; padding: 2px 0; }
+        .nav-item.active { font-weight: 600; }
+        .nav-item.active div { transform: scale(1.1); }
+        .hero { background: linear-gradient(135deg, #1f7ae0 0%, #15a0c8 100%); color: #fff; border-radius: 16px; padding: 18px 16px 14px; margin-bottom: 14px; box-shadow: 0 6px 16px rgba(31,122,224,.25); }
+        body.dark-mode .hero { background: linear-gradient(135deg, #1b4f93 0%, #107a98 100%); }
+        .hero-label { font-size: 12px; opacity: .85; letter-spacing: .04em; text-transform: uppercase; }
+        .hero-amt { font-size: 32px; font-weight: 700; margin: 2px 0 12px; letter-spacing: -.5px; }
+        .hero-split { display: flex; gap: 10px; }
+        .hero-split > div { flex: 1; background: rgba(255,255,255,.16); border-radius: 10px; padding: 8px 10px; }
+        .hero-split small { display: block; font-size: 10px; opacity: .85; text-transform: uppercase; letter-spacing: .04em; }
+        .hero-split b { font-size: 14px; }
+        .hero-cur { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .hero-cur span { font-size: 11px; background: rgba(255,255,255,.16); border-radius: 999px; padding: 3px 9px; }
+        .hero #sync-status { color: rgba(255,255,255,.8) !important; text-align: left; margin-top: 8px; }
+        .acc-group { padding: 4px 14px; margin-bottom: 12px; }
+        .acc-group .acc-item { padding: 12px 0; font-size: 15px; }
+        .acc-group .sub-acc-row { padding: 11px 0 11px 6px; border-top: 1px solid var(--border); font-size: 14px; margin-top: 0; }
+        .acc-group .sub-acc-container { margin-top: 0; padding-bottom: 4px; }
+        .acc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-right: 8px; opacity: .55; }
+        .ic-btn { width: 26px; height: 26px; border-radius: 50%; border: none; color: #fff; font-size: 14px; line-height: 26px; padding: 0; cursor: pointer; font-weight: 700; }
+        .day-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 14px 4px 6px; text-transform: uppercase; letter-spacing: .03em; }
+        .day-card { background: var(--card-bg); border-radius: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.06); padding: 0 14px; }
+        .tx-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--border); }
+        .tx-row:first-child { border-top: none; }
+        .tx-ico { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+        .tx-main { flex: 1; min-width: 0; }
+        .tx-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tx-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tx-amt { font-weight: 700; font-size: 14px; text-align: right; white-space: nowrap; }
+        .tx-act { display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end; }
     </style>
 </head>
 <body>
@@ -95,16 +133,13 @@
                 <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openAccountManagerModal()">⚙️ Edit</button>
             </div>
 
-            <div class="card" style="text-align: center;">
-                <h3>Total Balance & Net Worth</h3>
-                <div id="sync-status" style="font-size:11px; color:var(--text-muted); min-height:14px;"></div>
-                <div id="total-balance-grid" class="balance-grid">
-                    <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
-                </div>
+            <div class="hero">
+                <div id="total-balance-grid"><div class="hero-label">Loading...</div></div>
+                <div id="sync-status" style="font-size:11px; min-height:14px;"></div>
             </div>
 
-            <div class="card">
-                <h3>Accounts List</h3>
+            <div>
+                <h3 style="margin:0 4px 8px; text-transform:uppercase; letter-spacing:.04em; font-size:11px;">Accounts</h3>
                 <div id="accounts-list">
                     <p style="color: var(--text-muted); font-size: 13px;">Loading accounts...</p>
                 </div>
@@ -116,18 +151,8 @@
                 <button class="btn" style="width: auto; background: var(--text-muted);" onclick="backToAccountsList()">← Back</button>
                 <h2 id="detail-account-title" style="margin: 0; font-size: 16px;">Account Details</h2>
             </div>
-            <div class="card">
-                <h3>Transactions (Newer First)</h3>
-                <div style="overflow-x: auto;">
-                    <table>
-                        <thead>
-                            <tr><th>Date & Time</th><th>Category / Details</th><th>Amount</th><th>Action</th></tr>
-                        </thead>
-                        <tbody id="account-tx-list">
-                            <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div id="account-tx-list">
+                <p style="text-align:center; color:var(--text-muted);">No transactions</p>
             </div>
         </div>
     </div>
@@ -881,18 +906,24 @@
             netWorthTHB += convertCurrency(currencyTotals[cur], cur, 'THB');
         }
 
-        let balanceHtml = `<div class="balance-box" style="background: rgba(79, 70, 229, 0.05); border-color: var(--primary);">
-            <div class="balance-box-cur" style="color: var(--primary);">Net Worth (THB)</div>
-            <div class="balance-box-amt" style="color: ${netWorthTHB < 0 ? 'var(--danger)' : 'var(--primary)'};">${netWorthTHB.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-        </div>`;
-
-        for (let cur in currencyTotals) {
-            let val = currencyTotals[cur];
-            balanceHtml += `<div class="balance-box">
-                <div class="balance-box-cur">${cur}</div>
-                <div class="balance-box-amt" style="color: ${val < 0 ? 'var(--danger)' : 'var(--text-main)'};">${val.toLocaleString()}</div>
-            </div>`;
+        let assetsTHB = 0, liabTHB = 0;
+        for (let a in rawAccs) {
+            let v = 0;
+            for (let c in rawAccs[a]) v += convertCurrency(rawAccs[a][c], c, 'THB');
+            if (v >= 0) assetsTHB += v; else liabTHB += v;
         }
+        const fmt2 = n => n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        let balanceHtml = `<div class="hero-label">Net Worth (THB)</div>
+            <div class="hero-amt">${fmt2(netWorthTHB)}</div>
+            <div class="hero-split">
+                <div><small>Assets</small><b>${fmt2(assetsTHB)}</b></div>
+                <div><small>Liabilities</small><b>${fmt2(liabTHB)}</b></div>
+            </div>
+            <div class="hero-cur">`;
+        for (let cur in currencyTotals) {
+            balanceHtml += `<span>${esc(cur)} ${currencyTotals[cur].toLocaleString()}</span>`;
+        }
+        balanceHtml += `</div>`;
         balanceGrid.innerHTML = balanceHtml;
 
         let unassignedSubs = [];
@@ -934,13 +965,13 @@
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 subHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;">└─ ${esc(sub)}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄Trf</button>
-                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙️Adj</button>
+                        <button class="ic-btn btn-inc" title="Income" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+</button>
+                        <button class="ic-btn btn-exp" title="Expense" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">&minus;</button>
+                        <button class="ic-btn btn-trf" title="Transfer" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄</button>
+                        <button class="ic-btn btn-adj" title="Adjust balance" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙</button>
                     </div>
                 </div>`;
             });
@@ -964,10 +995,10 @@
             let arrowIcon = isExpanded ? '▼' : '▶';
             let expandClass = isExpanded ? 'expanded' : '';
 
-            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
+            accHtml += `<div class="card acc-group">
                 <div class="acc-item" onclick="toggleMainAccount(${jsArg(main)})">
                     <div style="flex:1;">
-                        <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${main} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
+                        <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${esc(main)} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
                     </div>
                     <div style="font-weight:bold; color:${mainPrimaryAmt < 0 ? 'var(--danger)' : 'var(--success)'};">
                         ${mainDisplay}
@@ -999,13 +1030,13 @@
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 otherSubHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;">└─ ${esc(sub)}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄Trf</button>
-                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙️Adj</button>
+                        <button class="ic-btn btn-inc" title="Income" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+</button>
+                        <button class="ic-btn btn-exp" title="Expense" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">&minus;</button>
+                        <button class="ic-btn btn-trf" title="Transfer" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄</button>
+                        <button class="ic-btn btn-adj" title="Adjust balance" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙</button>
                     </div>
                 </div>`;
             });
@@ -1020,7 +1051,7 @@
             let otherDisplay = otherTextArr.length > 0 ? otherTextArr.join(', ') : `0 ${defaultCurrency}`;
             let isExpandedOther = accountExpandState["Others"] !== false;
 
-            accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
+            accHtml += `<div class="card acc-group">
                 <div class="acc-item" onclick="toggleMainAccount('Others')">
                     <div style="flex:1;">
                         <span style="font-size:12px; margin-right:4px;">${isExpandedOther ? '▼' : '▶'}</span> 💳 Others / Unassigned
@@ -1131,53 +1162,55 @@
         }).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
         if (filtered.length === 0) {
-            txList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No transactions found</td></tr>`;
+            txList.innerHTML = `<p style="text-align:center; color:var(--text-muted);">No transactions found</p>`;
             return;
         }
 
+        const dayKey = t => { const d = parseUniversalDate(t); return isNaN(d) ? '-' : d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+        const dayLabel = k => { if (k === '-') return 'Unknown date'; const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short', year:'numeric'}); };
+        let groups = [], gMap = {};
+        filtered.forEach(t => { const k = dayKey(t); if (!gMap[k]) { gMap[k] = {k, items: []}; groups.push(gMap[k]); } gMap[k].items.push(t); });
+
         let html = '';
-        filtered.forEach(t => {
-            let realIdx = transactions.indexOf(t);
-            let amtVal = parseFloat(t.amount) || 0;
-            let displayDate = getDisplayDateTime(t);
-            let cat = String(t.category || '').toLowerCase();
-            let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
-
-            let isTransfer = cat === 'transfer' || trfAcc !== '';
-
-            let detailsHtml = '';
-            let amountDisplay = '';
-            let amountColor = '';
-
-            if (isTransfer) {
-                if (amtVal > 0) {
-                    detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ รับโอน</span> <small style="color:var(--text-muted);">(From: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
-                    amountDisplay = `+${amtVal.toLocaleString()}`;
-                    amountColor = 'var(--success)';
+        groups.forEach(g => {
+            let sums = {};
+            g.items.forEach(t => { const c = cleanGarbageText(t.currency || defaultCurrency); sums[c] = (sums[c] || 0) + (parseFloat(t.amount) || 0); });
+            const sumTxt = Object.keys(sums).map(c => `${sums[c].toLocaleString()} ${esc(c)}`).join(', ');
+            html += `<div class="day-head"><span>${esc(dayLabel(g.k))}</span><span>${sumTxt}</span></div><div class="day-card">`;
+            g.items.forEach(t => {
+                let realIdx = transactions.indexOf(t);
+                let amtVal = parseFloat(t.amount) || 0;
+                let cat = String(t.category || '').toLowerCase();
+                let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
+                let isTransfer = cat === 'transfer' || trfAcc !== '';
+                let catTxt = cleanGarbageText(t.category || '');
+                let memo = cleanGarbageText(t.description || t.memo || '');
+                let title, sub, ico, icoBg, color;
+                if (isTransfer) {
+                    title = amtVal > 0 ? `รับโอน ← ${trfAcc}` : `โอนออก → ${trfAcc}`;
+                    sub = [catTxt, memo].filter(Boolean).join(' · ');
+                    ico = '⇄'; icoBg = 'rgba(217,119,6,.15)'; color = 'var(--warning)';
                 } else {
-                    detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ โอนออก</span> <small style="color:var(--text-muted);">(To: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
-                    amountDisplay = `${amtVal.toLocaleString()}`;
-                    amountColor = 'var(--danger)';
+                    title = catTxt || '(No category)';
+                    sub = memo;
+                    ico = amtVal > 0 ? '↓' : '↑'; icoBg = amtVal > 0 ? 'rgba(23,166,115,.15)' : 'rgba(229,72,77,.12)';
+                    color = amtVal > 0 ? 'var(--success)' : 'var(--danger)';
                 }
-            } else {
-                detailsHtml = `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
-                amountDisplay = (amtVal > 0 ? '+' : '') + amtVal.toLocaleString();
-                amountColor = amtVal > 0 ? 'var(--success)' : 'var(--danger)';
-            }
-
-            html += `<tr>
-                <td>${displayDate}</td>
-                <td>${detailsHtml}</td>
-                <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${esc(cleanGarbageText(t.currency || defaultCurrency))}</td>
-                <td>
-                    <div style="display:flex; gap:4px;">
-                        <button class="mini-btn" style="background:var(--primary);" onclick="openTxEditModal(${realIdx})">Edit</button>
-                        <button class="mini-btn btn-exp" onclick="deleteTransaction(${realIdx})">Del</button>
+                let tm = cleanTimeString(t.time || t.datetime || '');
+                if (tm) sub = sub ? `${tm} · ${sub}` : tm;
+                html += `<div class="tx-row">
+                    <div class="tx-ico" style="background:${icoBg}; color:${color};">${ico}</div>
+                    <div class="tx-main"><div class="tx-title">${esc(title)}</div><div class="tx-sub">${esc(sub)}</div></div>
+                    <div>
+                        <div class="tx-amt" style="color:${isTransfer ? 'var(--text-main)' : color};">${amtVal > 0 ? '+' : ''}${amtVal.toLocaleString()} ${esc(cleanGarbageText(t.currency || defaultCurrency))}</div>
+                        <div class="tx-act">
+                            <button class="mini-btn" style="background:var(--primary);" onclick="openTxEditModal(${realIdx})">Edit</button>
+                            <button class="mini-btn btn-exp" onclick="deleteTransaction(${realIdx})">Del</button>
+                        </div>
                     </div>
-                </td>
-            </tr>`;
+                </div>`;
+            });
+            html += `</div>`;
         });
         txList.innerHTML = html;
     }
