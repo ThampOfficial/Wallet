@@ -198,6 +198,7 @@
             <h2 style="margin-bottom:0;">Budget Management</h2>
             <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openBudgetModal()">+ Add Budget</button>
         </div>
+        <div id="budget-summary"></div>
         <div id="budget-table-body"><p style="text-align:center; color:var(--text-muted);">No budgets set</p></div>
         <div class="card" style="text-align: center;">
             <h3>Budget vs Expense (4 เดือนล่าสุด)</h3>
@@ -437,6 +438,7 @@
             <div class="mw-row"><span class="mw-lbl">Repeat</span><label class="mw-switch"><input type="checkbox" id="budget-repeat" checked onchange="budgetRepeatChanged()"><i></i></label></div>
             <div class="mw-row" id="budget-freq-row"><span class="mw-lbl">Frequency</span><input type="number" id="budget-every" min="1" max="365" value="1" style="width:56px; text-align:right;"><select id="budget-unit" style="width:auto;"><option value="day">day</option><option value="week">week</option><option value="month">month</option><option value="year">year</option></select></div>
             <div class="mw-row"><span class="mw-lbl">Roll over unused amount</span><label class="mw-switch"><input type="checkbox" id="budget-rollover"><i></i></label></div>
+            <div class="mw-row"><span class="mw-lbl">Carry-over correction</span><input type="number" id="budget-carryadj" step="0.01" placeholder="0" style="width:110px; text-align:right;"></div>
         </div>
     </div>
 </div>
@@ -478,6 +480,12 @@
         <div class="form-group" id="group-sched-category">
             <label for="sched-category">Category</label>
             <select id="sched-category"></select>
+            <div id="sched-split-box" style="display:none; margin-top:4px;">
+                <div id="sched-split-rows"></div>
+                <button type="button" class="btn" style="background:none; color:var(--primary); border:1px dashed var(--primary); padding:6px; font-size:12px;" onclick="addSplitRow(undefined, undefined, 'sched')">+ Add category</button>
+                <div id="sched-split-summary" style="font-size:12px; margin-top:6px;"></div>
+            </div>
+            <button type="button" id="sched-split-toggle" onclick="toggleSplit(!SPLIT.sched.on, 'sched')" style="background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer; margin-top:6px; padding:0;">✂ Split into multiple categories</button>
         </div>
         <div class="form-group" id="group-sched-transfer" style="display:none;">
             <label for="sched-transfer-to">Transfer To Account</label>
@@ -518,6 +526,7 @@
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
         <input type="hidden" id="tx-edit-index" value="-1">
+        <input type="hidden" id="tx-edit-group" value="">
         <div class="form-group">
             <label for="tx-datetime">DateTime</label>
             <input type="datetime-local" id="tx-datetime">
@@ -535,7 +544,7 @@
                 <button type="button" class="btn" style="background:none; color:var(--primary); border:1px dashed var(--primary); padding:6px; font-size:12px;" onclick="addSplitRow()">+ Add category</button>
                 <div id="split-summary" style="font-size:12px; margin-top:6px;"></div>
             </div>
-            <button type="button" id="split-toggle" onclick="toggleSplit(!splitMode)" style="background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer; margin-top:6px; padding:0;">✂ Split into multiple categories</button>
+            <button type="button" id="split-toggle" onclick="toggleSplit(!SPLIT.tx.on)" style="background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer; margin-top:6px; padding:0;">✂ Split into multiple categories</button>
         </div>
 
         <div class="form-group">
@@ -1581,18 +1590,37 @@
         const limit = parseFloat(b.amount) || 0;
         let carry = 0;
         if (b.rollover) for (let i = 0; i < ci; i++) carry = Math.max(0, carry + limit - spentBy[i]);   // only unused money rolls forward
+        const carryBase = carry;
+        if (b.rollover) carry += parseFloat(b.carryAdjust) || 0;   // manual correction so the figure can match MoneyWiz
         const spent = ci >= 0 ? spentBy[ci] : 0;
         const avail = limit + carry;
         const period = ci >= 0 ? periods[ci] : null;
         const started = period ? now >= period[0] : false;
         const daysLeft = period ? Math.max(0, Math.ceil((period[1] - now) / 86400000)) : 0;
-        return { cur, limit, carry, avail, spent, remaining: avail - spent, period, started, daysLeft, matched, over: spent > avail };
+        return { cur, limit, carry, carryBase, avail, spent, remaining: avail - spent, period, started, daysLeft, matched, over: spent > avail };
+    }
+    // Enter the total MoneyWiz shows for this period (limit + carried over); the difference is stored as a manual correction
+    function matchBudgetCarry(idx) {
+        const b = budgetData[idx], st = budgetStats(b);
+        const v = prompt(`Total available this period in MoneyWiz (budget + carried over)?\nThis app currently shows ${Math.round(st.avail * 100) / 100} ${st.cur}.`, '');
+        if (v === null) return;
+        const n = parseFloat(String(v).replace(/,/g, ''));
+        if (isNaN(n)) return alert('Please enter a number');
+        b.carryAdjust = Math.round((n - st.limit - st.carryBase) * 100) / 100;
+        localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
+        renderBudgets();
     }
     function budgetFmtDate(d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
     function renderBudgets() {
         const box = document.getElementById('budget-table-body');
-        if (budgetData.length === 0) { box.innerHTML = `<p style="text-align:center; color:var(--text-muted);">No budgets set</p>`; return; }
+        if (budgetData.length === 0) { box.innerHTML = `<p style="text-align:center; color:var(--text-muted);">No budgets set</p>`; document.getElementById('budget-summary').innerHTML = ''; return; }
+        let sumRem = 0, sumBud = 0;
+        budgetData.forEach(b => { const st = budgetStats(b); sumRem += convertCurrency(st.remaining, st.cur, defaultCurrency); sumBud += convertCurrency(st.avail, st.cur, defaultCurrency); });
+        document.getElementById('budget-summary').innerHTML = `<div class="card" style="display:flex; text-align:center; padding:14px 8px;">
+            <div style="flex:1;"><div style="font-size:11px; color:var(--primary); letter-spacing:.04em;">REMAINING</div><div style="font-size:20px; font-weight:700; color:${sumRem < 0 ? 'var(--danger)' : 'var(--text-main)'};">${Math.round(sumRem).toLocaleString()} ${esc(defaultCurrency)}</div></div>
+            <div style="flex:1;"><div style="font-size:11px; color:var(--primary); letter-spacing:.04em;">BUDGETED</div><div style="font-size:20px; font-weight:700;">${Math.round(sumBud).toLocaleString()} ${esc(defaultCurrency)}</div></div>
+        </div>`;
         const groups = [], gMap = {};
         budgetData.forEach((b, idx) => { const g = (b.group || '').trim(); if (!gMap[g]) { gMap[g] = []; groups.push(g); } gMap[g].push(idx); });
         let html = '';
@@ -1611,6 +1639,7 @@
                     <div class="progress-bar-container" style="margin-top:10px;"><div class="${st.over ? 'progress-bar-fill over' : 'progress-bar-fill'}" style="width:${pct}%;"></div></div>
                     <div class="bud-meta"><span>${st.spent.toLocaleString(undefined, {maximumFractionDigits: 2})} of ${st.avail.toLocaleString(undefined, {maximumFractionDigits: 2})} ${esc(cur)}${st.carry ? ` (rollover ${st.carry.toLocaleString(undefined, {maximumFractionDigits: 2})})` : ''}</span><span>${st.started ? st.daysLeft + ' days left' : 'starts ' + (st.period ? budgetFmtDate(st.period[0]) : '')}</span></div>
                     <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:8px;">
+                        ${b.rollover ? `<button class="mini-btn" style="background:var(--text-muted);" onclick="matchBudgetCarry(${idx})">Match MoneyWiz</button>` : ''}
                         <button class="mini-btn" style="background:var(--primary);" onclick="openBudgetModal(${idx})">Edit</button>
                         <button class="mini-btn btn-exp" onclick="deleteBudget(${idx})">Del</button>
                     </div>
@@ -1801,6 +1830,7 @@
         document.getElementById('budget-amount').value = bTarget ? bTarget.amount : '';
         curSelect.value = bTarget ? (bTarget.currency || defaultCurrency) : defaultCurrency;
         document.getElementById('budget-rollover').checked = bTarget ? !!bTarget.rollover : false;
+        document.getElementById('budget-carryadj').value = bTarget && bTarget.carryAdjust ? bTarget.carryAdjust : '';
         const f = bTarget ? budgetFreq(bTarget) : { every: 1, unit: 'month', repeat: true };
         document.getElementById('budget-repeat').checked = f.repeat;
         document.getElementById('budget-every').value = f.every;
@@ -1839,7 +1869,8 @@
         let excludeCats = budgetSel.allCats.filter(c => !budgetSel.cats.has(c));
         let period = (repeat && every === 1 && unit === 'month') ? 'Monthly' : (repeat && every === 1 && unit === 'year') ? 'Yearly' : 'Custom';
 
-        let budgetObj = { title, group, period, startDate, amount: amt, currency, rollover, repeat, every, unit, excludeAccs, excludeCats };
+        let carryAdjust = parseFloat(document.getElementById('budget-carryadj').value) || 0;
+        let budgetObj = { title, group, period, startDate, amount: amt, currency, rollover, repeat, every, unit, carryAdjust, excludeAccs, excludeCats };
 
         if (editIdx >= 0) {
             budgetData[editIdx] = budgetObj;
@@ -1867,7 +1898,7 @@
         let html = '';
         scheduleData.forEach((s, idx) => {
             let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
-            let detail = `${typeBadge} | ${esc(s.category || '')} | รอบถัดไป: ${esc(s.startDate)} | 🔄 ${esc(s.frequency)}`;
+            let detail = `${typeBadge} | ${s.splits && s.splits.length > 1 ? '✂ Split (' + s.splits.length + ')' : esc(s.category || '')} | รอบถัดไป: ${esc(s.startDate)} | 🔄 ${esc(s.frequency)}`;
             if (s.type === 'Transfer') detail += ` (ไปที่: ${s.transferTo})`;
             let sCur = s.currency || defaultCurrency;
             
@@ -1939,11 +1970,14 @@
         document.getElementById('sched-type').value = sTarget ? sTarget.type : 'Expense';
         toggleSchedType(document.getElementById('sched-type').value);
         if (sTarget && sTarget.category) catSelect.value = sTarget.category;
+        toggleSplit(false, 'sched');
         if (sTarget && sTarget.type === 'Transfer') transferSelect.value = sTarget.transferTo;
         document.getElementById('sched-freq').value = sTarget ? sTarget.frequency : 'Monthly';
         document.getElementById('sched-startdate').value = sTarget ? sTarget.startDate : new Date().toISOString().slice(0,10);
         document.getElementById('sched-amount').value = sTarget ? sTarget.amount : '';
         curSelect.value = sTarget ? (sTarget.currency || defaultCurrency) : defaultCurrency;
+        if (sTarget && sTarget.splits && sTarget.splits.length > 1) toggleSplit(true, 'sched', sTarget.splits.map(x => ({ cat: x.cat, amt: x.amt })));
+        document.getElementById('sched-split-toggle').style.display = sTarget && sTarget.type === 'Transfer' ? 'none' : '';
 
         document.getElementById('schedule-modal').classList.add('active');
     }
@@ -1953,6 +1987,7 @@
     function toggleSchedType(type) {
         document.getElementById('group-sched-transfer').style.display = (type === 'Transfer') ? 'block' : 'none';
         document.getElementById('group-sched-category').style.display = (type === 'Transfer') ? 'none' : 'block';
+        document.getElementById('sched-split-toggle').style.display = (type === 'Transfer') ? 'none' : '';
     }
 
     function saveSchedule() {
@@ -1960,6 +1995,7 @@
         let title = document.getElementById('sched-title').value.trim();
         let account = document.getElementById('sched-account').value;
         let type = document.getElementById('sched-type').value;
+        let splits = null;
         let category = type === 'Transfer' ? 'Transfer' : document.getElementById('sched-category').value;
         let transferTo = type === 'Transfer' ? document.getElementById('sched-transfer-to').value : '';
         let frequency = document.getElementById('sched-freq').value;
@@ -1969,7 +2005,16 @@
 
         if (!title || isNaN(amt) || !startDate || !account) return alert('Please enter valid title, account, amount and start date');
 
+        if (SPLIT.sched.on && type !== 'Transfer') {
+            splits = readSplitParts('sched');
+            if (splits.length < 2) return alert('Add at least two categories, or switch back to a single category');
+            if (splits.some(x => isNaN(x.amt) || x.amt <= 0)) return alert('Every split needs an amount greater than 0');
+            const rem = splitRemaining('sched');
+            if (Math.abs(rem) >= 0.005) return alert('The split amounts must add up to the total (remaining: ' + rem + ')');
+            category = splits[0].cat;
+        }
         let schedObj = { title, account, type, category, transferTo, frequency, startDate, amount: amt, currency };
+        if (splits) schedObj.splits = splits;
 
         if (editIdx >= 0) {
             scheduleData[editIdx] = schedObj;
@@ -1989,23 +2034,36 @@
         let rawAmt = parseFloat(s.amount) || 0;
         let txAmount = (s.type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
         
-        let newTx = {
+        const mkTx = (cat, amt) => ({
             date: s.startDate,
             time: '00:00:00',
             account: s.account,
-            category: s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title),
+            category: cat,
             description: s.title + ' (Scheduled)',
             payee: '',
             transfers: s.transferTo || '',
-            amount: txAmount,
+            amount: amt,
             currency: s.currency || defaultCurrency,
             memo: 'Paid via Schedule'
-        };
+        });
+        const baseCat = s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title);
+        const newTxs = (s.splits && s.splits.length > 1 && s.type !== 'Transfer')
+            ? s.splits.map(x => mkTx(x.cat, (s.type === 'Expense' ? -1 : 1) * Math.abs(x.amt)))
+            : [mkTx(baseCat, txAmount)];
 
-        transactions.unshift(newTx);
+        newTxs.slice().reverse().forEach(o => transactions.unshift(o));
         transactions.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
         localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
         renderAccountsList();
+
+        if (WEBHOOK_URL) {
+            newTxs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(withKey(o))
+            })), Promise.resolve()).catch(e => console.log("Offline: Saved locally, will sync later."));
+        }
 
         let d = new Date(s.startDate);
         if (s.frequency === 'Monthly') {
@@ -2024,15 +2082,6 @@
         localStorage.setItem('wallet_schedule_data', JSON.stringify(scheduleData));
         renderSchedules();
         if (selectedAccount) openAccountDetail(selectedAccount);
-
-        if (WEBHOOK_URL) {
-            fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(newTx))
-            }).catch(e => console.log("Offline: Saved locally, will sync later."));
-        }
 
         alert('Payment recorded and schedule rolled over successfully!');
     }
@@ -2158,6 +2207,7 @@
         document.getElementById('tx-memo').value = '';
 
         setupTxModalDropdowns(preSelectAcc, preSelectCur, type);
+        document.getElementById('tx-edit-group').value = '';
         toggleSplit(false);
         document.getElementById('split-toggle').style.display = type === 'Transfer' ? 'none' : '';
         document.getElementById('tx-modal').classList.add('active');
@@ -2180,8 +2230,15 @@
         setupTxModalDropdowns(cleanGarbageText(t.account), cleanGarbageText(t.currency || defaultCurrency), type);
         if (type !== 'Transfer') document.getElementById('tx-category').value = cleanGarbageText(t.category);
         if (type === 'Transfer') document.getElementById('tx-transfers-select').value = cleanGarbageText(t.transfers);
+        const grp = type === 'Transfer' ? [index] : splitSiblings(index);
+        document.getElementById('tx-edit-group').value = JSON.stringify(grp);
         toggleSplit(false);
-        document.getElementById('split-toggle').style.display = 'none';   // splitting is for new transactions
+        document.getElementById('split-toggle').style.display = type === 'Transfer' ? 'none' : '';
+        if (grp.length > 1) {
+            const total = grp.reduce((a, i) => a + Math.abs(transactions[i].amount), 0);
+            document.getElementById('tx-amount').value = Math.round(total * 100) / 100;
+            toggleSplit(true, 'tx', grp.map(i => ({ cat: cleanGarbageText(transactions[i].category), amt: Math.abs(transactions[i].amount) })));
+        }
 
         document.getElementById('tx-modal').classList.add('active');
     }
@@ -2281,43 +2338,64 @@
     }
 
     // ---- split one transaction across several categories (saved as one row per category) ----
-    let splitMode = false;
-    function toggleSplit(on) {
-        splitMode = !!on;
-        document.getElementById('tx-category').style.display = on ? 'none' : '';
-        document.getElementById('split-box').style.display = on ? 'block' : 'none';
-        document.getElementById('split-toggle').textContent = on ? '↩ Use a single category' : '✂ Split into multiple categories';
-        document.getElementById('split-rows').innerHTML = '';
+    const SPLIT = {
+        tx:    { on: false, box: 'split-box', rows: 'split-rows', sum: 'split-summary', cat: 'tx-category', amt: 'tx-amount', tog: 'split-toggle' },
+        sched: { on: false, box: 'sched-split-box', rows: 'sched-split-rows', sum: 'sched-split-summary', cat: 'sched-category', amt: 'sched-amount', tog: 'sched-split-toggle' }
+    };
+    function toggleSplit(on, k, parts) {
+        k = k || 'tx'; const S = SPLIT[k];
+        S.on = !!on;
+        document.getElementById(S.cat).style.display = on ? 'none' : '';
+        document.getElementById(S.box).style.display = on ? 'block' : 'none';
+        document.getElementById(S.tog).textContent = on ? '↩ Use a single category' : '✂ Split into multiple categories';
+        document.getElementById(S.rows).innerHTML = '';
         if (on) {
-            const total = parseFloat(document.getElementById('tx-amount').value);
-            addSplitRow(document.getElementById('tx-category').value, isNaN(total) ? '' : total);
-            addSplitRow('Exclude ► Other', '');
+            if (parts && parts.length) parts.forEach(x => addSplitRow(x.cat, x.amt, k));
+            else {
+                const total = parseFloat(document.getElementById(S.amt).value);
+                addSplitRow(document.getElementById(S.cat).value, isNaN(total) ? '' : total, k);
+                addSplitRow('Exclude ► Other', '', k);
+            }
         }
-        updateSplitSummary();
+        updateSplitSummary(k);
     }
-    function addSplitRow(cat, amt) {
-        const rows = document.getElementById('split-rows');
-        if (amt === undefined) { const r = splitRemaining(); amt = r > 0.004 ? r : ''; }
+    function addSplitRow(cat, amt, k) {
+        k = k || 'tx'; const S = SPLIT[k];
+        const rows = document.getElementById(S.rows);
+        if (amt === undefined) { const r = splitRemaining(k); amt = r > 0.004 ? r : ''; }
         const d = document.createElement('div');
         d.className = 'split-row';
-        d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="updateSplitSummary()"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary()">×</button>`;
+        d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="updateSplitSummary('${k}')"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary('${k}')">×</button>`;
         rows.appendChild(d);
         if (cat) d.querySelector('select').value = cat;
         d.querySelector('input').value = amt === '' ? '' : Math.round(amt * 100) / 100;
-        updateSplitSummary();
+        updateSplitSummary(k);
     }
-    function splitRemaining() {
-        const total = parseFloat(document.getElementById('tx-amount').value) || 0;
+    function splitRemaining(k) {
+        const S = SPLIT[k || 'tx'];
+        const total = parseFloat(document.getElementById(S.amt).value) || 0;
         let used = 0;
-        document.querySelectorAll('#split-rows .split-amt').forEach(i => { used += parseFloat(i.value) || 0; });
+        document.querySelectorAll('#' + S.rows + ' .split-amt').forEach(i => { used += parseFloat(i.value) || 0; });
         return Math.round((total - used) * 100) / 100;
     }
-    function updateSplitSummary() {
-        const el = document.getElementById('split-summary');
-        if (!splitMode) { el.textContent = ''; return; }
-        const r = splitRemaining();
+    function updateSplitSummary(k) {
+        k = k || 'tx'; const S = SPLIT[k];
+        const el = document.getElementById(S.sum);
+        if (!S.on) { el.textContent = ''; return; }
+        const r = splitRemaining(k);
         el.style.color = Math.abs(r) < 0.005 ? 'var(--success)' : 'var(--danger)';
         el.textContent = Math.abs(r) < 0.005 ? '✓ Split matches the total' : `Remaining to assign: ${r.toLocaleString()}`;
+    }
+    function readSplitParts(k) {
+        return [...document.querySelectorAll('#' + SPLIT[k].rows + ' .split-row')].map(r => ({ cat: cleanGarbageText(r.querySelector('select').value), amt: Math.round(parseFloat(r.querySelector('input').value) * 100) / 100 }));
+    }
+    // rows that belong to the same split (same moment, account, text and direction)
+    function splitSiblings(index) {
+        const t = transactions[index], sig = x => [x.date, cleanTimeString(x.time || ''), cleanGarbageText(x.account || ''), cleanGarbageText(x.description || ''), cleanGarbageText(x.payee || ''), x.currency, x.amount < 0].join('|');
+        if (t.transfers && String(t.transfers).trim() || t.category === 'Transfer' || isBalanceAdj(t)) return [index];
+        const key = sig(t), out = [];
+        transactions.forEach((x, i) => { if (!(x.transfers && String(x.transfers).trim()) && x.category !== 'Transfer' && sig(x) === key) out.push(i); });
+        return out.length ? out : [index];
     }
 
     function closeTxModal() { document.getElementById('tx-modal').classList.remove('active'); }
@@ -2342,8 +2420,8 @@
         let amount = sign * Math.abs(rawAmt);
         let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
         let txObjs = [];
-        if (splitMode && editIdx < 0 && type !== 'Transfer') {
-            const parts = [...document.querySelectorAll('#split-rows .split-row')].map(r => ({ cat: cleanGarbageText(r.querySelector('select').value), amt: parseFloat(r.querySelector('input').value) }));
+        if (SPLIT.tx.on && type !== 'Transfer') {
+            const parts = readSplitParts('tx');
             if (parts.length < 2) return alert('Add at least two categories, or switch back to a single category');
             if (parts.some(x => isNaN(x.amt) || x.amt <= 0)) return alert('Every split needs an amount greater than 0');
             const rem = splitRemaining();
@@ -2354,7 +2432,10 @@
         }
 
         if (editIdx >= 0) {
-            transactions[editIdx] = txObjs[0];
+            let grp = [editIdx];
+            try { const g = JSON.parse(document.getElementById('tx-edit-group').value || '[]'); if (g.length) grp = g; } catch (e) {}
+            grp.slice().sort((a, b) => b - a).forEach(i => transactions.splice(i, 1));
+            txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         } else {
             txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         }
