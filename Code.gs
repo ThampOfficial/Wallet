@@ -22,7 +22,7 @@ var SET_CHUNK = 2500;      // characters per script property (limit 9KB each; Th
 
 // ---- App settings shared by every device (kept in Script Properties as chunks, not in the sheet) ----
 function readSettings_(prefix) {
-  prefix = prefix || "SET";
+  prefix = prefix || "S2";
   var p = PropertiesService.getScriptProperties().getProperties();
   var n = parseInt(p[prefix + "_n"], 10) || 0, json = "";
   for (var i = 0; i < n; i++) json += p[prefix + "_" + i] || "";
@@ -42,9 +42,9 @@ function writeSettings_(prefix, ts, json) {
 
 // Saves the new settings and keeps the previous copy as a backup (read it with ?settings=bak).
 function saveSettings_(ts, json) {
-  var cur = readSettings_("SET");
-  if (cur.json) writeSettings_("BAK", cur.ts, cur.json);
-  writeSettings_("SET", ts, json);
+  var cur = readSettings_("S2");
+  if (cur.json) writeSettings_("B2", cur.ts, cur.json);
+  writeSettings_("S2", ts, json);
 }
 
 // ---- Repair text whose UTF-8 bytes were read as Windows-1252/Latin-1 (e.g. "â–º" for "►", "à¸à¸¥" for Thai) ----
@@ -245,7 +245,7 @@ function doGet(e) {
   if (!authOk_(e && e.parameter ? e.parameter.key : "")) return deny_();
   if (e && e.parameter && e.parameter.nocache === "1") cacheClear_();   // ...&nocache=1 forces a fresh read
 
-  if (e && e.parameter && (e.parameter.settings === "1" || e.parameter.settings === "bak")) return json_({ settings: readSettings_(e.parameter.settings === "bak" ? "BAK" : "SET") });
+  if (e && e.parameter && (e.parameter.settings === "1" || e.parameter.settings === "bak")) return json_({ settings: readSettings_(e.parameter.settings === "bak" ? "B2" : "S2") });
 
   var jsonString = cacheGet_();
 

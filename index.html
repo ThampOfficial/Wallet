@@ -615,6 +615,22 @@
     const withKey = obj => Object.assign({ key: API_KEY }, obj);
     const readUrl = () => API_KEY ? WEBHOOK_URL + (WEBHOOK_URL.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(API_KEY) : WEBHOOK_URL;
 
+    const SYNC_KEYS = ['wallet_subaccounts_map', 'wallet_categories_map', 'wallet_currencies_map', 'wallet_default_currency', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];
+    let settingsReady = false, applyingRemote = false, settingsPushTimer = null;
+    const _rawSetItem = Storage.prototype.setItem;
+    const isEmptyVal = v => v === null || v === undefined || ['', '{}', '[]', 'null'].includes(String(v).trim());
+    const getKts = () => { try { return JSON.parse(localStorage.getItem('wallet_settings_kts')) || {}; } catch (e) { return {}; } };
+    const setKts = o => _rawSetItem.call(localStorage, 'wallet_settings_kts', JSON.stringify(o));
+    // every synced key has its own timestamp, so a device that never touched budgets can never wipe them
+    Storage.prototype.setItem = function (k, v) {
+        _rawSetItem.call(this, k, v);
+        if (this === window.localStorage && settingsReady && !applyingRemote && SYNC_KEYS.includes(k)) {
+            const kts = getKts(); kts[k] = Date.now(); setKts(kts);
+            clearTimeout(settingsPushTimer);
+            settingsPushTimer = setTimeout(pushSettings, 1500);
+        }
+    };
+
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -636,6 +652,49 @@
         if (outbox.length) setTimeout(fetchTransactionsFromSheet, 4000);   // read the sheet back to confirm
     }
     window.addEventListener('online', () => { outbox.forEach(o => { if (o.sent && Date.now() - o.sent > 20000) o.sent = 0; }); flushOutbox(); });
+
+    function pushSettings() {
+        if (!WEBHOOK_URL || !settingsReady) return;
+        const kts = getKts(), data = {};
+        SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null && kts[k]) data[k] = { v, ts: kts[k] }; });
+        fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey({ action: 'saveSettings', ts: Date.now(), json: JSON.stringify(data) })) })
+            .catch(() => console.log('Offline: settings will sync on the next change.'));
+    }
+    // Merge per key: the newer copy of each setting wins. Nothing is pushed until the server copy has been read successfully.
+    function syncSettings() {
+        if (!WEBHOOK_URL) return;
+        const base = readUrl();
+        fetch(base + (base.includes('?') ? '&' : '?') + 'settings=1', { redirect: 'follow' })
+            .then(r => r.json())
+            .then(d => {
+                if (!d || d.status === 'error' || !d.settings) return;   // old script or error: leave everything alone
+                let remote = {};
+                try { remote = d.settings.json ? JSON.parse(d.settings.json) : {}; } catch (e) { return; }
+                const kts = getKts(), seedVals = Object.assign({ wallet_subaccounts_map: JSON.stringify(MW_GROUPS) }, JSON.parse(localStorage.getItem('wallet_seed_vals') || '{}')); let needPush = false, applied = false;
+                applyingRemote = true;
+                try {
+                    SYNC_KEYS.forEach(k => {
+                        let r = remote[k];
+                        if (typeof r === 'string') r = { v: r, ts: d.settings.ts || 1 };   // older format
+                        const lvRaw = localStorage.getItem(k), lt = kts[k] || 0;
+                        const lv = (lvRaw !== null && lvRaw === seedVals[k]) ? null : lvRaw;   // untouched starter value counts as nothing
+                        if (r && (r.ts > lt) && !(lt === 0 && !isEmptyVal(lv) && isEmptyVal(r.v))) {
+                            if (lvRaw !== r.v) { _rawSetItem.call(localStorage, k, r.v); applied = true; }
+                            kts[k] = r.ts;
+                        } else if (!isEmptyVal(lv) && (!r || lt > r.ts || lt === 0)) {
+                            if (lt === 0) kts[k] = Date.now();   // first upload of data made on this device
+                            needPush = true;
+                        }
+                    });
+                    setKts(kts);
+                } finally { applyingRemote = false; }
+                if (applied) { location.reload(); return; }
+                settingsReady = true;
+                if (needPush) pushSettings();
+            })
+            .catch(() => { /* offline: do not push anything this session */ });
+    }
+
 
     let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
     let selectedAccount = null;
@@ -669,6 +728,7 @@
     // ---- one-time setup: account groups copied from the user's MoneyWiz, plus the CAD budget ----
     const MW_GROUPS = {"Cash": ["Sold", "CAD Cash"], "Scotia": ["Scotia POM", "Scotia Saving", "Momentum Visa", "Momentum master", "ExtraCad", "iTrade"], "Wealth Simple": ["Pom", "Flight Ticket", "Vacation", "Exam 19000", "TFSA", "FHSA Home", "RRSP", "Non-registered"], "Wealth One": ["GIC 5 Years", "Saving 0001"], "Canada": ["Youtrip CAD", "Thai"], "Credit Cards": ["Krungsri First Choice", "Krungsri Now", "Citi Rewards", "UOB Tmrw", "SCB M", "Homepro", "Oce Siam"], "Krungsri Online": ["Krungsri SPK", "Krungsri kept", "Kept PP"], "Kasikornbank": ["Kbank CPK", "Kbank CTW", "K Bank Pomearn", "Kasikorn 1.5%for Trip", "Youtrip", "Second Hand", "PomFern"], "Siam Commercial Bank (Thailand)": ["Siam Commercial Bank (Thailand) - xxxx1538", "SCB 1.5%"], "KRUNGTHAI BANK (Thailand)": ["Krungthai CPK", "Travel Card"], "ประกัน": ["ออมสิน ทิพย 2021 15/10", "อาคเนย์ 2021 10/1", "Bangkok Life 10/1 2022", "Bangkok Life 10/1 2023", "FWD Reclaim Recare", "Krungthai Axa Hishield โรคร้ายแรง"], "GSB": ["GSB CTW", "GSB สลากออนไลน์"], "TTB": ["ME SAVE 8170 1.5%", "Saving"], "Foreign Currency": ["Mom Safe", "Yen Cash", "MUFG japan", "USD Cash", "AUD Cash", "HK Cash", "Euro Cash"], "Fund": ["Provident Fund SCB", "เป๋าตัง ออมทอง", "Finnomena", "หุ้นกู้/ จบแล้ว ไทยบุรี แม่ให้400k", "Alstom Stock", "เป๋าตัง สบม พันธบัตร", "Binance", "Dime", "Fundii / Odinii"], "From Mom": ["BBl Stock", "Digital Salak", "Egat  SC 2.7%", "GSB Salak", "Krungsri Mutual Fund", "พันธบัตร รุ่นออมอุ่นใจ 7ปี", "สลาก ธอส", "ออมทรัพย์มีแต่ได้ XXX966838X", "KMyfund", "พันธบัตรออมทรัพย์ 3.4% กรุงไทย", "พันธบัตรออมทรัพย์ 3.4% กสิกร", "SCG หุ้น", "หุ้นกู้ True 25"], "GH Bank": ["ธอส"], "UOB": ["Tmrw", "UOB SG"], "CIMB": ["CIMB 1.88%", "CIMB Chill D Max 2.88%"], "Alpha Saving": ["Alpha 2% 500k"], "From Dad": ["ประกัน Alliance 2024 2/10"], "Trade": ["PI", "GMI ZAB 10000$", "GMI Currency 1000$ 2990", "Joynavee 52400$", "Atfx", "Zab"], "Trade Done": ["❌❌Exness 1st EA 4999 10000$", "VT Market  9425€", "🥲FLT 5000$", "❌❌ Forex Winpen Infinox $10000", "❌❌Zfx fx S 15000$", "❌ Roboforex - K Mai 20000$", "❌Robo Master 10000$", "❌VT fxfather", "❌Fullerton EA Hawk 4415$ 5390", "❌❌IC Market", "❌❌ FLT RBK 9500$", "Fullerton 8800$", "Maxtrarich Baby 20,000$", "Robo Mai New", "Roboforex Nong 10500$"], "Lend": ["AI"], "Obsoleted": ["extra", "Fern", "Thai Cash"], "LH Bank": ["LHB You"]};
     if (localStorage.getItem('wallet_mw_seed') !== '1') {
+        const seededKeys = ['wallet_subaccounts_map', 'wallet_currencies_map'];
         subAccountsData = MW_GROUPS;
         localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
         const extraRates = { JPY: 0.23, AUD: 23.5, HKD: 4.6, SGD: 27.0, CAD: 26.5 };   // THB per unit, approximate: edit in Settings
@@ -676,10 +736,12 @@
         localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
         if (!budgetData.length) {
             budgetData = [{ title: 'CAD', group: '', period: 'Monthly', startDate: '2025-11-01', amount: 3500, currency: 'CAD', rollover: true, repeat: true, every: 1, unit: 'month', carryAdjust: 5614, excludeAccs: [], excludeCats: ['Exclude ► Other', 'Exclude  Other'] }];
-            localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData));
+            localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); seededKeys.push('wallet_budgets_data');
         }
         // MoneyWiz leaves these two out of their group's total
-        if (!localStorage.getItem('wallet_acc_flags')) localStorage.setItem('wallet_acc_flags', JSON.stringify({ 'S:Alstom Stock': { grp: false }, 'S:Fullerton 8800$': { grp: false } }));
+        if (!localStorage.getItem('wallet_acc_flags')) { localStorage.setItem('wallet_acc_flags', JSON.stringify({ 'S:Alstom Stock': { grp: false }, 'S:Fullerton 8800$': { grp: false } })); seededKeys.push('wallet_acc_flags'); }
+        const sv = {}; seededKeys.forEach(k => { sv[k] = localStorage.getItem(k); });
+        localStorage.setItem('wallet_seed_vals', JSON.stringify(sv));
         localStorage.setItem('wallet_mw_seed', '1');
     }
 
@@ -730,6 +792,7 @@
 
         fetchTransactionsFromSheet();
         flushOutbox();
+        syncSettings();
     });
 
     window.addEventListener('load', () => {
