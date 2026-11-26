@@ -250,7 +250,11 @@
                 <label for="webhook-url-input">Google Apps Script Webhook URL</label>
                 <input type="text" id="webhook-url-input">
             </div>
-            <button class="btn" onclick="saveWebhookUrl()">Save URL</button>
+            <div class="form-group">
+                <label for="api-key-input">Access key (same as API_KEY in the script)</label>
+                <input type="password" id="api-key-input" autocomplete="off">
+            </div>
+            <button class="btn" onclick="saveWebhookUrl()">Save</button>
         </div>
     </div>
 </div>
@@ -545,6 +549,10 @@
 <script>
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
+    let API_KEY = localStorage.getItem('wallet_api_key') || '';
+    const withKey = obj => Object.assign({ key: API_KEY }, obj);
+    const readUrl = () => API_KEY ? WEBHOOK_URL + (WEBHOOK_URL.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(API_KEY) : WEBHOOK_URL;
+
     let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
     let selectedAccount = null;
     let pieChartInstance = null;
@@ -578,6 +586,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('webhook-url-input').value = WEBHOOK_URL;
+        document.getElementById('api-key-input').value = API_KEY;
         
         let isDark = localStorage.getItem('wallet_dark_mode') === 'true';
         document.getElementById('dark-mode-toggle').checked = isDark;
@@ -606,10 +615,12 @@
 
     function saveWebhookUrl() {
         let val = document.getElementById('webhook-url-input').value.trim();
+        API_KEY = document.getElementById('api-key-input').value.trim();
+        localStorage.setItem('wallet_api_key', API_KEY);
         if (val) {
             WEBHOOK_URL = val;
             localStorage.setItem('wallet_webhook_url', val);
-            alert('Webhook URL saved!');
+            alert('Saved!');
             fetchTransactionsFromSheet();
         }
     }
@@ -741,11 +752,15 @@
         if (!WEBHOOK_URL) return;
         setSyncStatus('Syncing...');
         
-        fetch(WEBHOOK_URL, { redirect: "follow" })
+        fetch(readUrl(), { redirect: "follow" })
             .then(res => res.text())
             .then(text => {
                 try {
                     let data = JSON.parse(text);
+                    if (data && data.status === 'error') {
+                        setSyncStatus(data.message === 'unauthorized' ? 'Access key missing or wrong - check Settings' : 'Server error - showing saved data');
+                        return;
+                    }
                     if (data && data.transactions) {
                         const fresh = data.transactions.map(t => ({
                             datetime: t.datetime || t.date || '',
@@ -1045,7 +1060,7 @@
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(adjTx)
+                body: JSON.stringify(withKey(adjTx))
             }).catch(e => console.log("Offline: Adjustment saved locally."));
         }
 
@@ -1791,7 +1806,7 @@
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(newTx)
+                body: JSON.stringify(withKey(newTx))
             }).catch(e => console.log("Offline: Saved locally, will sync later."));
         }
 
@@ -2056,7 +2071,7 @@
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(txObj)
+                body: JSON.stringify(withKey(txObj))
             }).catch(e => console.log("Offline: Transaction saved locally."));
         }
 

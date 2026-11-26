@@ -6,6 +6,20 @@ var CACHE_KEY = "tx_v1";
 var CACHE_TTL = 21600;   // seconds (6 hours, the maximum)
 var CACHE_CHUNK = 30000; // characters per cache entry (limit is 100KB each; Thai text is up to 3 bytes/char)
 
+// Access key: set a Script property named API_KEY (Project Settings > Script properties).
+// The page sends it as ?key=... on reads and as "key" in the POST body.
+// If API_KEY is not set, access stays open (so nothing breaks before you set it).
+function authOk_(key) {
+  var expected = PropertiesService.getScriptProperties().getProperty("API_KEY");
+  if (!expected) return true;
+  return String(key || "") === expected;
+}
+
+function deny_() {
+  return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "unauthorized" }))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+
 function getSheet_() {
   return SpreadsheetApp.openById(SPREADSHEET_ID).getActiveSheet();
 }
@@ -93,6 +107,8 @@ function cacheClear_() {
 }
 
 function doGet(e) {
+  if (!authOk_(e && e.parameter ? e.parameter.key : "")) return deny_();
+
   var jsonString = cacheGet_();
 
   if (jsonString === null) {
@@ -125,9 +141,11 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   var locked = false;
   try {
+    var data = JSON.parse(e.postData.contents);
+    if (!authOk_(data.key)) return deny_();
+
     locked = lock.tryLock(20000);
     var sheet = getSheet_();
-    var data = JSON.parse(e.postData.contents);
 
     // แยกวันที่กับเวลาจาก datetime
     var dt = new Date(data.datetime || Date.now());
