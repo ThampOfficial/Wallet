@@ -170,7 +170,7 @@
 
             <div class="hero">
                 <div id="total-balance-grid"><div class="hero-label">Loading...</div></div>
-                <div id="sync-status" style="font-size:11px; min-height:14px;"></div>
+                <div id="sync-status" style="font-size:11px; min-height:14px; cursor:pointer;" title="Tap to force a fresh read from the sheet" onclick="fetchTransactionsFromSheet(true)"></div>
             </div>
 
             <div>
@@ -632,7 +632,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b6';
+    const APP_BUILD = 'b7';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -992,11 +992,12 @@
         if (el) el.textContent = msg + (outbox.length ? ` · ${outbox.length} waiting to reach the sheet` : '') + (settingsMsg ? ' · ' + settingsMsg : '') + ' · ' + APP_BUILD;
     }
 
-    function fetchTransactionsFromSheet() {
+    function fetchTransactionsFromSheet(force) {
         if (!WEBHOOK_URL) { setSyncStatus('Set your script URL and access key in Settings'); return; }
         setSyncStatus('Syncing...');
         
-        fetch(readUrl(), { redirect: "follow" })
+        const u0 = readUrl();
+        fetch(force === true ? u0 + (u0.includes('?') ? '&' : '?') + 'nocache=1' : u0, { redirect: "follow" })   // nocache=1: the script ignores its 6-hour cache (needed after the sheet was edited by hand)
             .then(res => res.text())
             .then(text => {
                 try {
