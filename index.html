@@ -619,6 +619,13 @@
             settingsPushTimer = setTimeout(pushSettings, 1500);
         }
     };
+    const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
+    let postChain = Promise.resolve();
+    function queuePost(obj) {
+        if (!WEBHOOK_URL) return;
+        postChain = postChain.then(() => fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey(obj)) })).catch(() => console.log('Offline: saved locally.'));
+    }
     function pushSettings() {
         if (!WEBHOOK_URL) return;
         const data = {};
@@ -953,7 +960,8 @@
                             transfers: cleanGarbageText(t.transfers || ''),
                             amount: parseFloat(t.amount) || 0,
                             currency: cleanGarbageText(t.currency || defaultCurrency),
-                            memo: cleanGarbageText(t.memo || '')
+                            memo: cleanGarbageText(t.memo || ''),
+                            id: t.id || ''
                         })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
                         const freshStr = JSON.stringify(fresh);
@@ -1237,7 +1245,8 @@
             transfers: '',
             amount: diff,
             currency: cur,
-            memo: 'System Balance Adjustment'
+            memo: 'System Balance Adjustment',
+            id: genId()
         };
 
         transactions.unshift(adjTx);
@@ -1250,12 +1259,7 @@
         closeAdjustBalanceModal();
 
         if (WEBHOOK_URL) {
-            fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(adjTx))
-            }).catch(e => console.log("Offline: Adjustment saved locally."));
+            queuePost(adjTx);
         }
 
         alert('Balance adjusted successfully!');
@@ -2121,7 +2125,8 @@
             transfers: s.transferTo || '',
             amount: amt,
             currency: s.currency || defaultCurrency,
-            memo: 'Paid via Schedule'
+            memo: 'Paid via Schedule',
+            id: genId()
         });
         const baseCat = s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title);
         const newTxs = (s.splits && s.splits.length > 1 && s.type !== 'Transfer')
@@ -2134,12 +2139,7 @@
         renderAccountsList();
 
         if (WEBHOOK_URL) {
-            newTxs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(o))
-            })), Promise.resolve()).catch(e => console.log("Offline: Saved locally, will sync later."));
+            newTxs.forEach(queuePost);
         }
 
         let d = new Date(s.startDate);
@@ -2509,6 +2509,7 @@
         let sign = (type === 'Expense') ? -1 : 1;
         let amount = sign * Math.abs(rawAmt);
         let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
+        const oldIds = [];
         let txObjs = [];
         if (SPLIT.tx.on && type !== 'Transfer') {
             const parts = readSplitParts('tx');
@@ -2520,10 +2521,12 @@
         } else {
             txObjs.push(Object.assign({}, base, { category, amount }));
         }
+        txObjs.forEach(o => { o.id = genId(); });
 
         if (editIdx >= 0) {
             let grp = [editIdx];
             try { const g = JSON.parse(document.getElementById('tx-edit-group').value || '[]'); if (g.length) grp = g; } catch (e) {}
+            grp.forEach(i => { if (transactions[i] && transactions[i].id) oldIds.push(transactions[i].id); });
             grp.slice().sort((a, b) => b - a).forEach(i => transactions.splice(i, 1));
             txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         } else {
@@ -2540,13 +2543,8 @@
         closeTxModal();
 
         if (WEBHOOK_URL) {
-            // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
-            txObjs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(o))
-            })), Promise.resolve()).catch(e => console.log("Offline: Transaction saved locally."));
+            oldIds.forEach(id => queuePost({ action: 'deleteTx', id }));   // an edit = remove the old row(s), add the new one(s)
+            txObjs.forEach(queuePost);
         }
 
         alert(txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
@@ -2554,7 +2552,8 @@
 
     function deleteTransaction(index) {
         if (confirm('Delete this transaction?')) {
-            transactions.splice(index, 1);
+            const gone = transactions.splice(index, 1)[0];
+            if (gone && gone.id) queuePost({ action: 'deleteTx', id: gone.id });
             localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
             renderAccountsList();
             renderBudgets();

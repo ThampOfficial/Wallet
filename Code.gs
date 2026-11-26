@@ -13,7 +13,7 @@ var SPREADSHEET_ID = "14I4Bgj87pJX7hu6PL4M2DhKysAphvf6ArQMp88SDfA4";
 // run previewRepair() (changes nothing) and then applyRepair() from the editor.
 // ---------------------------------------------------------------------------
 
-var CACHE_KEY = "tx_v3";
+var CACHE_KEY = "tx_v4";
 var CACHE_TTL = 21600;   // seconds (6 hours, the maximum)
 var CACHE_CHUNK = 30000; // characters per cache entry (limit is 100KB each; Thai text is up to 3 bytes/char)
 var MAX_BODY = 10000;    // bytes accepted by doPost for a transaction
@@ -125,13 +125,30 @@ function toAmount_(v) {
   return isFinite(n) ? n : 0;
 }
 
+// Column K holds a short id per row so the page can edit/delete exactly that row later.
+function newId_() { return "w" + Utilities.getUuid().replace(/-/g, "").slice(0, 12); }
+
+function ensureIds_(sheet, lastRow) {
+  if (lastRow < 2) return;
+  var rng = sheet.getRange(2, 11, lastRow - 1, 1);
+  var vals = rng.getValues(), changed = false;
+  for (var i = 0; i < vals.length; i++) {
+    if (!String(vals[i][0] || "").trim()) { vals[i][0] = newId_(); changed = true; }
+  }
+  if (!changed) return;
+  rng.setNumberFormat("@");
+  rng.setValues(vals);
+  if (!String(sheet.getRange(1, 11).getValue() || "").trim()) sheet.getRange(1, 11).setValue("ID");
+}
+
 // Read the sheet and build the objects the page receives.
-function readTransactions_() {
+function readTransactions_(canWrite) {
   var sheet = getSheet_();
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
+  if (canWrite) ensureIds_(sheet, lastRow);
   var tz = sheet.getParent().getSpreadsheetTimeZone() || Session.getScriptTimeZone();
-  var rows = sheet.getRange(2, 1, lastRow - 1, 10).getValues(); // A..J, header skipped
+  var rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues(); // A..K, header skipped
   // Date (A) and Time (B) are read exactly as shown in the sheet. Real Date cells would otherwise be
   // re-formatted here and swap day/month (e.g. shown "12/10/2026" = 12 Oct, but the cell holds 10 Dec),
   // and time-only cells come back as 1899 dates with a timezone offset that shifts the minutes.
@@ -151,7 +168,8 @@ function readTransactions_() {
         transfers: cellText_(row[6], tz, ""),    // G: Transfers
         amount: toAmount_(row[7]),               // H: Amount
         currency: cellText_(row[8], tz, "") || "THB", // I: Currency
-        memo: cellText_(row[9], tz, "")          // J: Memo
+        memo: cellText_(row[9], tz, ""),         // J: Memo
+        id: String(row[10] || "").trim()         // K: Id
       });
     }
   }
@@ -230,7 +248,7 @@ function doGet(e) {
     try {
       jsonString = locked ? cacheGet_() : null;
       if (jsonString === null) {
-        jsonString = JSON.stringify({ transactions: readTransactions_() });
+        jsonString = JSON.stringify({ transactions: readTransactions_(locked) });
         if (locked) cachePut_(jsonString);
       }
     } finally {
@@ -272,13 +290,36 @@ function doPost(e) {
     }
     if (raw.length > MAX_BODY) return json_({ status: "error", message: "bad request" });
 
+    if (data.action === "deleteTx") {
+      var delId = String(data.id || "").trim();
+      if (!delId) return json_({ status: "error", message: "bad request" });
+      if (!lock.tryLock(20000)) return json_({ status: "error", message: "busy, try again" });
+      locked = true;
+      var dsheet = getSheet_(), dlast = dsheet.getLastRow();
+      if (dlast >= 2) {
+        var ids = dsheet.getRange(2, 11, dlast - 1, 1).getValues();
+        for (var q = ids.length - 1; q >= 0; q--) {
+          if (String(ids[q][0]).trim() === delId) { dsheet.deleteRow(q + 2); break; }
+        }
+      }
+      cacheClear_();
+      return json_({ status: "success" });
+    }
+
     var amount = toAmount_(data.amount);
     if (Math.abs(amount) > 1e12) return json_({ status: "error", message: "bad amount" });
-    var dt = new Date(data.datetime || Date.now());
+    var tz = Session.getScriptTimeZone();
+    var dt;
+    if (data.datetime) dt = new Date(data.datetime);
+    else if (/^\d{4}-\d{2}-\d{2}/.test(String(data.date || ""))) {
+      // the page sends the chosen date (yyyy-MM-dd) and time (HH:mm[:ss])
+      var tm = String(data.time || "00:00").match(/^(\d{1,2}):(\d{2})/);
+      var hh = tm ? ("0" + tm[1]).slice(-2) : "00", mi = tm ? tm[2] : "00";
+      try { dt = Utilities.parseDate(String(data.date).slice(0, 10) + " " + hh + ":" + mi, tz, "yyyy-MM-dd HH:mm"); } catch (err) { dt = new Date(NaN); }
+    } else dt = new Date(Date.now());
     if (isNaN(dt.getTime())) return json_({ status: "error", message: "bad date" });
 
     // แยกวันที่กับเวลาจาก datetime
-    var tz = Session.getScriptTimeZone();
     var datePart = Utilities.formatDate(dt, tz, "dd/MM/yyyy");
     var timePart = Utilities.formatDate(dt, tz, "hh:mm a");
 
@@ -288,8 +329,8 @@ function doPost(e) {
     var sheet = getSheet_();
     var r = sheet.getLastRow() + 1;
     sheet.getRange(r, 1, 1, 7).setNumberFormat("@");   // A-G as plain text
-    sheet.getRange(r, 9, 1, 2).setNumberFormat("@");   // I-J as plain text
-    sheet.getRange(r, 1, 1, 10).setValues([[
+    sheet.getRange(r, 9, 1, 3).setNumberFormat("@");   // I-K as plain text
+    sheet.getRange(r, 1, 1, 11).setValues([[
       datePart,                              // A: Date
       timePart,                              // B: Time
       textField_(data.account, 120),         // C: Account
@@ -299,7 +340,8 @@ function doPost(e) {
       textField_(data.transfers, 120),       // G: Transfers
       amount,                                // H: Amount
       textField_(data.currency || "THB", 8), // I: Currency
-      textField_(data.memo, 500)             // J: Memo
+      textField_(data.memo, 500),            // J: Memo
+      textField_(data.id, 40) || newId_()    // K: Id
     ]]);
 
     cacheClear_();
