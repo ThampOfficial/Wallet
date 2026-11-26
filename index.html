@@ -632,6 +632,8 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
+    const APP_BUILD = 'b5';
+    let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
     const saveOutbox = () => { try { localStorage.setItem('wallet_outbox', JSON.stringify(outbox)); } catch (e) {} };
@@ -667,7 +669,7 @@
         fetch(base + (base.includes('?') ? '&' : '?') + 'settings=1', { redirect: 'follow' })
             .then(r => r.json())
             .then(d => {
-                if (!d || d.status === 'error' || !d.settings) return;   // old script or error: leave everything alone
+                if (!d || d.status === 'error' || !d.settings) { settingsMsg = 'Settings sync OFF: paste the new Code.gs and redeploy'; setSyncStatus('Synced'); return; }   // old script or error: leave everything alone
                 let remote = {};
                 try { remote = d.settings.json ? JSON.parse(d.settings.json) : {}; } catch (e) { return; }
                 const kts = getKts(), seedVals = Object.assign({ wallet_subaccounts_map: JSON.stringify(MW_GROUPS) }, JSON.parse(localStorage.getItem('wallet_seed_vals') || '{}')); let needPush = false, applied = false;
@@ -689,10 +691,10 @@
                     setKts(kts);
                 } finally { applyingRemote = false; }
                 if (applied) { location.reload(); return; }
-                settingsReady = true;
+                settingsReady = true; settingsMsg = 'Settings synced'; setSyncStatus('Synced');
                 if (needPush) pushSettings();
             })
-            .catch(() => { /* offline: do not push anything this session */ });
+            .catch(() => { settingsMsg = 'Settings: could not reach the script'; setSyncStatus('Synced'); });
     }
 
 
@@ -746,10 +748,11 @@
     }
 
     // one-time: exchange rates (THB per 1 unit) calibrated to MoneyWiz's figures: CAD from its budget totals (฿217,783 / $9,114), the rest fitted so Foreign Currency = ฿123,096
-    if (localStorage.getItem('wallet_rates_v2') !== '1') {
+    if (localStorage.getItem('wallet_rates_v3') !== '1') {
         Object.assign(currenciesData, { THB: 1.0, CAD: 23.8955, USD: 33.0, EUR: 38.4, JPY: 0.2177, AUD: 21.5, HKD: 4.25, SGD: 25.5 });
         localStorage.setItem('wallet_currencies_map', JSON.stringify(currenciesData));
-        localStorage.setItem('wallet_rates_v2', '1');
+        const k = getKts(); k.wallet_currencies_map = Date.now(); setKts(k);   // newer than any older copy on the server, so it is not overwritten
+        localStorage.setItem('wallet_rates_v3', '1');
     }
 
     // per-account switches: tot = show in total assets / net worth, grp = add to its main account's total
@@ -986,7 +989,7 @@
 
     function setSyncStatus(msg) {
         const el = document.getElementById('sync-status');
-        if (el) el.textContent = msg + (outbox.length ? ` · ${outbox.length} waiting to reach the sheet` : '');
+        if (el) el.textContent = msg + (outbox.length ? ` · ${outbox.length} waiting to reach the sheet` : '') + (settingsMsg ? ' · ' + settingsMsg : '') + ' · ' + APP_BUILD;
     }
 
     function fetchTransactionsFromSheet() {
