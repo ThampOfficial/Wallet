@@ -608,13 +608,16 @@
 <script>
     // ---- settings that follow the user across devices (stored in the script, pushed after every change) ----
     const SYNC_KEYS = ['wallet_subaccounts_map', 'wallet_categories_map', 'wallet_currencies_map', 'wallet_default_currency', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];
-    const SYNC_CORE = ['wallet_subaccounts_map', 'wallet_currencies_map', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];   // user-made data (not auto-seeded)
     let settingsReady = false, applyingRemote = false, settingsPushTimer = null;
     const _rawSetItem = Storage.prototype.setItem;
+    const isEmptyVal = v => v === null || v === undefined || ['', '{}', '[]', 'null'].includes(String(v).trim());
+    const getKts = () => { try { return JSON.parse(localStorage.getItem('wallet_settings_kts')) || {}; } catch (e) { return {}; } };
+    const setKts = o => _rawSetItem.call(localStorage, 'wallet_settings_kts', JSON.stringify(o));
+    // every synced key has its own timestamp, so a device that never touched budgets can never wipe them
     Storage.prototype.setItem = function (k, v) {
         _rawSetItem.call(this, k, v);
         if (this === window.localStorage && settingsReady && !applyingRemote && SYNC_KEYS.includes(k)) {
-            _rawSetItem.call(this, 'wallet_settings_ts', String(Date.now()));
+            const kts = getKts(); kts[k] = Date.now(); setKts(kts);
             clearTimeout(settingsPushTimer);
             settingsPushTimer = setTimeout(pushSettings, 1500);
         }
@@ -627,38 +630,44 @@
         postChain = postChain.then(() => fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey(obj)) })).catch(() => console.log('Offline: saved locally.'));
     }
     function pushSettings() {
-        if (!WEBHOOK_URL) return;
-        const data = {};
-        SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null) data[k] = v; });
-        let ts = parseInt(localStorage.getItem('wallet_settings_ts')) || 0;
-        if (!ts) { ts = Date.now(); _rawSetItem.call(localStorage, 'wallet_settings_ts', String(ts)); }
-        fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey({ action: 'saveSettings', ts, json: JSON.stringify(data) })) })
+        if (!WEBHOOK_URL || !settingsReady) return;
+        const kts = getKts(), data = {};
+        SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null && kts[k]) data[k] = { v, ts: kts[k] }; });
+        fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey({ action: 'saveSettings', ts: Date.now(), json: JSON.stringify(data) })) })
             .catch(() => console.log('Offline: settings will sync on the next change.'));
     }
+    // Merge per key: the newer copy of each setting wins. Nothing is pushed until the server copy has been read successfully.
     function syncSettings() {
-        if (!WEBHOOK_URL) { settingsReady = true; return; }
+        if (!WEBHOOK_URL) return;
         const base = readUrl();
         fetch(base + (base.includes('?') ? '&' : '?') + 'settings=1', { redirect: 'follow' })
             .then(r => r.json())
             .then(d => {
-                if (d && d.status === 'error') { settingsReady = true; return; }
-                const rs = d && d.settings, lts = parseInt(localStorage.getItem('wallet_settings_ts')) || 0;
-                const hasLocal = SYNC_CORE.some(k => localStorage.getItem(k) !== null);
-                if (rs && rs.json && rs.ts > lts && !(lts === 0 && hasLocal)) {
-                    // another device saved newer settings: take them, then reload so every screen uses them
-                    applyingRemote = true;
-                    try {
-                        const data = JSON.parse(rs.json);
-                        SYNC_KEYS.forEach(k => { if (data[k] !== undefined) _rawSetItem.call(localStorage, k, data[k]); else localStorage.removeItem(k); });
-                        _rawSetItem.call(localStorage, 'wallet_settings_ts', String(rs.ts));
-                    } finally { applyingRemote = false; }
-                    location.reload();
-                    return;
-                }
+                if (!d || d.status === 'error' || !d.settings) return;   // old script or error: leave everything alone
+                let remote = {};
+                try { remote = d.settings.json ? JSON.parse(d.settings.json) : {}; } catch (e) { return; }
+                const kts = getKts(); let needPush = false, applied = false;
+                applyingRemote = true;
+                try {
+                    SYNC_KEYS.forEach(k => {
+                        let r = remote[k];
+                        if (typeof r === 'string') r = { v: r, ts: d.settings.ts || 1 };   // older format
+                        const lv = localStorage.getItem(k), lt = kts[k] || 0;
+                        if (r && (r.ts > lt) && !(lt === 0 && !isEmptyVal(lv) && isEmptyVal(r.v))) {
+                            if (lv !== r.v) { _rawSetItem.call(localStorage, k, r.v); applied = true; }
+                            kts[k] = r.ts;
+                        } else if (!isEmptyVal(lv) && (!r || lt > r.ts || lt === 0)) {
+                            if (lt === 0) kts[k] = Date.now();   // first upload of data made on this device
+                            needPush = true;
+                        }
+                    });
+                    setKts(kts);
+                } finally { applyingRemote = false; }
+                if (applied) { location.reload(); return; }
                 settingsReady = true;
-                if (hasLocal && (!rs || !rs.json || lts > rs.ts || lts === 0)) pushSettings();
+                if (needPush) pushSettings();
             })
-            .catch(() => { settingsReady = true; });
+            .catch(() => { /* offline: do not push anything this session */ });
     }
 
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";   // set in Settings (kept out of the public repo)

@@ -21,21 +21,30 @@ var MAX_SETTINGS = 300000; // characters accepted for a settings save (budgets, 
 var SET_CHUNK = 2500;      // characters per script property (limit 9KB each; Thai text is up to 3 bytes/char)
 
 // ---- App settings shared by every device (kept in Script Properties as chunks, not in the sheet) ----
-function readSettings_() {
+function readSettings_(prefix) {
+  prefix = prefix || "SET";
   var p = PropertiesService.getScriptProperties().getProperties();
-  var n = parseInt(p.SET_n, 10) || 0, json = "";
-  for (var i = 0; i < n; i++) json += p["SET_" + i] || "";
-  return { ts: parseInt(p.SET_ts, 10) || 0, json: json };
+  var n = parseInt(p[prefix + "_n"], 10) || 0, json = "";
+  for (var i = 0; i < n; i++) json += p[prefix + "_" + i] || "";
+  return { ts: parseInt(p[prefix + "_ts"], 10) || 0, json: json };
 }
 
-function saveSettings_(ts, json) {
+function writeSettings_(prefix, ts, json) {
   var props = PropertiesService.getScriptProperties();
-  var old = parseInt(props.getProperty("SET_n"), 10) || 0;
-  var out = { SET_ts: String(parseInt(ts, 10) || Date.now()) }, n = 0;
-  for (var i = 0; i < json.length; i += SET_CHUNK) { out["SET_" + n] = json.slice(i, i + SET_CHUNK); n++; }
-  out.SET_n = String(n);
+  var old = parseInt(props.getProperty(prefix + "_n"), 10) || 0;
+  var out = {}, n = 0;
+  out[prefix + "_ts"] = String(parseInt(ts, 10) || Date.now());
+  for (var i = 0; i < json.length; i += SET_CHUNK) { out[prefix + "_" + n] = json.slice(i, i + SET_CHUNK); n++; }
+  out[prefix + "_n"] = String(n);
   props.setProperties(out);
-  for (var j = n; j < old; j++) props.deleteProperty("SET_" + j);
+  for (var j = n; j < old; j++) props.deleteProperty(prefix + "_" + j);
+}
+
+// Saves the new settings and keeps the previous copy as a backup (read it with ?settings=bak).
+function saveSettings_(ts, json) {
+  var cur = readSettings_("SET");
+  if (cur.json) writeSettings_("BAK", cur.ts, cur.json);
+  writeSettings_("SET", ts, json);
 }
 
 // ---- Repair text whose UTF-8 bytes were read as Windows-1252/Latin-1 (e.g. "â–º" for "►", "à¸à¸¥" for Thai) ----
@@ -236,7 +245,7 @@ function doGet(e) {
   if (!authOk_(e && e.parameter ? e.parameter.key : "")) return deny_();
   if (e && e.parameter && e.parameter.nocache === "1") cacheClear_();   // ...&nocache=1 forces a fresh read
 
-  if (e && e.parameter && e.parameter.settings === "1") return json_({ settings: readSettings_() });
+  if (e && e.parameter && (e.parameter.settings === "1" || e.parameter.settings === "bak")) return json_({ settings: readSettings_(e.parameter.settings === "bak" ? "BAK" : "SET") });
 
   var jsonString = cacheGet_();
 
