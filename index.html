@@ -1029,7 +1029,8 @@
                 }
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
-                otherSubHtml += `<div class="sub-acc-row">
+                let grpOpts = `<option value="">📁 ย้ายไปกลุ่ม…</option>` + Object.keys(subAccountsData).map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('') + `<option value="__new__">＋ กลุ่มใหม่…</option>`;
+                otherSubHtml += `<div class="sub-acc-row" style="flex-wrap:wrap;">
                     <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;"><i class="acc-dot"></i>${esc(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
@@ -1038,6 +1039,7 @@
                         <button class="ic-btn btn-trf" title="Transfer" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄</button>
                         <button class="ic-btn btn-adj" title="Adjust balance" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙</button>
                     </div>
+                    <select class="grp-sel" onchange="assignAccountToGroup(${jsArg(sub)}, this)" style="width:100%; margin-top:6px; padding:6px; font-size:12px; border:1px solid var(--border); border-radius:8px; background:var(--card-bg); color:var(--text-muted);">${grpOpts}</select>
                 </div>`;
             });
 
@@ -1428,6 +1430,19 @@
         if (!name) return;
         if (!subAccountsData[name]) { subAccountsData[name] = []; localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); }
         document.getElementById('new-main-acc-input').value = ''; renderAccountManagerList();
+    }
+    function assignAccountToGroup(acc, sel) {
+        let g = sel.value;
+        if (!g) return;
+        if (g === '__new__') {
+            g = (prompt('ชื่อกลุ่มบัญชีใหม่') || '').trim().slice(0, 60);
+            if (!g) { sel.value = ''; return; }
+        }
+        if (!Object.prototype.hasOwnProperty.call(subAccountsData, g)) subAccountsData[g] = [];
+        Object.keys(subAccountsData).forEach(m => { subAccountsData[m] = (subAccountsData[m] || []).filter(x => x !== acc); });
+        subAccountsData[g].push(acc);
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+        renderAccountsList();
     }
     function addSubAccountDirect(main) {
         let input = document.getElementById(`sub-input-${main}`);
