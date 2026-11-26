@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://script.google.com https://*.googleusercontent.com; base-uri 'none'; form-action 'none'">
     <title>Wallet PWA - Offline First & Smart Budget</title>
     <link rel="preconnect" href="https://script.google.com">
     <link rel="preconnect" href="https://script.googleusercontent.com">
@@ -549,6 +550,9 @@
 <script>
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "https://script.google.com/macros/s/AKfycbxZWoOoAbLVJz8OGcmhOn02YaBm_Qugk2Yo_40-nmGFKrBH9Y2Fv1WE6jG0V1WAH8/exec";
 
+    const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const jsArg = v => esc(JSON.stringify(String(v === null || v === undefined ? '' : v)));   // safe JS string argument inside an onclick="..." attribute
+
     let API_KEY = localStorage.getItem('wallet_api_key') || '';
     const withKey = obj => Object.assign({ key: API_KEY }, obj);
     const readUrl = () => API_KEY ? WEBHOOK_URL + (WEBHOOK_URL.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(API_KEY) : WEBHOOK_URL;
@@ -648,17 +652,69 @@
 
     function cleanTimeString(timeStr) {
         if (!timeStr) return '';
-        let str = String(timeStr).trim();
-        let match = str.match(/(\d{1,2}):(\d{2})/);
-        if (match) {
-            let h = match[1].padStart(2, '0');
-            let m = match[2];
-            return `${h}:${m}`;
+        let m = String(timeStr).trim().match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?/);
+        if (!m) return '';
+        let h = parseInt(m[1], 10);
+        if (m[3]) {
+            let ap = m[3].toUpperCase();
+            if (ap === 'PM' && h < 12) h += 12;
+            if (ap === 'AM' && h === 12) h = 0;
         }
-        return '';
+        return `${String(h).padStart(2, '0')}:${m[2]}`;
     }
 
     // ฟังก์ชันถอดรหัสข้อความภาษาไทยและล้างขยะ Encoding ที่เพี้ยนจาก Sheets
+    // ---- Repair text whose UTF-8 bytes were read as Windows-1252/Latin-1 (e.g. "â–º" for "►", "à¸à¸¥" for Thai) ----
+    var CP1252_REV_ = {0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
+
+    function strictUtf8_(b) {
+      var out = '', i = 0, n = b.length;
+      while (i < n) {
+        var c = b[i++];
+        if (c < 0x80) { out += String.fromCharCode(c); continue; }
+        var need, cp;
+        if (c >= 0xC2 && c <= 0xDF) { need = 1; cp = c & 0x1F; }
+        else if (c >= 0xE0 && c <= 0xEF) { need = 2; cp = c & 0x0F; }
+        else if (c >= 0xF0 && c <= 0xF4) { need = 3; cp = c & 0x07; }
+        else return null;
+        if (i + need > n) return null;
+        for (var k = 0; k < need; k++) {
+          var x = b[i++];
+          if ((x & 0xC0) !== 0x80) return null;
+          cp = (cp << 6) | (x & 0x3F);
+        }
+        if ((need === 2 && cp < 0x800) || (need === 3 && cp < 0x10000) || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return null;
+        out += String.fromCodePoint(cp);
+      }
+      return out;
+    }
+
+    function fixMojibakeOnce_(s) {
+      var bytes = [], high = false;
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charCodeAt(i), b;
+        if (c < 0x80) b = c;
+        else if (c <= 0xFF) { b = c; high = true; }
+        else if (CP1252_REV_[c] !== undefined) { b = CP1252_REV_[c]; high = true; }
+        else return s; // contains real Thai/emoji/etc: not mojibake
+        bytes.push(b);
+      }
+      if (!high) return s;
+      var out = strictUtf8_(bytes);
+      return out === null ? s : out;
+    }
+
+    function fixMojibake(s) {
+      if (typeof s !== 'string' || !s) return s;
+      for (var pass = 0; pass < 3; pass++) {
+        var t = fixMojibakeOnce_(s);
+        if (t === s) break;
+        s = t;
+      }
+      return s;
+    }
+
+
     const _cgCache = new Map();
     function cleanGarbageText(text) {
         if (!text) return '';
@@ -672,23 +728,7 @@
         return v;
     }
     function _cleanGarbageTextRaw(text) {
-        if (!text) return '';
-        let s = String(text).trim();
-        try {
-            // ลองแปลงหากติดรหัส ISO-8859-1 ที่ปนมากับภาษาไทย
-            let bytes = [];
-            for (let i = 0; i < s.length; i++) {
-                bytes.push(s.charCodeAt(i) & 0xFF);
-            }
-            let decoded = new TextDecoder('utf-8').decode(new Uint8Array(bytes));
-            if (decoded && !decoded.includes('\ufffd') && /[ก-๙]/.test(decoded)) {
-                s = decoded.trim();
-            }
-        } catch (e) {}
-
-        // ตัดอักขระขยะที่ขึ้นต้นด้วย â€CE หรือลักษณะเพี้ยนอื่นๆ ถ้ามี
-        s = s.replace(/^[â€œÂ£¥¢§ªº¬°±²³µ¶·¸¹º¼½¾¿ÀÁÂÃÄÅÇÈÊÉËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝŸ]+/, '').trim();
-        return s;
+        return fixMojibake(String(text).trim());
     }
 
     function getDisplayDateTime(t) {
@@ -890,13 +930,13 @@
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 subHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;">└─ ${esc(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
-                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal('${sub}', '${primaryCur}', ${primaryAmt})">⚙️Adj</button>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">-Ex</button>
+                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄Trf</button>
+                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙️Adj</button>
                     </div>
                 </div>`;
             });
@@ -921,7 +961,7 @@
             let expandClass = isExpanded ? 'expanded' : '';
 
             accHtml += `<div class="card" style="padding: 12px; margin-bottom: 10px;">
-                <div class="acc-item" onclick="toggleMainAccount('${main}')">
+                <div class="acc-item" onclick="toggleMainAccount(${jsArg(main)})">
                     <div style="flex:1;">
                         <span style="font-size:12px; margin-right:4px;">${arrowIcon}</span> 💳 ${main} <small style="color:var(--text-muted); font-weight:normal;">(Main)</small>
                     </div>
@@ -955,13 +995,13 @@
                 let subDisplay = subTextArr.length > 0 ? subTextArr.join(', ') : `0 ${defaultCurrency}`;
 
                 otherSubHtml += `<div class="sub-acc-row">
-                    <span onclick="openAccountDetail('${sub}')" style="cursor:pointer; flex:1;">└─ ${sub}</span>
+                    <span onclick="openAccountDetail(${jsArg(sub)})" style="cursor:pointer; flex:1;">└─ ${esc(sub)}</span>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-weight:500; color:${primaryAmt < 0 ? 'var(--danger)' : 'var(--success)'}; font-size:12px;">${subDisplay}</span>
-                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', '${sub}', '${primaryCur}')">+In</button>
-                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', '${sub}', '${primaryCur}')">-Ex</button>
-                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', '${sub}', '${primaryCur}')">⇄Trf</button>
-                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal('${sub}', '${primaryCur}', ${primaryAmt})">⚙️Adj</button>
+                        <button class="mini-btn btn-inc" onclick="openTxModal('Income', ${jsArg(sub)}, ${jsArg(primaryCur)})">+In</button>
+                        <button class="mini-btn btn-exp" onclick="openTxModal('Expense', ${jsArg(sub)}, ${jsArg(primaryCur)})">-Ex</button>
+                        <button class="mini-btn btn-trf" onclick="openTxModal('Transfer', ${jsArg(sub)}, ${jsArg(primaryCur)})">⇄Trf</button>
+                        <button class="mini-btn btn-adj" onclick="openAdjustBalanceModal(${jsArg(sub)}, ${jsArg(primaryCur)}, ${primaryAmt})">⚙️Adj</button>
                     </div>
                 </div>`;
             });
@@ -1108,17 +1148,17 @@
             if (isTransfer) {
                 if (amtVal > 0) {
                     detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ รับโอน</span> <small style="color:var(--text-muted);">(From: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
+                    detailsHtml += `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
                     amountDisplay = `+${amtVal.toLocaleString()}`;
                     amountColor = 'var(--success)';
                 } else {
                     detailsHtml = `<span style="font-weight:600; color:var(--warning);">⇄ โอนออก</span> <small style="color:var(--text-muted);">(To: ${trfAcc})</small><br>`;
-                    detailsHtml += `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
+                    detailsHtml += `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
                     amountDisplay = `${amtVal.toLocaleString()}`;
                     amountColor = 'var(--danger)';
                 }
             } else {
-                detailsHtml = `<span style="font-weight:500;">${cleanGarbageText(t.category || '')}</span> <small style="color:var(--text-muted);">(${cleanGarbageText(t.description || t.memo || '')})</small>`;
+                detailsHtml = `<span style="font-weight:500;">${esc(cleanGarbageText(t.category || ''))}</span> <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.description || t.memo || ''))})</small>`;
                 amountDisplay = (amtVal > 0 ? '+' : '') + amtVal.toLocaleString();
                 amountColor = amtVal > 0 ? 'var(--success)' : 'var(--danger)';
             }
@@ -1126,7 +1166,7 @@
             html += `<tr>
                 <td>${displayDate}</td>
                 <td>${detailsHtml}</td>
-                <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${cleanGarbageText(t.currency || defaultCurrency)}</td>
+                <td style="color:${amountColor}; font-weight:bold;">${amountDisplay} ${esc(cleanGarbageText(t.currency || defaultCurrency))}</td>
                 <td>
                     <div style="display:flex; gap:4px;">
                         <button class="mini-btn" style="background:var(--primary);" onclick="openTxEditModal(${realIdx})">Edit</button>
@@ -1164,9 +1204,9 @@
 
                 html += `<tr>
                     <td>${displayDate}</td>
-                    <td>${cleanGarbageText(t.account || '')} ${trfAcc ? '(' + trfAcc + ')' : ''}</td>
-                    <td>${cleanGarbageText(t.category || '')} <br><small style="color:var(--text-muted);">${cleanGarbageText(t.description || t.memo || '')}</small></td>
-                    <td style="color:${amountColor}; font-weight:bold;">${amtVal > 0 ? '+' : ''}${amtVal.toLocaleString()} ${cleanGarbageText(t.currency || defaultCurrency)}</td>
+                    <td>${esc(cleanGarbageText(t.account || ''))} ${trfAcc ? '(' + trfAcc + ')' : ''}</td>
+                    <td>${esc(cleanGarbageText(t.category || ''))} <br><small style="color:var(--text-muted);">${esc(cleanGarbageText(t.description || t.memo || ''))}</small></td>
+                    <td style="color:${amountColor}; font-weight:bold;">${amtVal > 0 ? '+' : ''}${amtVal.toLocaleString()} ${esc(cleanGarbageText(t.currency || defaultCurrency))}</td>
                 </tr>`;
             });
             tbody.innerHTML = html;
@@ -1204,14 +1244,14 @@
         let tableHtml = '';
 
         for (let cur in currenciesData) {
-            curOptions += `<option value="${cur}" ${cur === defaultCurrency ? 'selected' : ''}>${cur}</option>`;
+            curOptions += `<option value="${esc(cur)}" ${cur === defaultCurrency ? 'selected' : ''}>${esc(cur)}</option>`;
             tableHtml += `<tr>
                 <td><strong>${cur}</strong></td>
                 <td>${currenciesData[cur]}</td>
                 <td>
                     <div style="display:flex; gap:6px;">
-                        <button onclick="openCurrencyModal('${cur}')" style="background:var(--primary); color:white; border:none; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">Edit</button>
-                        ${cur !== defaultCurrency ? `<button onclick="deleteCurrency('${cur}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}
+                        <button onclick="openCurrencyModal(${jsArg(cur)})" style="background:var(--primary); color:white; border:none; padding:2px 6px; border-radius:4px; font-size:11px; cursor:pointer;">Edit</button>
+                        ${cur !== defaultCurrency ? `<button onclick="deleteCurrency(${jsArg(cur)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">Delete</button>` : '<small style="color:var(--text-muted);">Base</small>'}
                     </div>
                 </td>
             </tr>`;
@@ -1280,10 +1320,10 @@
         let html = '';
         for (let main in categoriesData) {
             html += `<div style="margin-bottom:12px; border-bottom:1px solid var(--border); padding-bottom:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;"><strong>📂 ${main}</strong><button onclick="deleteMainCategory('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
-                <div style="padding-left:12px; margin-top:6px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect('${main}')">+ Sub</button></div>`;
+                <div style="display:flex; justify-content:space-between; align-items:center;"><strong>📂 ${esc(main)}</strong><button onclick="deleteMainCategory(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="padding-left:12px; margin-top:6px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-cat-input-${main}" placeholder="Add sub-category..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubCategoryDirect(${jsArg(main)})">+ Sub</button></div>`;
             categoriesData[main].forEach((sub, idx) => {
-                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;"><span>└─ ${sub}</span><button onclick="removeSubCategory('${main}', ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button></div>`;
+                html += `<div style="display:flex; justify-content:space-between; font-size:12px; padding:2px 0;"><span>└─ ${esc(sub)}</span><button onclick="removeSubCategory(${jsArg(main)}, ${idx})" style="background:none; border:none; color:var(--danger); cursor:pointer;">[x]</button></div>`;
             });
             html += `</div></div>`;
         }
@@ -1317,13 +1357,13 @@
             let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
             let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
             html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${main} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount('${main}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
-                <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect('${main}')">+ Sub</button></div>`;
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${main} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+                <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect(${jsArg(main)})">+ Sub</button></div>`;
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
-                let subUp = sIdx > 0 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
-                let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount('${main}', ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
-                html += `<div class="sub-acc-row"><span>└─ ${sub}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain('${main}', ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div></div>`;
+                let subUp = sIdx > 0 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
+                let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
+                html += `<div class="sub-acc-row"><span>└─ ${esc(sub)}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain(${jsArg(main)}, ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div></div>`;
             });
             html += `</div></div>`;
         });
@@ -1403,7 +1443,7 @@
 
             html += `<tr>
                 <td>
-                    <strong style="cursor:pointer; color:var(--primary);" onclick="openBudgetTxModal(${idx})">${b.title} 🔍</strong><br>
+                    <strong style="cursor:pointer; color:var(--primary);" onclick="openBudgetTxModal(${idx})">${esc(b.title)} 🔍</strong><br>
                     <small style="color:var(--text-muted);">เริ่ม: ${b.startDate} | รอบ: ${b.period}</small>
                 </td>
                 <td>
@@ -1506,7 +1546,7 @@
 
     function openBudgetTxModal(budgetIdx) {
         let b = budgetData[budgetIdx];
-        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${b.title}`;
+        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${esc(b.title)}`;
         let startDate = parseUniversalDate({date: b.startDate});
         let budgetCur = b.currency || defaultCurrency;
 
@@ -1539,7 +1579,7 @@
                 let displayDate = getDisplayDateTime(t);
                 html += `<tr>
                     <td>${displayDate}</td>
-                    <td>${cleanGarbageText(t.category || '')} <small style="color:var(--text-muted);">(${cleanGarbageText(t.account || '')})</small></td>
+                    <td>${esc(cleanGarbageText(t.category || ''))} <small style="color:var(--text-muted);">(${esc(cleanGarbageText(t.account || ''))})</small></td>
                     <td style="color:var(--danger); font-weight:bold;">-${converted.toLocaleString()} ${budgetCur}</td>
                 </tr>`;
             });
@@ -1556,7 +1596,7 @@
     function openBudgetModal(editIdx = -1) {
         document.getElementById('budget-edit-index').value = editIdx;
         let curSelect = document.getElementById('budget-currency');
-        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 
         let accBox = document.getElementById('budget-exclude-accs');
         let catBox = document.getElementById('budget-exclude-cats');
@@ -1637,13 +1677,13 @@
         let html = '';
         scheduleData.forEach((s, idx) => {
             let typeBadge = s.type === 'Income' ? '🟢 +In' : s.type === 'Transfer' ? '🔵 ⇄Trans' : '🔴 -Ex';
-            let detail = `${typeBadge} | ${s.category || ''} | รอบถัดไป: ${s.startDate} | 🔄 ${s.frequency}`;
+            let detail = `${typeBadge} | ${esc(s.category || '')} | รอบถัดไป: ${esc(s.startDate)} | 🔄 ${esc(s.frequency)}`;
             if (s.type === 'Transfer') detail += ` (ไปที่: ${s.transferTo})`;
             let sCur = s.currency || defaultCurrency;
             
             html += `<tr>
-                <td><strong>${s.title}</strong><br><small style="color:var(--text-muted);">${detail}</small></td>
-                <td>${s.account}</td>
+                <td><strong>${esc(s.title)}</strong><br><small style="color:var(--text-muted);">${detail}</small></td>
+                <td>${esc(s.account)}</td>
                 <td>${s.amount.toLocaleString()} ${sCur}</td>
                 <td>
                     <div style="display:flex; gap:4px; align-items:center;">
@@ -1670,7 +1710,7 @@
             accOptHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] ${main}</option>`;
             (subAccountsData[main] || []).forEach(sub => {
                 if (!allSubsOnly.includes(sub)) allSubsOnly.push(sub);
-                accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+                accOptHtml += `<option value="${esc(sub)}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${esc(sub)}</option>`;
             });
         });
 
@@ -1691,18 +1731,18 @@
         if (unassignedSubsList.length > 0) {
             accOptHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others</option>`;
             unassignedSubsList.forEach(sub => {
-                accOptHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+                accOptHtml += `<option value="${esc(sub)}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${esc(sub)}</option>`;
             });
         }
 
         accSelect.innerHTML = accOptHtml;
-        transferSelect.innerHTML = allSubsOnly.map(s => `<option value="${s}">${s}</option>`).join('');
-        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${c}">${c}</option>`).join('');
+        transferSelect.innerHTML = allSubsOnly.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+        curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 
         let catHtml = '';
         for (let mainCat in categoriesData) {
             catHtml += `<optgroup label="${mainCat}">`;
-            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${esc(mainCat)} ► ${esc(subCat)}">${esc(mainCat)} ➔ ${esc(subCat)}</option>`; });
             catHtml += `</optgroup>`;
         }
         catSelect.innerHTML = catHtml;
@@ -1760,7 +1800,7 @@
 
     function paySchedule(idx) {
         let s = scheduleData[idx];
-        if (!confirm(`Confirm payment for "${s.title}" (${s.amount} ${s.currency || defaultCurrency})?`)) return;
+        if (!confirm(`Confirm payment for "${esc(s.title)}" (${s.amount} ${s.currency || defaultCurrency})?`)) return;
 
         let rawAmt = parseFloat(s.amount) || 0;
         let txAmount = (s.type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
@@ -1848,14 +1888,14 @@
         let html = '';
         keys.forEach(k => {
             if (mode === 'monthly' && k.length === 7) {
-                html += `<option value="${k}">เดือน ${k}</option>`;
+                html += `<option value="${esc(k)}">เดือน ${esc(k)}</option>`;
             } else if (mode === 'yearly' && k.length === 4) {
-                html += `<option value="${k}">ปี ${k}</option>`;
+                html += `<option value="${esc(k)}">ปี ${esc(k)}</option>`;
             }
         });
         if (!html) {
             let nowY = new Date().toISOString().slice(0, 4);
-            html = `<option value="${nowY}">ปี ${nowY}</option>`;
+            html = `<option value="${esc(nowY)}">ปี ${esc(nowY)}</option>`;
         }
         periodSelect.innerHTML = html;
         renderReportChart();
@@ -1969,7 +2009,7 @@
             (subAccountsData[main] || []).forEach(sub => { 
                 let cleanSub = cleanGarbageText(sub);
                 if (!allSubs.includes(cleanSub)) allSubs.push(cleanSub); 
-                optHtml += `<option value="${cleanSub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${cleanSub}</option>`; 
+                optHtml += `<option value="${esc(cleanSub)}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${esc(cleanSub)}</option>`; 
             });
         });
 
@@ -1994,7 +2034,7 @@
         if (extraSubs.length > 0) {
             optHtml += `<option value="" disabled style="font-weight:bold; color:var(--text-muted);">💳 [Main] Others / Unassigned</option>`;
             extraSubs.forEach(sub => {
-                optHtml += `<option value="${sub}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${sub}</option>`;
+                optHtml += `<option value="${esc(sub)}">&nbsp;&nbsp;&nbsp;&nbsp;└─ ${esc(sub)}</option>`;
             });
         }
 
@@ -2005,7 +2045,7 @@
         let catHtml = '';
         for (let mainCat in categoriesData) {
             catHtml += `<optgroup label="${mainCat}">`;
-            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${mainCat} ► ${subCat}">${mainCat} ➔ ${subCat}</option>`; });
+            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${esc(mainCat)} ► ${esc(subCat)}">${esc(mainCat)} ➔ ${esc(subCat)}</option>`; });
             catHtml += `</optgroup>`;
         }
         catSelect.innerHTML = catHtml;
@@ -2013,13 +2053,13 @@
         let curSelect = document.getElementById('tx-currency');
         let curHtml = '';
         for (let cur in currenciesData) {
-            curHtml += `<option value="${cur}">${cur}</option>`;
+            curHtml += `<option value="${esc(cur)}">${esc(cur)}</option>`;
         }
         curSelect.innerHTML = curHtml;
         curSelect.value = cleanGarbageText(preSelectCur || defaultCurrency);
 
         let trfSelect = document.getElementById('tx-transfers-select');
-        trfSelect.innerHTML = allSubs.map(s => `<option value="${s}">${s}</option>`).join('');
+        trfSelect.innerHTML = allSubs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
 
         if (type === 'Transfer') {
             document.getElementById('group-category').style.display = 'none';
