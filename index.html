@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://script.google.com https://*.googleusercontent.com; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://script.google.com https://*.googleusercontent.com https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
     <title>Wallet PWA - Offline First & Smart Budget</title>
     <link rel="preconnect" href="https://script.google.com">
     <link rel="preconnect" href="https://script.googleusercontent.com">
@@ -1071,7 +1071,7 @@
     function openAdjustBalanceModal(accName, cur, currentBal) {
         document.getElementById('adj-account-name').value = accName;
         document.getElementById('adj-account-cur').value = cur;
-        document.getElementById('adj-modal-title').textContent = `Adjust Balance: ${accName}`;
+        document.getElementById('adjust-modal-title').textContent = `Adjust Balance: ${accName}`;
         document.getElementById('adj-current-calc').textContent = `${currentBal.toLocaleString()} ${cur}`;
         document.getElementById('adj-target-amount').value = currentBal;
         document.getElementById('adjust-balance-modal').classList.add('active');
