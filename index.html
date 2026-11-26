@@ -2221,7 +2221,8 @@
         document.getElementById('tx-edit-index').value = index;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Edit Transaction`;
-        document.getElementById('tx-datetime').value = (t.date || new Date().toISOString().slice(0,10)) + 'T' + cleanTimeString(t.time || '00:00');
+        const pd = parseUniversalDate(t), p2 = n => String(n).padStart(2, '0');
+        document.getElementById('tx-datetime').value = `${pd.getFullYear()}-${p2(pd.getMonth() + 1)}-${p2(pd.getDate())}T${cleanTimeString(t.time || '') || '00:00'}`;
         document.getElementById('tx-amount').value = Math.abs(t.amount);
         document.getElementById('tx-description').value = cleanGarbageText(t.description || '');
         document.getElementById('tx-payee').value = cleanGarbageText(t.payee || '');
@@ -2365,10 +2366,22 @@
         if (amt === undefined) { const r = splitRemaining(k); amt = r > 0.004 ? r : ''; }
         const d = document.createElement('div');
         d.className = 'split-row';
-        d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="updateSplitSummary('${k}')"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary('${k}')">×</button>`;
+        d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="splitAutoFill('${k}', this)"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary('${k}')">×</button>`;
         rows.appendChild(d);
         if (cat) d.querySelector('select').value = cat;
         d.querySelector('input').value = amt === '' ? '' : Math.round(amt * 100) / 100;
+        updateSplitSummary(k);
+    }
+    // typing an amount in one row fills the remainder into another row (the last other row) automatically
+    function splitAutoFill(k, el) {
+        const S = SPLIT[k], inputs = [...document.querySelectorAll('#' + S.rows + ' .split-amt')];
+        const total = parseFloat(document.getElementById(S.amt).value);
+        if (inputs.length >= 2 && !isNaN(total)) {
+            const others = inputs.filter(i => i !== el), target = others[others.length - 1];
+            let used = 0; inputs.forEach(i => { if (i !== target) used += parseFloat(i.value) || 0; });
+            const rest = Math.round((total - used) * 100) / 100;
+            target.value = rest > 0 ? rest : '';
+        }
         updateSplitSummary(k);
     }
     function splitRemaining(k) {
