@@ -187,8 +187,16 @@ function cacheClear_() {
   } catch (err) {}
 }
 
+// Run this from the editor (select clearCache, press Run) after editing the sheet by hand,
+// so the page picks the change up immediately instead of waiting for the 6 h cache to expire.
+function clearCache() {
+  cacheClear_();
+  Logger.log("Cache cleared");
+}
+
 function doGet(e) {
   if (!authOk_(e && e.parameter ? e.parameter.key : "")) return deny_();
+  if (e && e.parameter && e.parameter.nocache === "1") cacheClear_();   // ...&nocache=1 forces a fresh read
 
   var jsonString = cacheGet_();
 
