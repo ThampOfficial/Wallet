@@ -336,6 +336,14 @@ function doPost(e) {
     if (!locked) return json_({ status: "error", message: "busy, try again" });
 
     var sheet = getSheet_();
+    var newId = textField_(data.id, 40);
+    if (newId) {   // the page may re-send a row it is not sure arrived: never add the same id twice
+      var lastR = sheet.getLastRow();
+      if (lastR >= 2) {
+        var existing = sheet.getRange(2, 11, lastR - 1, 1).getValues();
+        for (var z = existing.length - 1; z >= 0; z--) if (String(existing[z][0]).trim() === newId) return json_({ status: "success", duplicate: true });
+      }
+    }
     var r = sheet.getLastRow() + 1;
     sheet.getRange(r, 1, 1, 7).setNumberFormat("@");   // A-G as plain text
     sheet.getRange(r, 9, 1, 3).setNumberFormat("@");   // I-K as plain text
@@ -350,7 +358,7 @@ function doPost(e) {
       amount,                                // H: Amount
       textField_(data.currency || "THB", 8), // I: Currency
       textField_(data.memo, 500),            // J: Memo
-      textField_(data.id, 40) || newId_()    // K: Id
+      newId || newId_()                      // K: Id
     ]]);
 
     cacheClear_();

@@ -615,6 +615,28 @@
     const withKey = obj => Object.assign({ key: API_KEY }, obj);
     const readUrl = () => API_KEY ? WEBHOOK_URL + (WEBHOOK_URL.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(API_KEY) : WEBHOOK_URL;
 
+    // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
+    const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
+    const saveOutbox = () => { try { localStorage.setItem('wallet_outbox', JSON.stringify(outbox)); } catch (e) {} };
+    let flushing = false;
+    function queueOp(op) { outbox.push(Object.assign({ tries: 0, sent: 0 }, op)); saveOutbox(); setSyncStatus('Saving to sheet...'); flushOutbox(); }
+    async function flushOutbox() {
+        if (flushing || !WEBHOOK_URL) return;
+        flushing = true;
+        try {
+            for (const o of outbox) {
+                if (o.sent || o.tries >= 8) continue;
+                const body = o.op === 'add' ? o.tx : { action: 'deleteTx', id: o.id };
+                await fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey(body)) });
+                o.sent = Date.now(); o.tries = (o.tries || 0) + 1; saveOutbox();
+            }
+        } catch (e) { console.log('Offline: will retry.'); }
+        flushing = false;
+        if (outbox.length) setTimeout(fetchTransactionsFromSheet, 4000);   // read the sheet back to confirm
+    }
+    window.addEventListener('online', () => { outbox.forEach(o => { if (o.sent && Date.now() - o.sent > 20000) o.sent = 0; }); flushOutbox(); });
+
     let transactions = JSON.parse(localStorage.getItem('wallet_offline_transactions')) || [];
     let selectedAccount = null;
     let pieChartInstance = null;
@@ -707,6 +729,7 @@
         renderCategoryPreview();
 
         fetchTransactionsFromSheet();
+        flushOutbox();
     });
 
     window.addEventListener('load', () => {
@@ -893,7 +916,7 @@
 
     function setSyncStatus(msg) {
         const el = document.getElementById('sync-status');
-        if (el) el.textContent = msg;
+        if (el) el.textContent = msg + (outbox.length ? ` · ${outbox.length} waiting to reach the sheet` : '');
     }
 
     function fetchTransactionsFromSheet() {
@@ -921,14 +944,25 @@
                             transfers: cleanGarbageText(t.transfers || ''),
                             amount: parseFloat(t.amount) || 0,
                             currency: cleanGarbageText(t.currency || defaultCurrency),
-                            memo: cleanGarbageText(t.memo || '')
-                        })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
+                            memo: cleanGarbageText(t.memo || ''),
+                            id: t.id || ''
+                        }));
+                        const serverIds = new Set(fresh.map(t => t.id).filter(Boolean));
+                        // drop outbox items the sheet already reflects; re-send ones that never arrived; keep showing the rest locally
+                        outbox = outbox.filter(o => (o.op === 'add' ? !serverIds.has(o.tx.id) : serverIds.has(o.id)));
+                        outbox.forEach(o => { if (o.sent && Date.now() - o.sent > 15000) o.sent = 0; });
+                        outbox.forEach(o => { if (o.op === 'add') fresh.push(o.tx); });
+                        const delIds = new Set(outbox.filter(o => o.op === 'del').map(o => o.id));
+                        for (let i = fresh.length - 1; i >= 0; i--) if (delIds.has(fresh[i].id)) fresh.splice(i, 1);
+                        saveOutbox();
+                        if (outbox.some(o => !o.sent && o.tries < 8)) flushOutbox();
+                        fresh.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
                         const freshStr = JSON.stringify(fresh);
-                        if (freshStr === JSON.stringify(transactions)) { setSyncStatus('Synced'); return; }
+                        if (freshStr === JSON.stringify(transactions)) { setSyncStatus(outbox.length ? 'Saving to sheet...' : 'Synced'); return; }
                         transactions = fresh;
                         try { localStorage.setItem('wallet_offline_transactions', freshStr); } catch (e) {}
-                        setSyncStatus('Synced');
+                        setSyncStatus(outbox.length ? 'Saving to sheet...' : 'Synced');
 
                         seedCategoriesFromTx();
                         renderAccountsList();
@@ -1205,7 +1239,8 @@
             transfers: '',
             amount: diff,
             currency: cur,
-            memo: 'System Balance Adjustment'
+            memo: 'System Balance Adjustment',
+            id: genId()
         };
 
         transactions.unshift(adjTx);
@@ -1218,12 +1253,7 @@
         closeAdjustBalanceModal();
 
         if (WEBHOOK_URL) {
-            fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(adjTx))
-            }).catch(e => console.log("Offline: Adjustment saved locally."));
+            queueOp({ op: 'add', tx: adjTx });
         }
 
         alert('Balance adjusted successfully!');
@@ -2089,7 +2119,8 @@
             transfers: s.transferTo || '',
             amount: amt,
             currency: s.currency || defaultCurrency,
-            memo: 'Paid via Schedule'
+            memo: 'Paid via Schedule',
+            id: genId()
         });
         const baseCat = s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title);
         const newTxs = (s.splits && s.splits.length > 1 && s.type !== 'Transfer')
@@ -2102,12 +2133,7 @@
         renderAccountsList();
 
         if (WEBHOOK_URL) {
-            newTxs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(o))
-            })), Promise.resolve()).catch(e => console.log("Offline: Saved locally, will sync later."));
+            newTxs.forEach(o => queueOp({ op: 'add', tx: o }));
         }
 
         let d = new Date(s.startDate);
@@ -2477,6 +2503,7 @@
         let sign = (type === 'Expense') ? -1 : 1;
         let amount = sign * Math.abs(rawAmt);
         let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
+        const oldIds = [];
         let txObjs = [];
         if (SPLIT.tx.on && type !== 'Transfer') {
             const parts = readSplitParts('tx');
@@ -2488,10 +2515,13 @@
         } else {
             txObjs.push(Object.assign({}, base, { category, amount }));
         }
+        txObjs.forEach(o => { o.id = genId(); });
 
         if (editIdx >= 0) {
             let grp = [editIdx];
             try { const g = JSON.parse(document.getElementById('tx-edit-group').value || '[]'); if (g.length) grp = g; } catch (e) {}
+            if (grp.some(i => transactions[i] && !transactions[i].id)) alert('This transaction has no sheet ID yet (update Code.gs, then refresh). The old row will stay in the sheet.');
+            grp.forEach(i => { if (transactions[i] && transactions[i].id) oldIds.push(transactions[i].id); });
             grp.slice().sort((a, b) => b - a).forEach(i => transactions.splice(i, 1));
             txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         } else {
@@ -2509,12 +2539,8 @@
 
         if (WEBHOOK_URL) {
             // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
-            txObjs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(o))
-            })), Promise.resolve()).catch(e => console.log("Offline: Transaction saved locally."));
+            oldIds.forEach(id => queueOp({ op: 'del', id }));   // an edit = remove the old row(s), add the new one(s)
+            txObjs.forEach(o => queueOp({ op: 'add', tx: o }));
         }
 
         alert(txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
@@ -2522,7 +2548,9 @@
 
     function deleteTransaction(index) {
         if (confirm('Delete this transaction?')) {
-            transactions.splice(index, 1);
+            const gone = transactions.splice(index, 1)[0];
+            if (gone && gone.id) queueOp({ op: 'del', id: gone.id });
+            else alert('This transaction has no sheet ID yet, so it was removed here only. Update Code.gs, refresh, and delete it again.');
             localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
             renderAccountsList();
             renderBudgets();
