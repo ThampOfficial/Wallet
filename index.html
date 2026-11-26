@@ -1481,6 +1481,12 @@
 
     /* ---- Budget Functions ---- */
     /* ---- Budget periods (MoneyWiz-style: start date + repeat every N day/week/month/year) ---- */
+    // balance corrections ("New balance", "Adjustment ► Balance Correction") move an account's balance but are not real spending or income
+    function isBalanceAdj(t) {
+        const c = cleanGarbageText(t.category || '').trim().toLowerCase();
+        if (c.startsWith('adjustment')) return true;
+        return c === '' && /^(new balance|balance adjustment)/i.test(cleanGarbageText(t.description || '').trim());
+    }
     function budgetStart(b) { const m = String(b.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : parseUniversalDate({date: b.startDate}); }
     function budgetFreq(b) {
         if (b.unit) return { every: Math.max(1, parseInt(b.every) || 1), unit: b.unit, repeat: b.repeat !== false };
@@ -1510,7 +1516,7 @@
     }
     function budgetMatches(b, t) {
         const amt = parseFloat(t.amount) || 0;
-        if (amt >= 0) return false;
+        if (amt >= 0 || isBalanceAdj(t)) return false;
         const cat = String(t.category || '').toLowerCase();
         if (cat === 'transfer' || cleanGarbageText(String(t.transfers || '').trim()) !== '') return false;
         if ((b.excludeAccs || []).includes(cleanGarbageText(t.account || ''))) return false;
@@ -1535,7 +1541,7 @@
         });
         const limit = parseFloat(b.amount) || 0;
         let carry = 0;
-        if (b.rollover) for (let i = 0; i < ci; i++) carry += limit - spentBy[i];
+        if (b.rollover) for (let i = 0; i < ci; i++) carry = Math.max(0, carry + limit - spentBy[i]);   // only unused money rolls forward
         const spent = ci >= 0 ? spentBy[ci] : 0;
         const avail = limit + carry;
         const period = ci >= 0 ? periods[ci] : null;
@@ -1595,7 +1601,7 @@
                 let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
                 let isTransfer = cat === 'transfer' || trfAcc !== '';
 
-                if (amt < 0 && !isTransfer && !isNaN(parsed.getTime())) {
+                if (amt < 0 && !isTransfer && !isBalanceAdj(t) && !isNaN(parsed.getTime())) {
                     let ty = parsed.getFullYear();
                     let tm = String(parsed.getMonth() + 1).padStart(2, '0');
                     if (`${ty}-${tm}` === ym) {
@@ -2062,7 +2068,7 @@
             let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
             let isTransfer = cat === 'transfer' || trfAcc !== '';
 
-            if (isTransfer || amt === 0) return;
+            if (isTransfer || amt === 0 || isBalanceAdj(t)) return;
 
             let tCur = cleanGarbageText(t.currency || defaultCurrency);
             let converted = convertCurrency(Math.abs(amt), tCur, defaultCurrency);
