@@ -16,7 +16,27 @@ var SPREADSHEET_ID = "14I4Bgj87pJX7hu6PL4M2DhKysAphvf6ArQMp88SDfA4";
 var CACHE_KEY = "tx_v3";
 var CACHE_TTL = 21600;   // seconds (6 hours, the maximum)
 var CACHE_CHUNK = 30000; // characters per cache entry (limit is 100KB each; Thai text is up to 3 bytes/char)
-var MAX_BODY = 10000;    // bytes accepted by doPost
+var MAX_BODY = 10000;    // bytes accepted by doPost for a transaction
+var MAX_SETTINGS = 300000; // characters accepted for a settings save (budgets, groups, categories, schedules...)
+var SET_CHUNK = 2500;      // characters per script property (limit 9KB each; Thai text is up to 3 bytes/char)
+
+// ---- App settings shared by every device (kept in Script Properties as chunks, not in the sheet) ----
+function readSettings_() {
+  var p = PropertiesService.getScriptProperties().getProperties();
+  var n = parseInt(p.SET_n, 10) || 0, json = "";
+  for (var i = 0; i < n; i++) json += p["SET_" + i] || "";
+  return { ts: parseInt(p.SET_ts, 10) || 0, json: json };
+}
+
+function saveSettings_(ts, json) {
+  var props = PropertiesService.getScriptProperties();
+  var old = parseInt(props.getProperty("SET_n"), 10) || 0;
+  var out = { SET_ts: String(parseInt(ts, 10) || Date.now()) }, n = 0;
+  for (var i = 0; i < json.length; i += SET_CHUNK) { out["SET_" + n] = json.slice(i, i + SET_CHUNK); n++; }
+  out.SET_n = String(n);
+  props.setProperties(out);
+  for (var j = n; j < old; j++) props.deleteProperty("SET_" + j);
+}
 
 // ---- Repair text whose UTF-8 bytes were read as Windows-1252/Latin-1 (e.g. "â–º" for "►", "à¸à¸¥" for Thai) ----
 var CP1252_REV_ = {0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
@@ -198,6 +218,8 @@ function doGet(e) {
   if (!authOk_(e && e.parameter ? e.parameter.key : "")) return deny_();
   if (e && e.parameter && e.parameter.nocache === "1") cacheClear_();   // ...&nocache=1 forces a fresh read
 
+  if (e && e.parameter && e.parameter.settings === "1") return json_({ settings: readSettings_() });
+
   var jsonString = cacheGet_();
 
   if (jsonString === null) {
@@ -235,10 +257,20 @@ function doPost(e) {
   var locked = false;
   try {
     var raw = e && e.postData ? e.postData.contents : "";
-    if (!raw || raw.length > MAX_BODY) return json_({ status: "error", message: "bad request" });
+    if (!raw || raw.length > MAX_SETTINGS) return json_({ status: "error", message: "bad request" });
     var data = JSON.parse(raw);
     if (!data || typeof data !== "object") return json_({ status: "error", message: "bad request" });
     if (!authOk_(data.key)) return deny_();
+
+    if (data.action === "saveSettings") {
+      if (typeof data.json !== "string") return json_({ status: "error", message: "bad request" });
+      JSON.parse(data.json);   // must be valid JSON
+      if (!lock.tryLock(20000)) return json_({ status: "error", message: "busy, try again" });
+      locked = true;
+      saveSettings_(data.ts, data.json);
+      return json_({ status: "success" });
+    }
+    if (raw.length > MAX_BODY) return json_({ status: "error", message: "bad request" });
 
     var amount = toAmount_(data.amount);
     if (Math.abs(amount) > 1e12) return json_({ status: "error", message: "bad amount" });

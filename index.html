@@ -606,6 +606,54 @@
 </div>
 
 <script>
+    // ---- settings that follow the user across devices (stored in the script, pushed after every change) ----
+    const SYNC_KEYS = ['wallet_subaccounts_map', 'wallet_categories_map', 'wallet_currencies_map', 'wallet_default_currency', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];
+    const SYNC_CORE = ['wallet_subaccounts_map', 'wallet_currencies_map', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];   // user-made data (not auto-seeded)
+    let settingsReady = false, applyingRemote = false, settingsPushTimer = null;
+    const _rawSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+        _rawSetItem.call(this, k, v);
+        if (this === window.localStorage && settingsReady && !applyingRemote && SYNC_KEYS.includes(k)) {
+            _rawSetItem.call(this, 'wallet_settings_ts', String(Date.now()));
+            clearTimeout(settingsPushTimer);
+            settingsPushTimer = setTimeout(pushSettings, 1500);
+        }
+    };
+    function pushSettings() {
+        if (!WEBHOOK_URL) return;
+        const data = {};
+        SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null) data[k] = v; });
+        let ts = parseInt(localStorage.getItem('wallet_settings_ts')) || 0;
+        if (!ts) { ts = Date.now(); _rawSetItem.call(localStorage, 'wallet_settings_ts', String(ts)); }
+        fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey({ action: 'saveSettings', ts, json: JSON.stringify(data) })) })
+            .catch(() => console.log('Offline: settings will sync on the next change.'));
+    }
+    function syncSettings() {
+        if (!WEBHOOK_URL) { settingsReady = true; return; }
+        const base = readUrl();
+        fetch(base + (base.includes('?') ? '&' : '?') + 'settings=1', { redirect: 'follow' })
+            .then(r => r.json())
+            .then(d => {
+                if (d && d.status === 'error') { settingsReady = true; return; }
+                const rs = d && d.settings, lts = parseInt(localStorage.getItem('wallet_settings_ts')) || 0;
+                const hasLocal = SYNC_CORE.some(k => localStorage.getItem(k) !== null);
+                if (rs && rs.json && rs.ts > lts && !(lts === 0 && hasLocal)) {
+                    // another device saved newer settings: take them, then reload so every screen uses them
+                    applyingRemote = true;
+                    try {
+                        const data = JSON.parse(rs.json);
+                        SYNC_KEYS.forEach(k => { if (data[k] !== undefined) _rawSetItem.call(localStorage, k, data[k]); else localStorage.removeItem(k); });
+                        _rawSetItem.call(localStorage, 'wallet_settings_ts', String(rs.ts));
+                    } finally { applyingRemote = false; }
+                    location.reload();
+                    return;
+                }
+                settingsReady = true;
+                if (hasLocal && (!rs || !rs.json || lts > rs.ts || lts === 0)) pushSettings();
+            })
+            .catch(() => { settingsReady = true; });
+    }
+
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";   // set in Settings (kept out of the public repo)
 
     const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -690,6 +738,7 @@
         renderCategoryPreview();
 
         fetchTransactionsFromSheet();
+        syncSettings();
     });
 
     window.addEventListener('load', () => {
