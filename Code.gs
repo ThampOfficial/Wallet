@@ -13,7 +13,7 @@ var SPREADSHEET_ID = "14I4Bgj87pJX7hu6PL4M2DhKysAphvf6ArQMp88SDfA4";
 // run previewRepair() (changes nothing) and then applyRepair() from the editor.
 // ---------------------------------------------------------------------------
 
-var CACHE_KEY = "tx_v2";
+var CACHE_KEY = "tx_v3";
 var CACHE_TTL = 21600;   // seconds (6 hours, the maximum)
 var CACHE_CHUNK = 30000; // characters per cache entry (limit is 100KB each; Thai text is up to 3 bytes/char)
 var MAX_BODY = 10000;    // bytes accepted by doPost
@@ -112,14 +112,18 @@ function readTransactions_() {
   if (lastRow < 2) return [];
   var tz = sheet.getParent().getSpreadsheetTimeZone() || Session.getScriptTimeZone();
   var rows = sheet.getRange(2, 1, lastRow - 1, 10).getValues(); // A..J, header skipped
+  // Date (A) and Time (B) are read exactly as shown in the sheet. Real Date cells would otherwise be
+  // re-formatted here and swap day/month (e.g. shown "12/10/2026" = 12 Oct, but the cell holds 10 Dec),
+  // and time-only cells come back as 1899 dates with a timezone offset that shifts the minutes.
+  var shown = sheet.getRange(2, 1, lastRow - 1, 2).getDisplayValues();
   var transactions = [];
 
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
     if (row[0]) {
       transactions.push({
-        date: cellText_(row[0], tz, "dd/MM/yyyy").split('T')[0],
-        time: cellText_(row[1], tz, "hh:mm a"),
+        date: String(shown[i][0]).trim().split('T')[0],
+        time: String(shown[i][1]).trim(),
         account: cellText_(row[2], tz, ""),      // C: Account
         category: cellText_(row[3], tz, ""),     // D: Category
         description: cellText_(row[4], tz, ""),  // E: Description
