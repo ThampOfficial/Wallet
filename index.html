@@ -118,6 +118,40 @@
         .tx-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tx-sub { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tx-amt { font-weight: 700; font-size: 14px; text-align: right; white-space: nowrap; }
+        .mw-sec { font-size: 13px; font-weight: 700; color: var(--text-muted); margin: 18px 4px 8px; }
+        .mw-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(16,24,40,.06); }
+        .mw-row { display: flex; align-items: center; gap: 12px; padding: 14px; border-top: 1px solid var(--border); min-height: 52px; }
+        .mw-row:first-child { border-top: none; }
+        .mw-row .mw-ic { width: 22px; text-align: center; opacity: .55; font-size: 17px; flex: none; }
+        .mw-row input[type=text], .mw-row input[type=number], .mw-row input[type=date], .mw-row select { border: none; background: transparent; color: var(--text-main); font-size: 15px; outline: none; padding: 0; width: 100%; }
+        .mw-row.tap { cursor: pointer; }
+        .mw-row .mw-val { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+        .mw-row .mw-chev { color: var(--text-muted); font-size: 18px; flex: none; }
+        .mw-row .mw-lbl { flex: 1; color: var(--text-muted); font-size: 15px; }
+        .mw-pill { background: var(--bg-color); border-radius: 999px; padding: 8px 14px; font-size: 15px; }
+        .mw-switch { position: relative; width: 50px; height: 30px; flex: none; }
+        .mw-switch input { opacity: 0; width: 100%; height: 100%; position: absolute; margin: 0; cursor: pointer; z-index: 1; }
+        .mw-switch i { position: absolute; inset: 0; background: #cbd5e1; border-radius: 999px; transition: .15s; }
+        .mw-switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 26px; height: 26px; background: #fff; border-radius: 50%; transition: .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+        .mw-switch input:checked + i { background: #34c759; }
+        .mw-switch input:checked + i::after { left: 22px; }
+        .mw-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+        .mw-round { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--card-bg); font-size: 18px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.15); color: var(--text-main); }
+        .mw-save { background: var(--primary); color: #fff; border: none; border-radius: 999px; padding: 10px 22px; font-size: 15px; font-weight: 600; cursor: pointer; }
+        .bud-grp { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 4px 6px; }
+        .bud-card { background: var(--card-bg); border-radius: 14px; padding: 14px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(16,24,40,.06); }
+        .bud-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .bud-name { font-weight: 700; font-size: 15px; cursor: pointer; }
+        .bud-sub { font-size: 12px; color: var(--text-muted); }
+        .bud-left { text-align: right; font-weight: 700; font-size: 17px; white-space: nowrap; }
+        .bud-left small { display: block; font-size: 11px; font-weight: 400; color: var(--text-muted); }
+        .bud-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+        .pk-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-top: 1px solid var(--border); font-size: 14px; }
+        .pk-row input { width: 18px; height: 18px; flex: none; }
+        .split-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+        .split-row select { flex: 1; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: var(--card-bg); color: var(--text-main); }
+        .split-row input { width: 90px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: var(--card-bg); color: var(--text-main); }
+        .split-x { background: none; border: none; color: var(--danger); font-size: 18px; cursor: pointer; padding: 0 4px; }
         .tx-act { display: flex; gap: 4px; margin-top: 4px; justify-content: flex-end; }
     </style>
 </head>
@@ -163,19 +197,7 @@
             <h2 style="margin-bottom:0;">Budget Management</h2>
             <button class="btn" style="width: auto; padding: 6px 12px; font-size: 13px;" onclick="openBudgetModal()">+ Add Budget</button>
         </div>
-        <div class="card">
-            <h3>Budgets Overview (Click name to view transactions)</h3>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr><th>Budget Name / Details</th><th>Spent / Limit</th><th>Action</th></tr>
-                    </thead>
-                    <tbody id="budget-table-body">
-                        <tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <div id="budget-table-body"><p style="text-align:center; color:var(--text-muted);">No budgets set</p></div>
         <div class="card" style="text-align: center;">
             <h3>Budget vs Expense (4 เดือนล่าสุด)</h3>
             <div style="max-width: 100%; margin: 0 auto;">
@@ -385,54 +407,49 @@
 
 <!-- Modal Budget -->
 <div id="budget-modal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 id="budget-modal-title" style="margin-bottom: 12px;">Add Budget</h3>
+    <div class="modal-box" style="background: var(--bg-color); max-width: 480px; padding: 16px;">
         <input type="hidden" id="budget-edit-index" value="-1">
-        <div class="form-group">
-            <label for="budget-title">Budget Name</label>
-            <input type="text" id="budget-title" placeholder="e.g., Monthly Living Expense">
+        <div class="mw-head">
+            <button type="button" class="mw-round" onclick="closeBudgetModal()" aria-label="Close">✕</button>
+            <span style="flex:1;"></span>
+            <button type="button" class="mw-round" id="budget-del-btn" style="color:var(--danger);" onclick="deleteBudgetFromModal()" aria-label="Delete">🗑</button>
+            <button type="button" class="mw-save" onclick="saveBudget()">Save</button>
         </div>
-        <div class="form-group">
-            <label for="budget-period">Period</label>
-            <select id="budget-period">
-                <option value="Monthly">รายเดือน (Monthly)</option>
-                <option value="Yearly">รายปี (Yearly)</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="budget-startdate">Start Date</label>
-            <input type="date" id="budget-startdate">
-        </div>
-        <div class="form-group" style="display:flex; gap:8px;">
-            <div style="flex:2;">
-                <label for="budget-amount">Limit Amount</label>
-                <input type="number" id="budget-amount" step="0.01" placeholder="0.00">
-            </div>
-            <div style="flex:1;">
-                <label for="budget-currency">Currency</label>
-                <select id="budget-currency"></select>
-            </div>
-        </div>
-        
-        <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-            <input type="checkbox" id="budget-rollover" style="width:auto;">
-            <label for="budget-rollover" style="margin:0; font-weight:bold;">Roll Over</label>
+        <h2 id="budget-modal-title" style="font-size:30px; margin:10px 4px 0;">New budget</h2>
+
+        <div class="mw-sec">Describe your budget</div>
+        <div class="mw-card">
+            <div class="mw-row"><span class="mw-ic">🅰</span><input type="text" id="budget-title" placeholder="Budget name" maxlength="60"></div>
+            <div class="mw-row"><span class="mw-ic">±</span><input type="number" id="budget-amount" step="0.01" placeholder="0.00" style="flex:1;"><select id="budget-currency" style="width:auto; color:var(--text-muted);"></select></div>
+            <div class="mw-row"><span class="mw-ic">🗂</span><input type="text" id="budget-group" list="budget-group-list" placeholder="Put in Group" maxlength="40"><datalist id="budget-group-list"></datalist></div>
         </div>
 
-        <div class="form-group">
-            <label>Exclude Accounts</label>
-            <div id="budget-exclude-accs" class="checkbox-box"></div>
+        <div class="mw-sec">Which transactions should be included?</div>
+        <div class="mw-card">
+            <div class="mw-row tap" onclick="openBudgetPicker('accs')"><span class="mw-ic">💳</span><span class="mw-val" id="budget-accs-summary"></span><span class="mw-chev">›</span></div>
+            <div class="mw-row tap" onclick="openBudgetPicker('cats')"><span class="mw-ic">📁</span><span class="mw-val" id="budget-cats-summary"></span><span class="mw-chev">›</span></div>
         </div>
 
-        <div class="form-group">
-            <label>Exclude Categories</label>
-            <div id="budget-exclude-cats" class="checkbox-box"></div>
+        <div class="mw-sec">Configure how the budget repeats</div>
+        <div class="mw-card">
+            <div class="mw-row"><span class="mw-ic">📅</span><span class="mw-pill"><input type="date" id="budget-startdate" style="width:auto;"></span><span style="flex:1; text-align:right; color:var(--text-muted);">Start date</span></div>
+            <div class="mw-row"><span class="mw-lbl">Repeat</span><label class="mw-switch"><input type="checkbox" id="budget-repeat" checked onchange="budgetRepeatChanged()"><i></i></label></div>
+            <div class="mw-row" id="budget-freq-row"><span class="mw-lbl">Frequency</span><input type="number" id="budget-every" min="1" max="365" value="1" style="width:56px; text-align:right;"><select id="budget-unit" style="width:auto;"><option value="day">day</option><option value="week">week</option><option value="month">month</option><option value="year">year</option></select></div>
+            <div class="mw-row"><span class="mw-lbl">Roll over unused amount</span><label class="mw-switch"><input type="checkbox" id="budget-rollover"><i></i></label></div>
         </div>
+    </div>
+</div>
 
-        <div style="display: flex; gap: 8px; margin-top: 16px;">
-            <button class="btn" onclick="saveBudget()">Save Budget</button>
-            <button class="btn" style="background: var(--text-muted);" onclick="closeBudgetModal()">Cancel</button>
+<div id="budget-picker-modal" class="modal-overlay" style="z-index:2100;">
+    <div class="modal-box" style="max-width:480px;">
+        <h3 id="budget-picker-title" style="margin-bottom:8px;"></h3>
+        <input type="text" id="budget-picker-search" placeholder="🔍 Search" oninput="renderBudgetPicker()" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:10px; background:var(--card-bg); color:var(--text-main); margin-bottom:8px;">
+        <div style="display:flex; gap:8px; margin-bottom:4px;">
+            <button type="button" class="btn" style="flex:1; padding:6px; font-size:12px; background:var(--text-muted);" onclick="budgetPickerAll(true)">Select all</button>
+            <button type="button" class="btn" style="flex:1; padding:6px; font-size:12px; background:var(--text-muted);" onclick="budgetPickerAll(false)">Clear</button>
         </div>
+        <div id="budget-picker-list" style="max-height:50vh; overflow-y:auto;"></div>
+        <button type="button" class="btn" style="margin-top:12px;" onclick="closeBudgetPicker()">Done</button>
     </div>
 </div>
 
@@ -512,6 +529,12 @@
         <div class="form-group" id="group-category">
             <label for="tx-category">Category</label>
             <select id="tx-category"></select>
+            <div id="split-box" style="display:none; margin-top:4px;">
+                <div id="split-rows"></div>
+                <button type="button" class="btn" style="background:none; color:var(--primary); border:1px dashed var(--primary); padding:6px; font-size:12px;" onclick="addSplitRow()">+ Add category</button>
+                <div id="split-summary" style="font-size:12px; margin-top:6px;"></div>
+            </div>
+            <button type="button" id="split-toggle" onclick="toggleSplit(!splitMode)" style="background:none; border:none; color:var(--primary); font-size:12px; cursor:pointer; margin-top:6px; padding:0;">✂ Split into multiple categories</button>
         </div>
 
         <div class="form-group">
@@ -621,6 +644,7 @@
         document.getElementById('dark-mode-toggle').checked = isDark;
         if (isDark) document.body.classList.add('dark-mode');
 
+        seedCategoriesFromTx();
         renderAccountsList();
         renderBudgets();
         renderSchedules();
@@ -851,6 +875,7 @@
                         try { localStorage.setItem('wallet_offline_transactions', freshStr); } catch (e) {}
                         setSyncStatus('Synced');
 
+                        seedCategoriesFromTx();
                         renderAccountsList();
                         renderBudgets();
                         if (document.getElementById('tab-budget').classList.contains('active')) {
@@ -1455,68 +1480,99 @@
     function removeSubFromMain(main, idx) { subAccountsData[main].splice(idx, 1); localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData)); renderAccountManagerList(); }
 
     /* ---- Budget Functions ---- */
-    function renderBudgets() {
-        const tbody = document.getElementById('budget-table-body');
-        if (budgetData.length === 0) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No budgets set</td></tr>`; return; }
-        let html = '';
-        
-        budgetData.forEach((b, idx) => {
-            let budgetCur = b.currency || defaultCurrency;
-            let startDate = parseUniversalDate({date: b.startDate});
-            
-            let spent = 0;
-            transactions.forEach(t => {
-                let tDate = parseUniversalDate(t);
-                let amt = parseFloat(t.amount) || 0;
-                let cat = String(t.category || '').toLowerCase();
-                let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
-                let isTransfer = cat === 'transfer' || trfAcc !== '';
-                
-                if (amt < 0 && !isTransfer && tDate >= startDate) {
-                    let acc = cleanGarbageText(t.account || '');
-                    let cStr = cleanGarbageText(t.category || '');
-                    let tCur = cleanGarbageText(t.currency || defaultCurrency);
-
-                    let isExcludedAcc = (b.excludeAccs || []).includes(acc);
-                    let isExcludedCat = (b.excludeCats || []).includes(cStr);
-
-                    if (!isExcludedAcc && !isExcludedCat) {
-                        let convertedAmt = convertCurrency(Math.abs(amt), tCur, budgetCur);
-                        spent += convertedAmt;
-                    }
+    /* ---- Budget periods (MoneyWiz-style: start date + repeat every N day/week/month/year) ---- */
+    function budgetStart(b) { const m = String(b.startDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : parseUniversalDate({date: b.startDate}); }
+    function budgetFreq(b) {
+        if (b.unit) return { every: Math.max(1, parseInt(b.every) || 1), unit: b.unit, repeat: b.repeat !== false };
+        return { every: 1, unit: b.period === 'Yearly' ? 'year' : 'month', repeat: true };
+    }
+    function budgetAddUnit(d, n, unit) {
+        const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (unit === 'day') r.setDate(r.getDate() + n);
+        else if (unit === 'week') r.setDate(r.getDate() + 7 * n);
+        else if (unit === 'month') { const day = d.getDate(); r.setDate(1); r.setMonth(r.getMonth() + n); r.setDate(Math.min(day, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate())); }
+        else { const day = d.getDate(); r.setDate(1); r.setFullYear(r.getFullYear() + n); r.setDate(Math.min(day, new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate())); }
+        return r;
+    }
+    function budgetPeriods(b, now) {
+        const f = budgetFreq(b), start = budgetStart(b);
+        let periods = [];
+        if (isNaN(start.getTime())) return { periods: [], cur: -1 };
+        if (!f.repeat) return { periods: [[start, budgetAddUnit(start, f.every, f.unit)]], cur: 0 };
+        let k = 0;
+        while (k < 600) {
+            const ps = budgetAddUnit(start, k * f.every, f.unit), pe = budgetAddUnit(start, (k + 1) * f.every, f.unit);
+            periods.push([ps, pe]);
+            if (now < pe) break;
+            k++;
+        }
+        return { periods, cur: periods.length - 1 };
+    }
+    function budgetMatches(b, t) {
+        const amt = parseFloat(t.amount) || 0;
+        if (amt >= 0) return false;
+        const cat = String(t.category || '').toLowerCase();
+        if (cat === 'transfer' || cleanGarbageText(String(t.transfers || '').trim()) !== '') return false;
+        if ((b.excludeAccs || []).includes(cleanGarbageText(t.account || ''))) return false;
+        if ((b.excludeCats || []).includes(cleanGarbageText(t.category || ''))) return false;
+        return true;
+    }
+    function budgetStats(b) {
+        const now = new Date(), cur = b.currency || defaultCurrency;
+        const { periods, cur: ci } = budgetPeriods(b, now);
+        const spentBy = periods.map(() => 0);
+        const matched = [];
+        transactions.forEach(t => {
+            if (!budgetMatches(b, t)) return;
+            const d = parseUniversalDate(t);
+            for (let i = periods.length - 1; i >= 0; i--) {
+                if (d >= periods[i][0] && d < periods[i][1]) {
+                    spentBy[i] += convertCurrency(Math.abs(parseFloat(t.amount) || 0), cleanGarbageText(t.currency || defaultCurrency), cur);
+                    if (i === ci) matched.push(t);
+                    break;
                 }
-            });
+            }
+        });
+        const limit = parseFloat(b.amount) || 0;
+        let carry = 0;
+        if (b.rollover) for (let i = 0; i < ci; i++) carry += limit - spentBy[i];
+        const spent = ci >= 0 ? spentBy[ci] : 0;
+        const avail = limit + carry;
+        const period = ci >= 0 ? periods[ci] : null;
+        const started = period ? now >= period[0] : false;
+        const daysLeft = period ? Math.max(0, Math.ceil((period[1] - now) / 86400000)) : 0;
+        return { cur, limit, carry, avail, spent, remaining: avail - spent, period, started, daysLeft, matched, over: spent > avail };
+    }
+    function budgetFmtDate(d) { return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
-            let limit = parseFloat(b.amount) || 0;
-            let percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
-            let isOver = spent > limit;
-            let barClass = isOver ? 'progress-bar-fill over' : 'progress-bar-fill';
-            let statusColor = isOver ? 'var(--danger)' : 'var(--success)';
-
-            html += `<tr>
-                <td>
-                    <strong style="cursor:pointer; color:var(--primary);" onclick="openBudgetTxModal(${idx})">${esc(b.title)} 🔍</strong><br>
-                    <small style="color:var(--text-muted);">เริ่ม: ${b.startDate} | รอบ: ${b.period}</small>
-                </td>
-                <td>
-                    <div style="display:flex; justify-content:space-between; font-weight:bold;">
-                        <span style="color:${statusColor};">${spent.toLocaleString()} ${budgetCur}</span>
-                        <span style="color:var(--text-muted);">/ ${limit.toLocaleString()} ${budgetCur} (${percent}%)</span>
+    function renderBudgets() {
+        const box = document.getElementById('budget-table-body');
+        if (budgetData.length === 0) { box.innerHTML = `<p style="text-align:center; color:var(--text-muted);">No budgets set</p>`; return; }
+        const groups = [], gMap = {};
+        budgetData.forEach((b, idx) => { const g = (b.group || '').trim(); if (!gMap[g]) { gMap[g] = []; groups.push(g); } gMap[g].push(idx); });
+        let html = '';
+        groups.forEach(g => {
+            if (g) html += `<div class="bud-grp">${esc(g)}</div>`;
+            gMap[g].forEach(idx => {
+                const b = budgetData[idx], st = budgetStats(b), cur = st.cur;
+                const pct = st.avail > 0 ? Math.min(Math.round(st.spent / st.avail * 100), 100) : (st.spent > 0 ? 100 : 0);
+                const color = st.over ? 'var(--danger)' : 'var(--success)';
+                const range = st.period ? `${budgetFmtDate(st.period[0])} – ${budgetFmtDate(new Date(st.period[1].getTime() - 86400000))}` : '';
+                html += `<div class="bud-card">
+                    <div class="bud-top">
+                        <div><div class="bud-name" onclick="openBudgetTxModal(${idx})">${esc(b.title)}</div><div class="bud-sub">${esc(range)}</div></div>
+                        <div class="bud-left" style="color:${color};">${st.remaining.toLocaleString(undefined, {maximumFractionDigits: 2})} ${esc(cur)}<small>${st.over ? 'over budget' : 'left'}</small></div>
                     </div>
-                    <div class="progress-bar-container">
-                        <div class="${barClass}" style="width: ${percent}%;"></div>
-                    </div>
-                    ${isOver ? '<small style="color:var(--danger); font-weight:bold;">⚠️ เกินงบประมาณแล้ว!</small>' : ''}
-                </td>
-                <td>
-                    <div style="display:flex; gap:4px;">
+                    <div class="progress-bar-container" style="margin-top:10px;"><div class="${st.over ? 'progress-bar-fill over' : 'progress-bar-fill'}" style="width:${pct}%;"></div></div>
+                    <div class="bud-meta"><span>${st.spent.toLocaleString(undefined, {maximumFractionDigits: 2})} of ${st.avail.toLocaleString(undefined, {maximumFractionDigits: 2})} ${esc(cur)}${st.carry ? ` (rollover ${st.carry.toLocaleString(undefined, {maximumFractionDigits: 2})})` : ''}</span><span>${st.started ? st.daysLeft + ' days left' : 'starts ' + (st.period ? budgetFmtDate(st.period[0]) : '')}</span></div>
+                    <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:8px;">
                         <button class="mini-btn" style="background:var(--primary);" onclick="openBudgetModal(${idx})">Edit</button>
                         <button class="mini-btn btn-exp" onclick="deleteBudget(${idx})">Del</button>
                     </div>
-                </td>
-            </tr>`;
+                </div>`;
+            });
         });
-        tbody.innerHTML = html;
+        box.innerHTML = html;
         renderBudgetStackedBarChart();
     }
 
@@ -1598,26 +1654,11 @@
 
     function openBudgetTxModal(budgetIdx) {
         let b = budgetData[budgetIdx];
-        document.getElementById('budget-tx-modal-title').textContent = `Transactions in Budget: ${esc(b.title)}`;
-        let startDate = parseUniversalDate({date: b.startDate});
-        let budgetCur = b.currency || defaultCurrency;
-
-        let matchedTxs = transactions.filter(t => {
-            let tDate = parseUniversalDate(t);
-            let amt = parseFloat(t.amount) || 0;
-            let cat = String(t.category || '').toLowerCase();
-            let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
-            let isTransfer = cat === 'transfer' || trfAcc !== '';
-
-            if (amt < 0 && !isTransfer && tDate >= startDate) {
-                let acc = cleanGarbageText(t.account || '');
-                let cStr = cleanGarbageText(t.category || '');
-                let isExcludedAcc = (b.excludeAccs || []).includes(acc);
-                let isExcludedCat = (b.excludeCats || []).includes(cStr);
-                return !isExcludedAcc && !isExcludedCat;
-            }
-            return false;
-        });
+        document.getElementById('budget-tx-modal-title').textContent = b.title;
+        const st = budgetStats(b);
+        let budgetCur = st.cur;
+        if (st.period) document.getElementById('budget-tx-modal-title').textContent = `${b.title} · ${budgetFmtDate(st.period[0])} – ${budgetFmtDate(new Date(st.period[1].getTime() - 86400000))}`;
+        let matchedTxs = st.matched.slice().sort((x, y) => parseUniversalDate(y) - parseUniversalDate(x));
 
         const listBody = document.getElementById('budget-tx-list-body');
         if (matchedTxs.length === 0) {
@@ -1645,63 +1686,115 @@
         document.getElementById('budget-tx-modal').classList.remove('active');
     }
 
+    let budgetSel = { accs: new Set(), cats: new Set(), allAccs: [], allCats: [] };
+    let budgetPickerKind = 'accs';
+    function budgetAllAccounts() {
+        const out = [];
+        Object.keys(subAccountsData).forEach(m => (subAccountsData[m] || []).forEach(sub => { const c = cleanGarbageText(sub); if (c && !out.includes(c)) out.push(c); }));
+        transactions.forEach(t => { const c = cleanGarbageText(t.account || ''); if (c && !out.includes(c)) out.push(c); });
+        return out;
+    }
+    function budgetAllCategories() {
+        const out = [];
+        for (let m in categoriesData) { const subs = categoriesData[m] || []; (subs.length ? subs.map(sc => `${m} ► ${sc}`) : [m]).forEach(v => out.push(v)); }
+        return out;
+    }
+    function budgetSummary(set, all, noun) {
+        if (all.length === 0) return `No ${noun}`;
+        if (set.size === all.length) return `All ${noun} (${all.length})`;
+        if (set.size === 0) return `No ${noun} selected`;
+        const names = all.filter(x => set.has(x));
+        return names.length <= 2 ? names.join(', ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} more…`;
+    }
+    function updateBudgetSummaries() {
+        document.getElementById('budget-accs-summary').textContent = budgetSummary(budgetSel.accs, budgetSel.allAccs, 'accounts');
+        document.getElementById('budget-cats-summary').textContent = budgetSummary(budgetSel.cats, budgetSel.allCats, 'categories');
+    }
+    function budgetRepeatChanged() { document.getElementById('budget-freq-row').style.display = document.getElementById('budget-repeat').checked ? '' : 'none'; }
+
+    function openBudgetPicker(kind) {
+        budgetPickerKind = kind;
+        document.getElementById('budget-picker-title').textContent = kind === 'accs' ? 'Accounts to include' : 'Categories to include';
+        document.getElementById('budget-picker-search').value = '';
+        renderBudgetPicker();
+        document.getElementById('budget-picker-modal').classList.add('active');
+    }
+    function renderBudgetPicker() {
+        const all = budgetPickerKind === 'accs' ? budgetSel.allAccs : budgetSel.allCats;
+        const set = budgetPickerKind === 'accs' ? budgetSel.accs : budgetSel.cats;
+        const q = document.getElementById('budget-picker-search').value.trim().toLowerCase();
+        let html = '';
+        all.forEach((name, i) => { if (!q || name.toLowerCase().includes(q)) html += `<label class="pk-row"><input type="checkbox" ${set.has(name) ? 'checked' : ''} onchange="budgetPickerToggle(${i}, this.checked)"><span>${esc(name)}</span></label>`; });
+        document.getElementById('budget-picker-list').innerHTML = html || '<small style="color:var(--text-muted);">Nothing found</small>';
+    }
+    function budgetPickerToggle(i, on) {
+        const all = budgetPickerKind === 'accs' ? budgetSel.allAccs : budgetSel.allCats;
+        const set = budgetPickerKind === 'accs' ? budgetSel.accs : budgetSel.cats;
+        if (on) set.add(all[i]); else set.delete(all[i]);
+    }
+    function budgetPickerAll(on) {
+        const all = budgetPickerKind === 'accs' ? budgetSel.allAccs : budgetSel.allCats;
+        const set = budgetPickerKind === 'accs' ? budgetSel.accs : budgetSel.cats;
+        const q = document.getElementById('budget-picker-search').value.trim().toLowerCase();
+        all.forEach(n => { if (!q || n.toLowerCase().includes(q)) { if (on) set.add(n); else set.delete(n); } });
+        renderBudgetPicker();
+    }
+    function closeBudgetPicker() { document.getElementById('budget-picker-modal').classList.remove('active'); updateBudgetSummaries(); }
+
     function openBudgetModal(editIdx = -1) {
         document.getElementById('budget-edit-index').value = editIdx;
         let curSelect = document.getElementById('budget-currency');
         curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-
-        let accBox = document.getElementById('budget-exclude-accs');
-        let catBox = document.getElementById('budget-exclude-cats');
-
         let bTarget = editIdx >= 0 ? budgetData[editIdx] : null;
 
-        document.getElementById('budget-modal-title').textContent = bTarget ? 'Edit Budget' : 'Add Budget';
+        document.getElementById('budget-modal-title').textContent = bTarget ? 'Edit budget' : 'New budget';
+        document.getElementById('budget-del-btn').style.display = bTarget ? '' : 'none';
         document.getElementById('budget-title').value = bTarget ? bTarget.title : '';
-        document.getElementById('budget-period').value = bTarget ? bTarget.period : 'Monthly';
-        document.getElementById('budget-startdate').value = bTarget ? bTarget.startDate : new Date().toISOString().slice(0,10);
+        document.getElementById('budget-group').value = bTarget ? (bTarget.group || '') : '';
+        document.getElementById('budget-group-list').innerHTML = [...new Set(budgetData.map(x => (x.group || '').trim()).filter(Boolean))].map(g => `<option value="${esc(g)}">`).join('');
+        document.getElementById('budget-startdate').value = bTarget ? bTarget.startDate : new Date().toISOString().slice(0, 8) + '01';
         document.getElementById('budget-amount').value = bTarget ? bTarget.amount : '';
         curSelect.value = bTarget ? (bTarget.currency || defaultCurrency) : defaultCurrency;
-        document.getElementById('budget-rollover').checked = bTarget ? bTarget.rollover : false;
+        document.getElementById('budget-rollover').checked = bTarget ? !!bTarget.rollover : false;
+        const f = bTarget ? budgetFreq(bTarget) : { every: 1, unit: 'month', repeat: true };
+        document.getElementById('budget-repeat').checked = f.repeat;
+        document.getElementById('budget-every').value = f.every;
+        document.getElementById('budget-unit').value = f.unit;
+        budgetRepeatChanged();
 
-        let accHtml = '';
-        Object.keys(subAccountsData).forEach(main => {
-            (subAccountsData[main] || []).forEach(sub => {
-                let isChecked = bTarget ? !(bTarget.excludeAccs || []).includes(sub) : true;
-                accHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-acc" value="${sub}" id="ex-acc-${sub}" ${isChecked ? 'checked' : ''}><label for="ex-acc-${sub}" style="margin:0; font-weight:normal;">รวมบัญชี: ${sub} (${main})</label></div>`;
-            });
-        });
-        accBox.innerHTML = accHtml || '<small style="color:var(--text-muted);">No accounts</small>';
-
-        let subCatHtml = '';
-        for (let mainCat in categoriesData) {
-            categoriesData[mainCat].forEach(subCat => {
-                let val = `${mainCat} ► ${subCat}`;
-                let isChecked = bTarget ? !(bTarget.excludeCats || []).includes(val) : true;
-                subCatHtml += `<div class="checkbox-item"><input type="checkbox" name="ex-cat" value="${val}" id="ex-cat-${val}" ${isChecked ? 'checked' : ''}><label for="ex-cat-${val}" style="margin:0; font-weight:normal;">รวมหมวดหมู่: ${val}</label></div>`;
-            });
-        }
-        catBox.innerHTML = subCatHtml || '<small style="color:var(--text-muted);">No categories</small>';
-
+        budgetSel.allAccs = budgetAllAccounts();
+        budgetSel.allCats = budgetAllCategories();
+        budgetSel.accs = new Set(budgetSel.allAccs.filter(a => !(bTarget && (bTarget.excludeAccs || []).includes(a))));
+        budgetSel.cats = new Set(budgetSel.allCats.filter(c => !(bTarget && (bTarget.excludeCats || []).includes(c))));
+        updateBudgetSummaries();
         document.getElementById('budget-modal').classList.add('active');
     }
 
     function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('active'); }
+    function deleteBudgetFromModal() {
+        const i = parseInt(document.getElementById('budget-edit-index').value);
+        if (i >= 0 && confirm('Delete this budget?')) { budgetData.splice(i, 1); localStorage.setItem('wallet_budgets_data', JSON.stringify(budgetData)); renderBudgets(); closeBudgetModal(); }
+    }
 
     function saveBudget() {
         let editIdx = parseInt(document.getElementById('budget-edit-index').value);
         let title = document.getElementById('budget-title').value.trim();
-        let period = document.getElementById('budget-period').value;
         let startDate = document.getElementById('budget-startdate').value;
         let amt = parseFloat(document.getElementById('budget-amount').value);
         let currency = document.getElementById('budget-currency').value;
         let rollover = document.getElementById('budget-rollover').checked;
+        let repeat = document.getElementById('budget-repeat').checked;
+        let every = Math.min(365, Math.max(1, parseInt(document.getElementById('budget-every').value) || 1));
+        let unit = document.getElementById('budget-unit').value;
+        let group = document.getElementById('budget-group').value.trim().slice(0, 40);
 
-        if (!title || isNaN(amt) || !startDate) return alert('Please fill in all required fields correctly.');
+        if (!title || isNaN(amt) || amt < 0 || !startDate) return alert('Please enter a name, an amount and a start date.');
 
-        let excludeAccs = Array.from(document.querySelectorAll('input[name="ex-acc"]:not(:checked)')).map(cb => cb.value);
-        let excludeCats = Array.from(document.querySelectorAll('input[name="ex-cat"]:not(:checked)')).map(cb => cb.value);
+        let excludeAccs = budgetSel.allAccs.filter(a => !budgetSel.accs.has(a));
+        let excludeCats = budgetSel.allCats.filter(c => !budgetSel.cats.has(c));
+        let period = (repeat && every === 1 && unit === 'month') ? 'Monthly' : (repeat && every === 1 && unit === 'year') ? 'Yearly' : 'Custom';
 
-        let budgetObj = { title, period, startDate, amount: amt, currency, rollover, excludeAccs, excludeCats };
+        let budgetObj = { title, group, period, startDate, amount: amt, currency, rollover, repeat, every, unit, excludeAccs, excludeCats };
 
         if (editIdx >= 0) {
             budgetData[editIdx] = budgetObj;
@@ -1791,13 +1884,7 @@
         transferSelect.innerHTML = allSubsOnly.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
         curSelect.innerHTML = Object.keys(currenciesData).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
 
-        let catHtml = '';
-        for (let mainCat in categoriesData) {
-            catHtml += `<optgroup label="${mainCat}">`;
-            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${esc(mainCat)} ► ${esc(subCat)}">${esc(mainCat)} ➔ ${esc(subCat)}</option>`; });
-            catHtml += `</optgroup>`;
-        }
-        catSelect.innerHTML = catHtml;
+        catSelect.innerHTML = catOptionsHtml();
 
         let sTarget = editIdx >= 0 ? scheduleData[editIdx] : null;
 
@@ -2026,6 +2113,8 @@
         document.getElementById('tx-memo').value = '';
 
         setupTxModalDropdowns(preSelectAcc, preSelectCur, type);
+        toggleSplit(false);
+        document.getElementById('split-toggle').style.display = type === 'Transfer' ? 'none' : '';
         document.getElementById('tx-modal').classList.add('active');
     }
 
@@ -2046,6 +2135,8 @@
         setupTxModalDropdowns(cleanGarbageText(t.account), cleanGarbageText(t.currency || defaultCurrency), type);
         if (type !== 'Transfer') document.getElementById('tx-category').value = cleanGarbageText(t.category);
         if (type === 'Transfer') document.getElementById('tx-transfers-select').value = cleanGarbageText(t.transfers);
+        toggleSplit(false);
+        document.getElementById('split-toggle').style.display = 'none';   // splitting is for new transactions
 
         document.getElementById('tx-modal').classList.add('active');
     }
@@ -2094,13 +2185,7 @@
         if (preSelectAcc) accSelect.value = cleanGarbageText(preSelectAcc);
 
         let catSelect = document.getElementById('tx-category');
-        let catHtml = '';
-        for (let mainCat in categoriesData) {
-            catHtml += `<optgroup label="${mainCat}">`;
-            categoriesData[mainCat].forEach(subCat => { catHtml += `<option value="${esc(mainCat)} ► ${esc(subCat)}">${esc(mainCat)} ➔ ${esc(subCat)}</option>`; });
-            catHtml += `</optgroup>`;
-        }
-        catSelect.innerHTML = catHtml;
+        catSelect.innerHTML = catOptionsHtml();
 
         let curSelect = document.getElementById('tx-currency');
         let curHtml = '';
@@ -2122,6 +2207,74 @@
         }
     }
 
+    // ---- categories: every "Main ► Sub" (or plain name) found in transactions becomes selectable ----
+    function seedCategoriesFromTx() {
+        let changed = false;
+        const skip = new Set(['', 'transfer', 'new balance']);
+        const seen = new Set();
+        transactions.forEach(t => {
+            const c = cleanGarbageText(t.category || '').trim();
+            if (seen.has(c)) return; seen.add(c);
+            if (skip.has(c.toLowerCase())) return;
+            const i = c.indexOf(' ► ');
+            const main = i > 0 ? c.slice(0, i).trim() : c;
+            const sub = i > 0 ? c.slice(i + 3).trim() : '';
+            if (!main) return;
+            if (!Object.prototype.hasOwnProperty.call(categoriesData, main)) { categoriesData[main] = []; changed = true; }
+            if (sub && !categoriesData[main].includes(sub)) { categoriesData[main].push(sub); changed = true; }
+        });
+        if (changed) localStorage.setItem('wallet_categories_map', JSON.stringify(categoriesData));
+    }
+    function catOptionsHtml() {
+        let h = '';
+        for (let m in categoriesData) {
+            const subs = categoriesData[m] || [];
+            if (!subs.length) { h += `<option value="${esc(m)}">${esc(m)}</option>`; continue; }
+            h += `<optgroup label="${esc(m)}">` + subs.map(sc => `<option value="${esc(m)} ► ${esc(sc)}">${esc(m)} ➔ ${esc(sc)}</option>`).join('') + `</optgroup>`;
+        }
+        return h;
+    }
+
+    // ---- split one transaction across several categories (saved as one row per category) ----
+    let splitMode = false;
+    function toggleSplit(on) {
+        splitMode = !!on;
+        document.getElementById('tx-category').style.display = on ? 'none' : '';
+        document.getElementById('split-box').style.display = on ? 'block' : 'none';
+        document.getElementById('split-toggle').textContent = on ? '↩ Use a single category' : '✂ Split into multiple categories';
+        document.getElementById('split-rows').innerHTML = '';
+        if (on) {
+            const total = parseFloat(document.getElementById('tx-amount').value);
+            addSplitRow(document.getElementById('tx-category').value, isNaN(total) ? '' : total);
+            addSplitRow('Exclude ► Other', '');
+        }
+        updateSplitSummary();
+    }
+    function addSplitRow(cat, amt) {
+        const rows = document.getElementById('split-rows');
+        if (amt === undefined) { const r = splitRemaining(); amt = r > 0.004 ? r : ''; }
+        const d = document.createElement('div');
+        d.className = 'split-row';
+        d.innerHTML = `<select class="split-cat">${catOptionsHtml()}</select><input type="number" class="split-amt" step="0.01" placeholder="0.00" oninput="updateSplitSummary()"><button type="button" class="split-x" onclick="this.parentNode.remove(); updateSplitSummary()">×</button>`;
+        rows.appendChild(d);
+        if (cat) d.querySelector('select').value = cat;
+        d.querySelector('input').value = amt === '' ? '' : Math.round(amt * 100) / 100;
+        updateSplitSummary();
+    }
+    function splitRemaining() {
+        const total = parseFloat(document.getElementById('tx-amount').value) || 0;
+        let used = 0;
+        document.querySelectorAll('#split-rows .split-amt').forEach(i => { used += parseFloat(i.value) || 0; });
+        return Math.round((total - used) * 100) / 100;
+    }
+    function updateSplitSummary() {
+        const el = document.getElementById('split-summary');
+        if (!splitMode) { el.textContent = ''; return; }
+        const r = splitRemaining();
+        el.style.color = Math.abs(r) < 0.005 ? 'var(--success)' : 'var(--danger)';
+        el.textContent = Math.abs(r) < 0.005 ? '✓ Split matches the total' : `Remaining to assign: ${r.toLocaleString()}`;
+    }
+
     function closeTxModal() { document.getElementById('tx-modal').classList.remove('active'); }
 
     function saveTransaction() {
@@ -2140,13 +2293,25 @@
 
         if (isNaN(rawAmt) || rawAmt <= 0 || !datePart) return alert('Please enter valid amount and datetime');
 
-        let amount = (type === 'Expense') ? -Math.abs(rawAmt) : Math.abs(rawAmt);
-        let txObj = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, category, description, payee, transfers, amount, currency, memo };
+        let sign = (type === 'Expense') ? -1 : 1;
+        let amount = sign * Math.abs(rawAmt);
+        let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
+        let txObjs = [];
+        if (splitMode && editIdx < 0 && type !== 'Transfer') {
+            const parts = [...document.querySelectorAll('#split-rows .split-row')].map(r => ({ cat: cleanGarbageText(r.querySelector('select').value), amt: parseFloat(r.querySelector('input').value) }));
+            if (parts.length < 2) return alert('Add at least two categories, or switch back to a single category');
+            if (parts.some(x => isNaN(x.amt) || x.amt <= 0)) return alert('Every split needs an amount greater than 0');
+            const rem = splitRemaining();
+            if (Math.abs(rem) >= 0.005) return alert('The split amounts must add up to the total (remaining: ' + rem + ')');
+            parts.forEach(x => txObjs.push(Object.assign({}, base, { category: x.cat, amount: sign * Math.round(x.amt * 100) / 100 })));
+        } else {
+            txObjs.push(Object.assign({}, base, { category, amount }));
+        }
 
         if (editIdx >= 0) {
-            transactions[editIdx] = txObj;
+            transactions[editIdx] = txObjs[0];
         } else {
-            transactions.unshift(txObj);
+            txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         }
 
         transactions.sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
@@ -2159,15 +2324,16 @@
         closeTxModal();
 
         if (WEBHOOK_URL) {
-            fetch(WEBHOOK_URL, {
+            // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
+            txObjs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(withKey(txObj))
-            }).catch(e => console.log("Offline: Transaction saved locally."));
+                body: JSON.stringify(withKey(o))
+            })), Promise.resolve()).catch(e => console.log("Offline: Transaction saved locally."));
         }
 
-        alert('Transaction saved successfully!');
+        alert(txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
     }
 
     function deleteTransaction(index) {
