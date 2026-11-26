@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wallet PWA - Offline First & Smart Budget</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://script.google.com">
+    <link rel="preconnect" href="https://script.googleusercontent.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" async></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -93,6 +96,7 @@
 
             <div class="card" style="text-align: center;">
                 <h3>Total Balance & Net Worth</h3>
+                <div id="sync-status" style="font-size:11px; color:var(--text-muted); min-height:14px;"></div>
                 <div id="total-balance-grid" class="balance-grid">
                     <div class="balance-box"><div class="balance-box-cur">Loading...</div></div>
                 </div>
@@ -588,6 +592,12 @@
         fetchTransactionsFromSheet();
     });
 
+    window.addEventListener('load', () => {
+        if (typeof Chart === 'undefined') return;
+        if (document.getElementById('tab-budget').classList.contains('active')) renderBudgetStackedBarChart();
+        if (document.getElementById('tab-report').classList.contains('active')) initReportView();
+    });
+
     function toggleDarkMode(enabled) {
         if (enabled) document.body.classList.add('dark-mode');
         else document.body.classList.remove('dark-mode');
@@ -638,7 +648,19 @@
     }
 
     // ฟังก์ชันถอดรหัสข้อความภาษาไทยและล้างขยะ Encoding ที่เพี้ยนจาก Sheets
+    const _cgCache = new Map();
     function cleanGarbageText(text) {
+        if (!text) return '';
+        const k = String(text);
+        let v = _cgCache.get(k);
+        if (v === undefined) {
+            if (_cgCache.size > 20000) _cgCache.clear();
+            v = _cleanGarbageTextRaw(k);
+            _cgCache.set(k, v);
+        }
+        return v;
+    }
+    function _cleanGarbageTextRaw(text) {
         if (!text) return '';
         let s = String(text).trim();
         try {
@@ -671,7 +693,18 @@
         return datePart || '-';
     }
 
+    const _pdCache = new Map();
     function parseUniversalDate(t) {
+        const k = (t.date || '') + '|' + (t.datetime || '') + '|' + (t.time || '');
+        let ms = _pdCache.get(k);
+        if (ms === undefined) {
+            if (_pdCache.size > 50000) _pdCache.clear();
+            ms = _parseUniversalDateRaw(t).getTime();
+            _pdCache.set(k, ms);
+        }
+        return new Date(ms);
+    }
+    function _parseUniversalDateRaw(t) {
         let dateStr = String(t.date || t.datetime || '').trim();
         if (dateStr.includes('T')) dateStr = dateStr.split('T')[0];
         else if (dateStr.includes(' ')) dateStr = dateStr.split(' ')[0];
@@ -699,8 +732,14 @@
         return new Date(year, month, day, hours, mins, 0);
     }
 
+    function setSyncStatus(msg) {
+        const el = document.getElementById('sync-status');
+        if (el) el.textContent = msg;
+    }
+
     function fetchTransactionsFromSheet() {
         if (!WEBHOOK_URL) return;
+        setSyncStatus('Syncing...');
         
         fetch(WEBHOOK_URL, { redirect: "follow" })
             .then(res => res.text())
@@ -708,7 +747,7 @@
                 try {
                     let data = JSON.parse(text);
                     if (data && data.transactions) {
-                        transactions = data.transactions.map(t => ({
+                        const fresh = data.transactions.map(t => ({
                             datetime: t.datetime || t.date || '',
                             time: t.time || '',
                             date: t.date || t.datetime || '',
@@ -722,7 +761,11 @@
                             memo: cleanGarbageText(t.memo || '')
                         })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
-                        localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
+                        const freshStr = JSON.stringify(fresh);
+                        if (freshStr === JSON.stringify(transactions)) { setSyncStatus('Synced'); return; }
+                        transactions = fresh;
+                        try { localStorage.setItem('wallet_offline_transactions', freshStr); } catch (e) {}
+                        setSyncStatus('Synced');
 
                         renderAccountsList();
                         renderBudgets();
@@ -737,7 +780,7 @@
                     console.error("JSON parsing error:", e, text);
                 }
             })
-            .catch(err => console.log("Offline mode: Using local cached transactions."));
+            .catch(err => { console.log("Offline mode: Using local cached transactions."); setSyncStatus('Offline - showing saved data'); });
     }
 
     function toggleMainAccount(mainName) {
@@ -1415,6 +1458,7 @@
         const ctx = document.getElementById('budgetStackedBarChart').getContext('2d');
         if (stackedChartInstance) stackedChartInstance.destroy();
 
+        if (typeof Chart === 'undefined') return;
         stackedChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -1845,6 +1889,7 @@
         const ctx = document.getElementById('expensePieChart').getContext('2d');
         if (pieChartInstance) pieChartInstance.destroy();
 
+        if (typeof Chart === 'undefined') return;
         pieChartInstance = new Chart(ctx, {
             type: 'pie',
             data: {
