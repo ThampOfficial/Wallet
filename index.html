@@ -606,70 +606,6 @@
 </div>
 
 <script>
-    // ---- settings that follow the user across devices (stored in the script, pushed after every change) ----
-    const SYNC_KEYS = ['wallet_subaccounts_map', 'wallet_categories_map', 'wallet_currencies_map', 'wallet_default_currency', 'wallet_budgets_data', 'wallet_schedule_data', 'wallet_acc_flags'];
-    let settingsReady = false, applyingRemote = false, settingsPushTimer = null;
-    const _rawSetItem = Storage.prototype.setItem;
-    const isEmptyVal = v => v === null || v === undefined || ['', '{}', '[]', 'null'].includes(String(v).trim());
-    const getKts = () => { try { return JSON.parse(localStorage.getItem('wallet_settings_kts')) || {}; } catch (e) { return {}; } };
-    const setKts = o => _rawSetItem.call(localStorage, 'wallet_settings_kts', JSON.stringify(o));
-    // every synced key has its own timestamp, so a device that never touched budgets can never wipe them
-    Storage.prototype.setItem = function (k, v) {
-        _rawSetItem.call(this, k, v);
-        if (this === window.localStorage && settingsReady && !applyingRemote && SYNC_KEYS.includes(k)) {
-            const kts = getKts(); kts[k] = Date.now(); setKts(kts);
-            clearTimeout(settingsPushTimer);
-            settingsPushTimer = setTimeout(pushSettings, 1500);
-        }
-    };
-    const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
-    let postChain = Promise.resolve();
-    function queuePost(obj) {
-        if (!WEBHOOK_URL) return;
-        postChain = postChain.then(() => fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey(obj)) })).catch(() => console.log('Offline: saved locally.'));
-    }
-    function pushSettings() {
-        if (!WEBHOOK_URL || !settingsReady) return;
-        const kts = getKts(), data = {};
-        SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v !== null && kts[k]) data[k] = { v, ts: kts[k] }; });
-        fetch(WEBHOOK_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(withKey({ action: 'saveSettings', ts: Date.now(), json: JSON.stringify(data) })) })
-            .catch(() => console.log('Offline: settings will sync on the next change.'));
-    }
-    // Merge per key: the newer copy of each setting wins. Nothing is pushed until the server copy has been read successfully.
-    function syncSettings() {
-        if (!WEBHOOK_URL) return;
-        const base = readUrl();
-        fetch(base + (base.includes('?') ? '&' : '?') + 'settings=1', { redirect: 'follow' })
-            .then(r => r.json())
-            .then(d => {
-                if (!d || d.status === 'error' || !d.settings) return;   // old script or error: leave everything alone
-                let remote = {};
-                try { remote = d.settings.json ? JSON.parse(d.settings.json) : {}; } catch (e) { return; }
-                const kts = getKts(); let needPush = false, applied = false;
-                applyingRemote = true;
-                try {
-                    SYNC_KEYS.forEach(k => {
-                        let r = remote[k];
-                        if (typeof r === 'string') r = { v: r, ts: d.settings.ts || 1 };   // older format
-                        const lv = localStorage.getItem(k), lt = kts[k] || 0;
-                        if (r && (r.ts > lt) && !(lt === 0 && !isEmptyVal(lv) && isEmptyVal(r.v))) {
-                            if (lv !== r.v) { _rawSetItem.call(localStorage, k, r.v); applied = true; }
-                            kts[k] = r.ts;
-                        } else if (!isEmptyVal(lv) && (!r || lt > r.ts || lt === 0)) {
-                            if (lt === 0) kts[k] = Date.now();   // first upload of data made on this device
-                            needPush = true;
-                        }
-                    });
-                    setKts(kts);
-                } finally { applyingRemote = false; }
-                if (applied) { location.reload(); return; }
-                settingsReady = true;
-                if (needPush) pushSettings();
-            })
-            .catch(() => { /* offline: do not push anything this session */ });
-    }
-
     let WEBHOOK_URL = localStorage.getItem('wallet_webhook_url') || "";   // set in Settings (kept out of the public repo)
 
     const esc = v => String(v === null || v === undefined ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -754,7 +690,6 @@
         renderCategoryPreview();
 
         fetchTransactionsFromSheet();
-        syncSettings();
     });
 
     window.addEventListener('load', () => {
@@ -969,8 +904,7 @@
                             transfers: cleanGarbageText(t.transfers || ''),
                             amount: parseFloat(t.amount) || 0,
                             currency: cleanGarbageText(t.currency || defaultCurrency),
-                            memo: cleanGarbageText(t.memo || ''),
-                            id: t.id || ''
+                            memo: cleanGarbageText(t.memo || '')
                         })).sort((a, b) => parseUniversalDate(b).getTime() - parseUniversalDate(a).getTime());
 
                         const freshStr = JSON.stringify(fresh);
@@ -1254,8 +1188,7 @@
             transfers: '',
             amount: diff,
             currency: cur,
-            memo: 'System Balance Adjustment',
-            id: genId()
+            memo: 'System Balance Adjustment'
         };
 
         transactions.unshift(adjTx);
@@ -1268,7 +1201,12 @@
         closeAdjustBalanceModal();
 
         if (WEBHOOK_URL) {
-            queuePost(adjTx);
+            fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(withKey(adjTx))
+            }).catch(e => console.log("Offline: Adjustment saved locally."));
         }
 
         alert('Balance adjusted successfully!');
@@ -2134,8 +2072,7 @@
             transfers: s.transferTo || '',
             amount: amt,
             currency: s.currency || defaultCurrency,
-            memo: 'Paid via Schedule',
-            id: genId()
+            memo: 'Paid via Schedule'
         });
         const baseCat = s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title);
         const newTxs = (s.splits && s.splits.length > 1 && s.type !== 'Transfer')
@@ -2148,7 +2085,12 @@
         renderAccountsList();
 
         if (WEBHOOK_URL) {
-            newTxs.forEach(queuePost);
+            newTxs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(withKey(o))
+            })), Promise.resolve()).catch(e => console.log("Offline: Saved locally, will sync later."));
         }
 
         let d = new Date(s.startDate);
@@ -2518,7 +2460,6 @@
         let sign = (type === 'Expense') ? -1 : 1;
         let amount = sign * Math.abs(rawAmt);
         let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
-        const oldIds = [];
         let txObjs = [];
         if (SPLIT.tx.on && type !== 'Transfer') {
             const parts = readSplitParts('tx');
@@ -2530,12 +2471,10 @@
         } else {
             txObjs.push(Object.assign({}, base, { category, amount }));
         }
-        txObjs.forEach(o => { o.id = genId(); });
 
         if (editIdx >= 0) {
             let grp = [editIdx];
             try { const g = JSON.parse(document.getElementById('tx-edit-group').value || '[]'); if (g.length) grp = g; } catch (e) {}
-            grp.forEach(i => { if (transactions[i] && transactions[i].id) oldIds.push(transactions[i].id); });
             grp.slice().sort((a, b) => b - a).forEach(i => transactions.splice(i, 1));
             txObjs.slice().reverse().forEach(o => transactions.unshift(o));
         } else {
@@ -2552,8 +2491,13 @@
         closeTxModal();
 
         if (WEBHOOK_URL) {
-            oldIds.forEach(id => queuePost({ action: 'deleteTx', id }));   // an edit = remove the old row(s), add the new one(s)
-            txObjs.forEach(queuePost);
+            // one request at a time: the script takes a lock per write, so parallel posts could be turned away as "busy"
+            txObjs.reduce((p, o) => p.then(() => fetch(WEBHOOK_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(withKey(o))
+            })), Promise.resolve()).catch(e => console.log("Offline: Transaction saved locally."));
         }
 
         alert(txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
@@ -2561,8 +2505,7 @@
 
     function deleteTransaction(index) {
         if (confirm('Delete this transaction?')) {
-            const gone = transactions.splice(index, 1)[0];
-            if (gone && gone.id) queuePost({ action: 'deleteTx', id: gone.id });
+            transactions.splice(index, 1);
             localStorage.setItem('wallet_offline_transactions', JSON.stringify(transactions));
             renderAccountsList();
             renderBudgets();
