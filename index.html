@@ -639,7 +639,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b9';
+    const APP_BUILD = 'b10';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -1690,6 +1690,7 @@
         }
         return { periods, cur: periods.length - 1 };
     }
+    function isExcludedCat(t) { return /^exclude\b/i.test(cleanGarbageText(String(t.category || '')).trim()); }
     function budgetMatches(b, t) {
         const amt = parseFloat(t.amount) || 0;
         if (amt >= 0 || isBalanceAdj(t)) return false;
@@ -1797,7 +1798,7 @@
                 let trfAcc = cleanGarbageText(String(t.transfers || '').trim());
                 let isTransfer = cat === 'transfer' || trfAcc !== '';
 
-                if (amt < 0 && !isTransfer && !isBalanceAdj(t) && !isNaN(parsed.getTime())) {
+                if (amt < 0 && !isTransfer && !isBalanceAdj(t) && !isExcludedCat(t) && !isNaN(parsed.getTime())) {
                     let ty = parsed.getFullYear();
                     let tm = String(parsed.getMonth() + 1).padStart(2, '0');
                     if (`${ty}-${tm}` === ym) {
@@ -1891,7 +1892,7 @@
         const list = transactions.filter(t => {
             const amt = parseFloat(t.amount) || 0, d = parseUniversalDate(t);
             const isTransfer = String(t.category || '').toLowerCase() === 'transfer' || cleanGarbageText(String(t.transfers || '').trim()) !== '';
-            return amt < 0 && !isTransfer && !isBalanceAdj(t) && !isNaN(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === ym;
+            return amt < 0 && !isTransfer && !isBalanceAdj(t) && !isExcludedCat(t) && !isNaN(d.getTime()) && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === ym;
         }).sort((x, y) => parseUniversalDate(y) - parseUniversalDate(x));
         let total = 0;
         const rows = list.map(t => {
