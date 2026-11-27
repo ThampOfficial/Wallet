@@ -527,6 +527,11 @@
     <div class="modal-box">
         <h3 id="tx-modal-title" style="margin-bottom: 12px;">Add Transaction</h3>
         <input type="hidden" id="tx-type">
+        <div id="tx-type-switch" style="display:flex; gap:6px; margin-bottom:12px;">
+            <button type="button" class="btn" data-t="Expense" onclick="setTxType('Expense')" style="flex:1; padding:8px 4px;">Expense</button>
+            <button type="button" class="btn" data-t="Income" onclick="setTxType('Income')" style="flex:1; padding:8px 4px;">Income</button>
+            <button type="button" class="btn" data-t="Transfer" onclick="setTxType('Transfer')" style="flex:1; padding:8px 4px;">Transfer</button>
+        </div>
         <input type="hidden" id="tx-edit-index" value="-1">
         <input type="hidden" id="tx-edit-group" value="">
         <div class="form-group">
@@ -634,7 +639,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b8';
+    const APP_BUILD = 'b9';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -1302,7 +1307,7 @@
         }
 
         let now = new Date();
-        let datePart = now.toISOString().slice(0, 10);
+        let datePart = localISO(now).slice(0, 10);
         let timePart = now.toTimeString().slice(0, 8);
 
         let adjTx = {
@@ -1969,7 +1974,7 @@
         document.getElementById('budget-title').value = bTarget ? bTarget.title : '';
         document.getElementById('budget-group').value = bTarget ? (bTarget.group || '') : '';
         document.getElementById('budget-group-list').innerHTML = [...new Set(budgetData.map(x => (x.group || '').trim()).filter(Boolean))].map(g => `<option value="${esc(g)}">`).join('');
-        document.getElementById('budget-startdate').value = bTarget ? bTarget.startDate : new Date().toISOString().slice(0, 8) + '01';
+        document.getElementById('budget-startdate').value = bTarget ? bTarget.startDate : localISO().slice(0, 8) + '01';
         document.getElementById('budget-amount').value = bTarget ? bTarget.amount : '';
         curSelect.value = bTarget ? (bTarget.currency || defaultCurrency) : defaultCurrency;
         document.getElementById('budget-rollover').checked = bTarget ? !!bTarget.rollover : false;
@@ -2124,7 +2129,7 @@
         toggleSplit(false, 'sched');
         if (sTarget && sTarget.type === 'Transfer') transferSelect.value = sTarget.transferTo;
         document.getElementById('sched-freq').value = sTarget ? sTarget.frequency : 'Monthly';
-        document.getElementById('sched-startdate').value = sTarget ? sTarget.startDate : new Date().toISOString().slice(0,10);
+        document.getElementById('sched-startdate').value = sTarget ? sTarget.startDate : localISO().slice(0,10);
         document.getElementById('sched-amount').value = sTarget ? sTarget.amount : '';
         curSelect.value = sTarget ? (sTarget.currency || defaultCurrency) : defaultCurrency;
         if (sTarget && sTarget.splits && sTarget.splits.length > 1) toggleSplit(true, 'sched', sTarget.splits.map(x => ({ cat: x.cat, amt: x.amt })));
@@ -2261,7 +2266,7 @@
 
         let keys = Object.keys(periods).sort().reverse();
         if (keys.length === 0) {
-            let currentYM = new Date().toISOString().slice(0, 7);
+            let currentYM = localISO().slice(0, 7);
             keys = [currentYM];
         }
 
@@ -2274,7 +2279,7 @@
             }
         });
         if (!html) {
-            let nowY = new Date().toISOString().slice(0, 4);
+            let nowY = localISO().slice(0, 4);
             html = `<option value="${esc(nowY)}">ปี ${esc(nowY)}</option>`;
         }
         periodSelect.innerHTML = html;
@@ -2343,11 +2348,28 @@
     }
 
     /* ---- Transaction Form Logic ---- */
+    function localISO(d) { d = d || new Date(); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+    function setTxType(type) {
+        document.getElementById('tx-type').value = type;
+        const t = document.getElementById('tx-modal-title');
+        if (t && !/^Edit/.test(t.textContent)) t.textContent = 'Add ' + type;
+        document.querySelectorAll('#tx-type-switch button').forEach(b => {
+            const on = b.dataset.t === type;
+            b.style.background = on ? (type === 'Expense' ? 'var(--danger)' : type === 'Income' ? 'var(--success, #16a34a)' : '#2563eb') : 'var(--text-muted)';
+            b.style.opacity = on ? '1' : '.55';
+        });
+        const tr = type === 'Transfer';
+        document.getElementById('group-category').style.display = tr ? 'none' : 'block';
+        document.getElementById('group-transfers').style.display = tr ? 'block' : 'none';
+        document.getElementById('split-toggle').style.display = tr ? 'none' : '';
+        if (tr && SPLIT.tx.on) toggleSplit(false);
+    }
+
     function openTxModal(type, preSelectAcc = '', preSelectCur = defaultCurrency) {
         document.getElementById('tx-edit-index').value = -1;
         document.getElementById('tx-type').value = type;
         document.getElementById('tx-modal-title').textContent = `Add ${type}`;
-        document.getElementById('tx-datetime').value = new Date().toISOString().slice(0,16);
+        document.getElementById('tx-datetime').value = localISO();
         document.getElementById('tx-amount').value = '';
         document.getElementById('tx-description').value = '';
         document.getElementById('tx-payee').value = '';
@@ -2455,6 +2477,7 @@
             document.getElementById('group-category').style.display = 'block';
             document.getElementById('group-transfers').style.display = 'none';
         }
+        setTxType(type);
     }
 
     // ---- categories: every "Main ► Sub" (or plain name) found in transactions becomes selectable ----
@@ -2569,7 +2592,7 @@
         let editIdx = parseInt(document.getElementById('tx-edit-index').value);
         const type = document.getElementById('tx-type').value;
         const datetimeVal = document.getElementById('tx-datetime').value;
-        const [datePart, timePart] = datetimeVal ? datetimeVal.split('T') : [new Date().toISOString().slice(0,10), '00:00'];
+        const [datePart, timePart] = datetimeVal ? datetimeVal.split('T') : [localISO().slice(0,10), '00:00'];
         const account = cleanGarbageText(document.getElementById('tx-account').value);
         const category = type === 'Transfer' ? 'Transfer' : cleanGarbageText(document.getElementById('tx-category').value);
         const description = cleanGarbageText(document.getElementById('tx-description').value.trim());
