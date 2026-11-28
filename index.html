@@ -67,6 +67,11 @@
         .acc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-weight: bold; cursor: pointer; user-select: none; }
         .sub-acc-container { display: none; margin-top: 4px; }
         .sub-acc-container.expanded { display: block; }
+        .drag-h { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; padding: 4px 10px; font-size: 20px; line-height: 1; color: var(--text-muted); }
+        .dragging { opacity: .4; }
+        .drop-before { box-shadow: 0 -3px 0 0 var(--primary); }
+        .drop-after { box-shadow: 0 3px 0 0 var(--primary); }
+        .drop-into { outline: 2px dashed var(--primary); }
         .sub-acc-row { padding-left: 12px; font-size: 13px; color: var(--text-main); margin-top: 6px; display: flex; justify-content: space-between; align-items: center; padding-top: 6px; padding-bottom: 6px; border-top: 1px dashed var(--border); }
         
         .checkbox-box { max-height: 100px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font-size: 12px; background: var(--card-bg); color: var(--text-main); }
@@ -639,7 +644,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b11';
+    const APP_BUILD = 'b12';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -1591,17 +1596,13 @@
         let mainKeys = Object.keys(subAccountsData);
         let html = '';
         mainKeys.forEach((main, mIdx) => {
-            let mainUp = mIdx > 0 ? `<button onclick="moveMainAccount(${mIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px;">▲</button>` : '';
-            let mainDown = mIdx < mainKeys.length - 1 ? `<button onclick="moveMainAccount(${mIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:12px; margin-left:4px;">▼</button>` : '';
-            html += `<div style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><strong>💳 ${esc(main)} (Main)</strong><div style="margin-left:8px;">${mainUp} ${mainDown}</div></div><button onclick="deleteMainAccount(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
+            html += `<div class="mrow" data-main="${esc(main)}" style="margin-bottom:8px; border:1px solid var(--border); padding:8px; border-radius:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:4px;"><span class="drag-h" data-kind="main" data-main="${esc(main)}" title="Drag to reorder">☰</span><strong>💳 ${esc(main)} (Main)</strong></div><button onclick="deleteMainAccount(${jsArg(main)})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:12px;">Delete</button></div>
                 <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); margin-top:6px;"><input type="checkbox" ${accFlag('M:' + main, 'tot') ? 'checked' : ''} onchange="setAccFlag(${jsArg('M:' + main)}, 'tot', this.checked)"> Show this group in total assets</label>
                 <div style="margin-top:8px; padding-left:16px;"><div style="display:flex; gap:6px; margin-bottom:6px;"><input type="text" id="sub-input-${main}" placeholder="Add sub-account..." style="font-size:12px; padding:4px;"><button class="btn" style="width:auto; padding:4px 8px; font-size:12px;" onclick="addSubAccountDirect(${jsArg(main)})">+ Sub</button></div>`;
             let subs = subAccountsData[main] || [];
             subs.forEach((sub, sIdx) => {
-                let subUp = sIdx > 0 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, -1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px;">▲</button>` : '';
-                let subDown = sIdx < subs.length - 1 ? `<button onclick="moveSubAccount(${jsArg(main)}, ${sIdx}, 1)" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:11px; margin-left:4px;">▼</button>` : '';
-                html += `<div class="sub-acc-row" style="flex-wrap:wrap;"><span>└─ ${esc(sub)}</span><div style="display:flex; align-items:center; gap:8px;"><div>${subUp} ${subDown}</div><button onclick="removeSubFromMain(${jsArg(main)}, ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>
+                html += `<div class="sub-acc-row" data-main="${esc(main)}" data-sub="${esc(sub)}" style="flex-wrap:wrap;"><span style="display:flex; align-items:center;"><span class="drag-h" data-kind="sub" data-main="${esc(main)}" data-sub="${esc(sub)}" title="Drag to reorder">☰</span>${esc(sub)}</span><div style="display:flex; align-items:center; gap:8px;"><button onclick="removeSubFromMain(${jsArg(main)}, ${sIdx})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:11px;">[x]</button></div>
                     <div style="width:100%; display:flex; gap:14px; font-size:11px; color:var(--text-muted); margin-top:4px;">
                         <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${accFlag('S:' + sub, 'grp') ? 'checked' : ''} onchange="setAccFlag(${jsArg('S:' + sub)}, 'grp', this.checked)"> Add to ${esc(main)} total</label>
                         <label style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${accFlag('S:' + sub, 'tot') ? 'checked' : ''} onchange="setAccFlag(${jsArg('S:' + sub)}, 'tot', this.checked)"> Show in total assets</label>
@@ -1611,6 +1612,69 @@
         });
         container.innerHTML = html;
     }
+    /* ---- drag to reorder accounts (touch + mouse), like MoneyWiz ---- */
+    let DRAG = null;
+    function dragClear() { document.querySelectorAll('.drop-before,.drop-after,.drop-into').forEach(e => e.classList.remove('drop-before', 'drop-after', 'drop-into')); }
+    function dragScrollParent(el) { while (el && el !== document.body) { const o = getComputedStyle(el).overflowY; if ((o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight) return el; el = el.parentElement; } return document.scrollingElement; }
+    function dragTick() {
+        if (!DRAG) return;
+        const sp = DRAG.scroller, r = sp === document.scrollingElement ? { top: 0, bottom: innerHeight } : sp.getBoundingClientRect();
+        const top = Math.max(r.top, 0), bot = Math.min(r.bottom, innerHeight);
+        if (DRAG.y < top + 60) sp.scrollTop -= 14; else if (DRAG.y > bot - 60) sp.scrollTop += 14;
+        DRAG.raf = requestAnimationFrame(dragTick);
+    }
+    function dragFind(x, y) {
+        const el = document.elementFromPoint(x, y); if (!el) return null;
+        let t = null, pos = 'after';
+        if (DRAG.kind === 'sub') {
+            t = el.closest('.sub-acc-row');
+            if (!t) { t = el.closest('.mrow'); pos = 'into'; }
+        } else t = el.closest('.mrow');
+        if (!t || t === DRAG.row || DRAG.row.contains(t)) return null;
+        if (pos !== 'into') { const r = t.getBoundingClientRect(); pos = y < r.top + r.height / 2 ? 'before' : 'after'; }
+        return { t, pos };
+    }
+    function dragApply(t, pos) {
+        if (DRAG.kind === 'main') {
+            const keys = Object.keys(subAccountsData).filter(k => k !== DRAG.main);
+            let i = keys.indexOf(t.dataset.main); if (i < 0) return;
+            keys.splice(pos === 'before' ? i : i + 1, 0, DRAG.main);
+            const o = {}; keys.forEach(k => { o[k] = subAccountsData[k]; }); subAccountsData = o;
+        } else {
+            const from = subAccountsData[DRAG.main]; if (!from) return;
+            const fi = from.indexOf(DRAG.sub); if (fi < 0) return;
+            from.splice(fi, 1);
+            const arr = subAccountsData[t.dataset.main] || (subAccountsData[t.dataset.main] = []);
+            if (pos === 'into') arr.unshift(DRAG.sub);
+            else { const i = arr.indexOf(t.dataset.sub); arr.splice(pos === 'before' ? i : i + 1, 0, DRAG.sub); }
+        }
+        localStorage.setItem('wallet_subaccounts_map', JSON.stringify(subAccountsData));
+    }
+    document.addEventListener('pointerdown', e => {
+        const h = e.target.closest && e.target.closest('.drag-h'); if (!h || DRAG) return;
+        e.preventDefault();
+        const row = h.closest(h.dataset.kind === 'main' ? '.mrow' : '.sub-acc-row');
+        DRAG = { kind: h.dataset.kind, main: h.dataset.main, sub: h.dataset.sub, row, y: e.clientY, found: null, scroller: dragScrollParent(row), id: e.pointerId };
+        row.classList.add('dragging');
+        try { h.setPointerCapture(e.pointerId); } catch (x) {}
+        DRAG.raf = requestAnimationFrame(dragTick);
+    });
+    document.addEventListener('pointermove', e => {
+        if (!DRAG || e.pointerId !== DRAG.id) return;
+        e.preventDefault();
+        DRAG.y = e.clientY; dragClear();
+        DRAG.found = dragFind(e.clientX, e.clientY);
+        if (DRAG.found) DRAG.found.t.classList.add('drop-' + DRAG.found.pos);
+    }, { passive: false });
+    function dragEnd(e, cancel) {
+        if (!DRAG || e.pointerId !== DRAG.id) return;
+        cancelAnimationFrame(DRAG.raf); dragClear(); DRAG.row.classList.remove('dragging');
+        const f = DRAG.found; if (f && !cancel) dragApply(f.t, f.pos);
+        DRAG = null; if (f && !cancel) renderAccountManagerList();
+    }
+    document.addEventListener('pointerup', e => dragEnd(e, false));
+    document.addEventListener('pointercancel', e => dragEnd(e, true));
+
     function moveMainAccount(index, direction) {
         let keys = Object.keys(subAccountsData);
         let targetIndex = index + direction;
@@ -2484,7 +2548,7 @@
         curSelect.value = cleanGarbageText(preSelectCur || defaultCurrency);
 
         let trfSelect = document.getElementById('tx-transfers-select');
-        trfSelect.innerHTML = '<option value="">Select account…</option>' + allSubs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+        trfSelect.innerHTML = '<option value="">Select account…</option>' + optHtml;
 
         if (type === 'Transfer') {
             document.getElementById('group-category').style.display = 'none';
