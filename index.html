@@ -639,7 +639,7 @@
     };
 
     // ---- every change goes into an outbox first; it stays there until the sheet is seen to contain it ----
-    const APP_BUILD = 'b10';
+    const APP_BUILD = 'b11';
     let settingsMsg = '';
     const genId = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     let outbox = JSON.parse(localStorage.getItem('wallet_outbox') || '[]');
@@ -980,6 +980,8 @@
             month = parseInt(dParts[1]) - 1;
             year = parseInt(dParts[2]);
             if (year < 100) year += 2000;
+        } else if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {   // ISO date = local calendar day (Date.parse would read it as UTC and can shift it a day)
+            const q = dateStr.split('-'); year = parseInt(q[0]); month = parseInt(q[1]) - 1; day = parseInt(q[2]);
         } else {
             let parsedFallback = Date.parse(dateStr);
             if (!isNaN(parsedFallback)) {
@@ -2205,7 +2207,12 @@
             id: genId()
         });
         const baseCat = s.category || (s.type === 'Transfer' ? 'Transfer' : 'Bills & Utilities ► ' + s.title);
-        const newTxs = (s.splits && s.splits.length > 1 && s.type !== 'Transfer')
+        let newTxs;
+        if (s.type === 'Transfer') {
+            const out = mkTx(baseCat, -Math.abs(rawAmt)), inn = mkTx(baseCat, Math.abs(rawAmt));
+            inn.account = s.transferTo || ''; inn.transfers = s.account;
+            newTxs = [out, inn];
+        } else newTxs = (s.splits && s.splits.length > 1)
             ? s.splits.map(x => mkTx(x.cat, (s.type === 'Expense' ? -1 : 1) * Math.abs(x.amt)))
             : [mkTx(baseCat, txAmount)];
 
@@ -2387,6 +2394,10 @@
         let t = transactions[index];
         let type = t.amount < 0 ? 'Expense' : 'Income';
         if (t.category === 'Transfer' || (t.transfers && t.transfers.trim() !== '')) type = 'Transfer';
+        if (type === 'Transfer' && t.amount > 0) {   // editing the receiving leg: show the transfer from the sending side
+            const m = transferMirror(index);
+            if (m >= 0) { index = m; t = transactions[m]; }
+        }
 
         document.getElementById('tx-edit-index').value = index;
         document.getElementById('tx-type').value = type;
@@ -2400,8 +2411,12 @@
 
         setupTxModalDropdowns(cleanGarbageText(t.account), cleanGarbageText(t.currency || defaultCurrency), type);
         if (type !== 'Transfer') document.getElementById('tx-category').value = cleanGarbageText(t.category);
-        if (type === 'Transfer') document.getElementById('tx-transfers-select').value = cleanGarbageText(t.transfers);
-        const grp = type === 'Transfer' ? [index] : splitSiblings(index);
+        if (type === 'Transfer') {
+            const sel = document.getElementById('tx-transfers-select'), tv = cleanGarbageText(t.transfers);
+            if (tv && ![...sel.options].some(o => o.value === tv)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(tv)}">${esc(tv)}</option>`);
+            sel.value = tv;
+        }
+        const grp = splitSiblings(index);
         document.getElementById('tx-edit-group').value = JSON.stringify(grp);
         toggleSplit(false);
         document.getElementById('split-toggle').style.display = type === 'Transfer' ? 'none' : '';
@@ -2469,7 +2484,7 @@
         curSelect.value = cleanGarbageText(preSelectCur || defaultCurrency);
 
         let trfSelect = document.getElementById('tx-transfers-select');
-        trfSelect.innerHTML = allSubs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+        trfSelect.innerHTML = '<option value="">Select account…</option>' + allSubs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
 
         if (type === 'Transfer') {
             document.getElementById('group-category').style.display = 'none';
@@ -2578,10 +2593,19 @@
     function readSplitParts(k) {
         return [...document.querySelectorAll('#' + SPLIT[k].rows + ' .split-row')].map(r => ({ cat: cleanGarbageText(r.querySelector('select').value), amt: Math.round(parseFloat(r.querySelector('input').value) * 100) / 100 }));
     }
+    // a transfer is two rows: out of one account (-) and into the other (+); find the other leg
+    function transferMirror(index) {
+        const t = transactions[index];
+        if (!t || !(t.transfers && String(t.transfers).trim())) return -1;
+        const a = cleanGarbageText(t.account || ''), b = cleanGarbageText(t.transfers || ''), tm = cleanTimeString(t.time || '');
+        return transactions.findIndex((x, i) => i !== index && cleanGarbageText(x.account || '') === b && cleanGarbageText(x.transfers || '') === a
+            && x.date === t.date && cleanTimeString(x.time || '') === tm && Math.abs((parseFloat(x.amount) || 0) + (parseFloat(t.amount) || 0)) < 0.005);
+    }
     // rows that belong to the same split (same moment, account, text and direction)
     function splitSiblings(index) {
         const t = transactions[index], sig = x => [x.date, cleanTimeString(x.time || ''), cleanGarbageText(x.account || ''), cleanGarbageText(x.description || ''), cleanGarbageText(x.payee || ''), x.currency, x.amount < 0].join('|');
-        if (t.transfers && String(t.transfers).trim() || t.category === 'Transfer' || isBalanceAdj(t)) return [index];
+        if (t.transfers && String(t.transfers).trim()) { const m = transferMirror(index); return m >= 0 ? [index, m] : [index]; }
+        if (t.category === 'Transfer' || isBalanceAdj(t)) return [index];
         const key = sig(t), out = [];
         transactions.forEach((x, i) => { if (!(x.transfers && String(x.transfers).trim()) && x.category !== 'Transfer' && sig(x) === key) out.push(i); });
         return out.length ? out : [index];
@@ -2605,7 +2629,8 @@
 
         if (isNaN(rawAmt) || rawAmt <= 0 || !datePart) return alert('Please enter valid amount and datetime');
 
-        let sign = (type === 'Expense') ? -1 : 1;
+        let sign = (type === 'Income') ? 1 : -1;   // Expense and the sending side of a Transfer are negative
+        if (type === 'Transfer' && (!transfers || transfers === account)) return alert('Choose a different account to transfer to');
         let amount = sign * Math.abs(rawAmt);
         let base = { date: datePart, time: timePart ? timePart + ':00' : '00:00:00', account, description, payee, transfers, currency, memo };
         const oldIds = [];
@@ -2619,6 +2644,7 @@
             parts.forEach(x => txObjs.push(Object.assign({}, base, { category: x.cat, amount: sign * Math.round(x.amt * 100) / 100 })));
         } else {
             txObjs.push(Object.assign({}, base, { category, amount }));
+            if (type === 'Transfer') txObjs.push(Object.assign({}, base, { category, account: transfers, transfers: account, amount: Math.abs(rawAmt) }));   // receiving leg
         }
         txObjs.forEach(o => { o.id = genId(); });
 
@@ -2648,7 +2674,7 @@
             txObjs.forEach(o => queueOp({ op: 'add', tx: o }));
         }
 
-        alert(txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
+        alert(type !== 'Transfer' && txObjs.length > 1 ? `Transaction saved (${txObjs.length} categories)!` : 'Transaction saved successfully!');
     }
 
     function deleteTransaction(index) {
